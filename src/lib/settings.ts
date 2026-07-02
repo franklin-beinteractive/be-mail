@@ -5,12 +5,24 @@ import type { Lang } from "./i18n";
 
 export type Theme = "light" | "dark";
 
+/** Handtekening in platte tekst (past bij de eenvoudige editor). */
+export interface Signature {
+  id: string;
+  name: string;
+  text: string;
+}
+
 export interface UiSettings {
   theme: Theme;
   /** Schaalfactor voor tekst: 1 = normaal, tot 1.5 voor slechtzienden. */
   fontScale: number;
   highContrast: boolean;
   lang: Lang;
+  signatures: Signature[];
+  /** Standaard handtekening (id) bij een nieuw bericht; null = geen. */
+  signatureNewId: string | null;
+  /** Standaard handtekening (id) bij beantwoorden/doorsturen; null = geen. */
+  signatureReplyId: string | null;
 }
 
 const KEY = "BE-Mail.ui";
@@ -20,6 +32,9 @@ export const defaultSettings: UiSettings = {
   fontScale: 1,
   highContrast: false,
   lang: "nl",
+  signatures: [],
+  signatureNewId: null,
+  signatureReplyId: null,
 };
 
 export function loadSettings(): UiSettings {

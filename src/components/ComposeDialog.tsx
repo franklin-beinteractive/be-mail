@@ -29,6 +29,8 @@ export interface ComposeInitial {
   text?: string;
   /** Id van een bestaand concept; wijzigingen worden dan dáárin opgeslagen. */
   draftId?: string;
+  /** Bepaalt welke standaard-handtekening wordt ingevoegd. */
+  kind?: "new" | "reply" | "forward";
 }
 
 function escapeHtml(s: string): string {
@@ -57,12 +59,27 @@ export default function ComposeDialog({
   onClose: () => void;
   onSent: () => void;
 }) {
-  const { t, notify } = useApp();
+  const { t, notify, settings } = useApp();
+
+  // Standaard-handtekening: per soort bericht; niet bij een heropend concept
+  // (daar zit de handtekening al in de tekst).
+  const defaultSig = (() => {
+    if (initial.draftId) return null;
+    const id =
+      initial.kind === "reply" || initial.kind === "forward"
+        ? settings.signatureReplyId
+        : settings.signatureNewId;
+    return settings.signatures.find((s) => s.id === id) ?? null;
+  })();
+
   const [to, setTo] = useState(initial.to ?? "");
   const [cc, setCc] = useState(initial.cc ?? "");
   const [bcc, setBcc] = useState(initial.bcc ?? "");
   const [subject, setSubject] = useState(initial.subject ?? "");
-  const [text, setText] = useState(initial.text ?? "");
+  const [text, setText] = useState(
+    (initial.text ?? "") + (defaultSig ? `\n\n${defaultSig.text}` : "")
+  );
+  const [sigId, setSigId] = useState(defaultSig?.id ?? "");
   const [importance, setImportance] = useState("normal");
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [busy, setBusy] = useState(false);
@@ -152,6 +169,22 @@ export default function ComposeDialog({
       }
     }
     onClose();
+  }
+
+  /** Wisselt van handtekening: oude (indien ongewijzigd aan het eind) eruit, nieuwe erin. */
+  function switchSignature(newId: string) {
+    const oldSig = settings.signatures.find((s) => s.id === sigId);
+    const nextSig = settings.signatures.find((s) => s.id === newId);
+    setText((prev) => {
+      let base = prev;
+      if (oldSig) {
+        const block = `\n\n${oldSig.text}`;
+        if (base.endsWith(block)) base = base.slice(0, -block.length);
+        else if (base.trim() === oldSig.text.trim()) base = "";
+      }
+      return nextSig ? `${base}\n\n${nextSig.text}` : base;
+    });
+    setSigId(newId);
   }
 
   async function addFiles(list: FileList | null) {
@@ -279,6 +312,20 @@ export default function ComposeDialog({
           <button className="btn" onClick={() => fileInput.current?.click()}>
             <PaperclipIcon size={18} /> {t("attach")}
           </button>
+          {settings.signatures.length > 0 && (
+            <select
+              value={sigId}
+              onChange={(e) => switchSignature(e.target.value)}
+              title={t("signature")}
+            >
+              <option value="">{t("signature")}: {t("none").toLowerCase()}</option>
+              {settings.signatures.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {t("signature")}: {s.name}
+                </option>
+              ))}
+            </select>
+          )}
           <span className="spacer" />
           <button className="btn" onClick={closeAndSave}>
             {t("cancel")}

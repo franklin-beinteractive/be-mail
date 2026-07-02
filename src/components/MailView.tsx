@@ -255,6 +255,7 @@ export default function MailView({ account }: { account: Account | null }) {
       settings.lang
     )})</p>`;
     return {
+      kind: "reply" as const,
       to: [to, ...(all ? others : [])].join(", "),
       cc: cc.join(", "),
       subject: `RE: ${stripPrefix(m.subject ?? "")}`,
@@ -268,6 +269,7 @@ export default function MailView({ account }: { account: Account | null }) {
       settings.lang
     )})</p>`;
     return {
+      kind: "forward" as const,
       to: "",
       subject: `FW: ${stripPrefix(m.subject ?? "")}`,
       bodyHtml: header + (m.body?.content ?? ""),

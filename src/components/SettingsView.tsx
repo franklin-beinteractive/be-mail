@@ -1,6 +1,8 @@
-// Instellingen: weergave (thema, tekstgrootte, contrast, taal) + account.
+// Instellingen: weergave (thema, tekstgrootte, contrast, taal), handtekeningen + account.
 import { useApp } from "../lib/ctx";
+import type { Signature } from "../lib/settings";
 import type { Account } from "../lib/types";
+import { PlusIcon, TrashIcon } from "./Icons";
 
 export default function SettingsView({
   account,
@@ -12,6 +14,32 @@ export default function SettingsView({
   onEditConnection: () => void;
 }) {
   const { t, settings, setSettings } = useApp();
+
+  function patchSignature(id: string, patch: Partial<Signature>) {
+    setSettings({
+      signatures: settings.signatures.map((s) =>
+        s.id === id ? { ...s, ...patch } : s
+      ),
+    });
+  }
+
+  function addSignature() {
+    const sig: Signature = {
+      id: crypto.randomUUID(),
+      name: `${t("signature")} ${settings.signatures.length + 1}`,
+      text: "",
+    };
+    setSettings({ signatures: [...settings.signatures, sig] });
+  }
+
+  function removeSignature(id: string) {
+    setSettings({
+      signatures: settings.signatures.filter((s) => s.id !== id),
+      // Verwijzingen naar een verwijderde handtekening opruimen.
+      signatureNewId: settings.signatureNewId === id ? null : settings.signatureNewId,
+      signatureReplyId: settings.signatureReplyId === id ? null : settings.signatureReplyId,
+    });
+  }
 
   return (
     <div className="settings">
@@ -89,6 +117,75 @@ export default function SettingsView({
             </button>
           </div>
         </div>
+      </section>
+
+      <section className="settings-block">
+        <h2>{t("signatures")}</h2>
+
+        {settings.signatures.map((sig) => (
+          <div key={sig.id} className="sig-item">
+            <div className="sig-head">
+              <label className="sig-name">
+                <span className="muted small">{t("sigName")}</span>
+                <input
+                  value={sig.name}
+                  onChange={(e) => patchSignature(sig.id, { name: e.target.value })}
+                />
+              </label>
+              <button
+                className="icon-btn"
+                onClick={() => removeSignature(sig.id)}
+                aria-label={t("delete")}
+                title={t("delete")}
+              >
+                <TrashIcon size={18} />
+              </button>
+            </div>
+            <textarea
+              rows={4}
+              value={sig.text}
+              onChange={(e) => patchSignature(sig.id, { text: e.target.value })}
+              placeholder="Met vriendelijke groet,&#10;…"
+            />
+          </div>
+        ))}
+
+        <button className="btn" onClick={addSignature}>
+          <PlusIcon size={18} /> {t("addSignature")}
+        </button>
+
+        {settings.signatures.length > 0 && (
+          <>
+            <div className="setting-row">
+              <span>{t("sigForNew")}</span>
+              <select
+                value={settings.signatureNewId ?? ""}
+                onChange={(e) => setSettings({ signatureNewId: e.target.value || null })}
+              >
+                <option value="">{t("none")}</option>
+                {settings.signatures.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="setting-row">
+              <span>{t("sigForReply")}</span>
+              <select
+                value={settings.signatureReplyId ?? ""}
+                onChange={(e) => setSettings({ signatureReplyId: e.target.value || null })}
+              >
+                <option value="">{t("none")}</option>
+                {settings.signatures.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
       </section>
 
       <section className="settings-block">

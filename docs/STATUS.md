@@ -20,6 +20,9 @@
   sluiten, concept openen vanuit Concepten-map (→ opstelvenster), verzenden
   van een concept zonder duplicaat. Let op: opmaak wordt platte tekst bij
   heropenen (simpele editor); bijlagen gaan pas mee bij verzenden.
+- **Handtekeningen**: meerdere beheren in Instellingen; aparte standaard voor
+  nieuw bericht en beantwoorden/doorsturen; wisselen in het opstelvenster.
+  Opslag lokaal (localStorage), platte tekst.
 - **Agenda**: maand/week/lijst, vandaag + navigatie, afspraak
   maken/**bewerken**/verwijderen, hele dag, locatie, herinnering, genodigden.
 - **Overig**: donkere modus, tekstgrootte, hoog contrast, NL/EN,
@@ -29,8 +32,8 @@
 
 1. ~~Bijlagen (lezen + downloaden + meesturen)~~ ✅
 2. ~~Concepten automatisch opslaan~~ ✅
-3. **Handtekening(en)** ← volgende
-4. Mappenbeheer (aanmaken/hernoemen/verwijderen) + bulkacties
+3. ~~Handtekening(en)~~ ✅
+4. **Mappenbeheer (aanmaken/hernoemen/verwijderen) + bulkacties** ← volgende
 5. RSVP (uitnodiging accepteren/afwijzen) + terugkerende afspraken
 
 Daarna (achterhoede, nog niet gepland): rich-text editor, dag-/werkweekweergave,
