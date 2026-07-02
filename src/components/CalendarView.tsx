@@ -7,7 +7,7 @@ import { timeOnly } from "../lib/format";
 import EventDialog from "./EventDialog";
 import { ChevronLeft, ChevronRight, CloseIcon, EditIcon, PlusIcon, TrashIcon } from "./Icons";
 
-type ViewMode = "month" | "week" | "list";
+type ViewMode = "month" | "week" | "workweek" | "day" | "list";
 
 function ymd(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -45,6 +45,15 @@ export default function CalendarView() {
       const s = startOfWeek(anchor);
       return { start: s, end: addDays(s, 7) };
     }
+    if (mode === "workweek") {
+      const s = startOfWeek(anchor);
+      return { start: s, end: addDays(s, 5) };
+    }
+    if (mode === "day") {
+      const s = new Date(anchor);
+      s.setHours(0, 0, 0, 0);
+      return { start: s, end: addDays(s, 1) };
+    }
     if (mode === "list") {
       const s = new Date(anchor);
       s.setHours(0, 0, 0, 0);
@@ -78,7 +87,8 @@ export default function CalendarView() {
   function move(dir: number) {
     const d = new Date(anchor);
     if (mode === "month") d.setMonth(d.getMonth() + dir);
-    else if (mode === "week") d.setDate(d.getDate() + 7 * dir);
+    else if (mode === "week" || mode === "workweek") d.setDate(d.getDate() + 7 * dir);
+    else if (mode === "day") d.setDate(d.getDate() + dir);
     else d.setDate(d.getDate() + 30 * dir);
     setAnchor(d);
   }
@@ -107,14 +117,20 @@ export default function CalendarView() {
   const title =
     mode === "month"
       ? anchor.toLocaleDateString(locale, { month: "long", year: "numeric" })
-      : mode === "week"
+      : mode === "week" || mode === "workweek"
       ? `${startOfWeek(anchor).toLocaleDateString(locale, {
           day: "numeric",
           month: "short",
-        })} – ${addDays(startOfWeek(anchor), 6).toLocaleDateString(locale, {
+        })} – ${addDays(startOfWeek(anchor), mode === "workweek" ? 4 : 6).toLocaleDateString(locale, {
           day: "numeric",
           month: "short",
         })}`
+      : mode === "day"
+      ? anchor.toLocaleDateString(locale, {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+        })
       : t("agenda");
 
   const today = ymd(new Date());
@@ -141,13 +157,23 @@ export default function CalendarView() {
         <h2 className="cal-title">{title}</h2>
         <span className="spacer" />
         <div className="seg">
-          {(["month", "week", "list"] as ViewMode[]).map((m) => (
+          {(["day", "workweek", "week", "month", "list"] as ViewMode[]).map((m) => (
             <button
               key={m}
               className={"seg-btn" + (mode === m ? " active" : "")}
               onClick={() => setMode(m)}
             >
-              {t(m === "month" ? "month" : m === "week" ? "week" : "agenda")}
+              {t(
+                m === "day"
+                  ? "day"
+                  : m === "workweek"
+                  ? "workweek"
+                  : m === "week"
+                  ? "week"
+                  : m === "month"
+                  ? "month"
+                  : "agenda"
+              )}
             </button>
           ))}
         </div>
@@ -189,31 +215,40 @@ export default function CalendarView() {
         </div>
       )}
 
-      {mode === "week" && (
-        <div className="week-grid">
-          {Array.from({ length: 7 }).map((_, i) => {
-            const d = addDays(range.start, i);
-            const key = ymd(d);
-            const dayEvents = byDay.get(key) ?? [];
-            return (
-              <div key={key} className={"week-col" + (key === today ? " today" : "")}>
-                <div className="week-head" onDoubleClick={() => setCreating(key)}>
-                  <span className="dow">{weekdayNames[i]}</span>
-                  <span className="week-num">{d.getDate()}</span>
+      {(mode === "week" || mode === "workweek" || mode === "day") && (
+        <div
+          className="week-grid"
+          style={{
+            gridTemplateColumns: `repeat(${
+              mode === "week" ? 7 : mode === "workweek" ? 5 : 1
+            }, 1fr)`,
+          }}
+        >
+          {Array.from({ length: mode === "week" ? 7 : mode === "workweek" ? 5 : 1 }).map(
+            (_, i) => {
+              const d = addDays(range.start, i);
+              const key = ymd(d);
+              const dayEvents = byDay.get(key) ?? [];
+              return (
+                <div key={key} className={"week-col" + (key === today ? " today" : "")}>
+                  <div className="week-head" onDoubleClick={() => setCreating(key)}>
+                    <span className="dow">{weekdayNames[(d.getDay() + 6) % 7]}</span>
+                    <span className="week-num">{d.getDate()}</span>
+                  </div>
+                  <div className="week-events">
+                    {dayEvents.map((e) => (
+                      <button key={e.id} className="chip block" onClick={() => setDetail(e)}>
+                        {!e.isAllDay && (
+                          <span className="chip-time">{timeOnly(e.start.dateTime)}</span>
+                        )}{" "}
+                        {e.subject || "(—)"}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="week-events">
-                  {dayEvents.map((e) => (
-                    <button key={e.id} className="chip block" onClick={() => setDetail(e)}>
-                      {!e.isAllDay && (
-                        <span className="chip-time">{timeOnly(e.start.dateTime)}</span>
-                      )}{" "}
-                      {e.subject || "(—)"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+              );
+            }
+          )}
         </div>
       )}
 
