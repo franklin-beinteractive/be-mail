@@ -28,8 +28,10 @@ pub fn run() {
             commands::delete_message,
             commands::move_message,
             commands::send_message,
+            commands::search_messages,
             commands::list_events,
             commands::create_event,
+            commands::update_event,
             commands::delete_event,
         ])
         .run(tauri::generate_context!())

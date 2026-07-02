@@ -1,31 +1,39 @@
-// Nieuwe afspraak aanmaken.
+// Afspraak aanmaken of bewerken.
 import { useState } from "react";
 import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
+import type { CalendarEvent } from "../lib/types";
 import { CloseIcon } from "./Icons";
 
 export default function EventDialog({
   defaultDate,
+  event,
   onClose,
-  onCreated,
+  onSaved,
 }: {
   defaultDate: string; // "YYYY-MM-DD"
+  event?: CalendarEvent | null; // indien gezet: bewerkmodus
   onClose: () => void;
-  onCreated: () => void;
+  onSaved: () => void;
 }) {
   const { t, notify } = useApp();
-  const [subject, setSubject] = useState("");
-  const [date, setDate] = useState(defaultDate);
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("10:00");
-  const [allDay, setAllDay] = useState(false);
-  const [location, setLocation] = useState("");
+  const editing = !!event;
+  const [subject, setSubject] = useState(event?.subject ?? "");
+  const [date, setDate] = useState(event ? event.start.dateTime.slice(0, 10) : defaultDate);
+  const [startTime, setStartTime] = useState(
+    event && !event.isAllDay ? event.start.dateTime.slice(11, 16) : "09:00"
+  );
+  const [endTime, setEndTime] = useState(
+    event && !event.isAllDay ? event.end.dateTime.slice(11, 16) : "10:00"
+  );
+  const [allDay, setAllDay] = useState(event?.isAllDay ?? false);
+  const [location, setLocation] = useState(event?.location?.displayName ?? "");
   const [attendees, setAttendees] = useState("");
   const [reminder, setReminder] = useState("15");
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState(event?.bodyPreview ?? "");
   const [busy, setBusy] = useState(false);
 
-  async function create() {
+  async function save() {
     if (!subject.trim()) {
       notify(t("eventTitle") + "?", "error");
       return;
@@ -33,22 +41,30 @@ export default function EventDialog({
     setBusy(true);
     const start = allDay ? `${date}T00:00:00` : `${date}T${startTime}:00`;
     const end = allDay ? `${nextDay(date)}T00:00:00` : `${date}T${endTime}:00`;
+    const input = {
+      subject: subject.trim(),
+      start,
+      end,
+      isAllDay: allDay,
+      location: location.trim() || undefined,
+      body: body.trim() || undefined,
+      // Genodigden alleen bij aanmaken; bij bewerken laten we ze ongemoeid.
+      attendees: editing
+        ? []
+        : attendees
+            .split(/[,;]/)
+            .map((s) => s.trim())
+            .filter(Boolean),
+      reminderMinutes: reminder ? parseInt(reminder, 10) : null,
+    };
     try {
-      await api.createEvent({
-        subject: subject.trim(),
-        start,
-        end,
-        isAllDay: allDay,
-        location: location.trim() || undefined,
-        body: body.trim() || undefined,
-        attendees: attendees
-          .split(/[,;]/)
-          .map((s) => s.trim())
-          .filter(Boolean),
-        reminderMinutes: reminder ? parseInt(reminder, 10) : null,
-      });
+      if (editing) {
+        await api.updateEvent(event!.id, input);
+      } else {
+        await api.createEvent(input);
+      }
       notify(t("save") + " ✓", "info");
-      onCreated();
+      onSaved();
     } catch (e) {
       notify(String(e), "error");
     } finally {
@@ -60,7 +76,7 @@ export default function EventDialog({
     <div className="overlay" role="dialog" aria-modal="true">
       <div className="dialog">
         <header className="dialog-head">
-          <h2>{t("newEvent")}</h2>
+          <h2>{editing ? t("editEvent") : t("newEvent")}</h2>
           <button className="icon-btn" onClick={onClose} aria-label={t("cancel")}>
             <CloseIcon />
           </button>
@@ -97,10 +113,12 @@ export default function EventDialog({
             <span>{t("location")}</span>
             <input value={location} onChange={(e) => setLocation(e.target.value)} />
           </label>
-          <label className="row">
-            <span>{t("attendees")}</span>
-            <input value={attendees} onChange={(e) => setAttendees(e.target.value)} />
-          </label>
+          {!editing && (
+            <label className="row">
+              <span>{t("attendees")}</span>
+              <input value={attendees} onChange={(e) => setAttendees(e.target.value)} />
+            </label>
+          )}
           <label className="row">
             <span>{t("reminder")}</span>
             <input
@@ -122,7 +140,7 @@ export default function EventDialog({
           <button className="btn" onClick={onClose}>
             {t("cancel")}
           </button>
-          <button className="btn primary" onClick={create} disabled={busy}>
+          <button className="btn primary" onClick={save} disabled={busy}>
             {t("save")}
           </button>
         </footer>

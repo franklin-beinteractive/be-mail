@@ -86,6 +86,12 @@ export const ArchiveIcon = (p: Props) => (
     <path d="M5 8v12h14V8M10 12h4" />
   </Svg>
 );
+export const EditIcon = (p: Props) => (
+  <Svg {...p}>
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+  </Svg>
+);
 export const SearchIcon = (p: Props) => (
   <Svg {...p}>
     <circle cx="11" cy="11" r="7" />

@@ -13,6 +13,7 @@ import {
 } from "../lib/format";
 import ComposeDialog, { type ComposeInitial } from "./ComposeDialog";
 import {
+  ArchiveIcon,
   ComposeIcon,
   FlagIcon,
   ForwardIcon,
@@ -35,6 +36,8 @@ export default function MailView({ account }: { account: Account | null }) {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  // Server-side zoekresultaten (hele mailbox). null = geen zoekopdracht actief.
+  const [searchResult, setSearchResult] = useState<Message[] | null>(null);
   const [allowImages, setAllowImages] = useState(false);
   const [compose, setCompose] = useState<ComposeInitial | null>(null);
 
@@ -61,6 +64,29 @@ export default function MailView({ account }: { account: Account | null }) {
     loadPage(0, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folderId]);
+
+  // Server-side zoeken door de héle mailbox, met korte debounce zodat we niet
+  // bij elke toetsaanslag een call doen. Leeg zoekvak → terug naar de mapweergave.
+  useEffect(() => {
+    const q = search.trim();
+    if (!q) {
+      setSearchResult(null);
+      return;
+    }
+    const handle = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const page = await api.searchMessages(q, 50);
+        setSearchResult(page.messages);
+      } catch (e) {
+        notify(String(e), "error");
+      } finally {
+        setLoading(false);
+      }
+    }, 400);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   async function loadPage(from: number, replace: boolean) {
     if (!folderId) return;
@@ -94,7 +120,18 @@ export default function MailView({ account }: { account: Account | null }) {
 
   function patch(id: string, p: Partial<Message>) {
     setMessages((prev) => prev.map((x) => (x.id === id ? { ...x, ...p } : x)));
+    setSearchResult((prev) =>
+      prev ? prev.map((x) => (x.id === id ? { ...x, ...p } : x)) : prev
+    );
     setSelected((s) => (s && s.id === id ? { ...s, ...p } : s));
+  }
+
+  // Haalt een bericht uit beide lijsten (map- én zoekresultaat) na verwijderen,
+  // archiveren of verplaatsen.
+  function dropFromLists(id: string) {
+    setMessages((prev) => prev.filter((x) => x.id !== id));
+    setSearchResult((prev) => (prev ? prev.filter((x) => x.id !== id) : prev));
+    if (selected?.id === id) setSelected(null);
   }
 
   function refreshFolderUnread(delta: number) {
@@ -132,8 +169,16 @@ export default function MailView({ account }: { account: Account | null }) {
     if (!confirm(t("confirmDelete"))) return;
     try {
       await api.deleteMessage(m.id);
-      setMessages((prev) => prev.filter((x) => x.id !== m.id));
-      if (selected?.id === m.id) setSelected(null);
+      dropFromLists(m.id);
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  async function archive(m: Message) {
+    try {
+      await api.archiveMessage(m.id);
+      dropFromLists(m.id);
     } catch (e) {
       notify(String(e), "error");
     }
@@ -143,8 +188,7 @@ export default function MailView({ account }: { account: Account | null }) {
     if (!dest) return;
     try {
       await api.moveMessage(m.id, dest);
-      setMessages((prev) => prev.filter((x) => x.id !== m.id));
-      if (selected?.id === m.id) setSelected(null);
+      dropFromLists(m.id);
     } catch (e) {
       notify(String(e), "error");
     }
@@ -184,16 +228,8 @@ export default function MailView({ account }: { account: Account | null }) {
     };
   }
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return messages;
-    return messages.filter(
-      (m) =>
-        (m.subject ?? "").toLowerCase().includes(q) ||
-        senderName(m.from?.emailAddress).toLowerCase().includes(q) ||
-        (m.bodyPreview ?? "").toLowerCase().includes(q)
-    );
-  }, [messages, search]);
+  // Toon zoekresultaten (hele mailbox) als er gezocht wordt, anders de mapinhoud.
+  const shown = searchResult ?? messages;
 
   const bodyHtml = useMemo(() => {
     if (!selected?.body) return "";
@@ -251,10 +287,10 @@ export default function MailView({ account }: { account: Account | null }) {
           />
         </div>
         <div className="list-scroll">
-          {filtered.length === 0 && !loading && (
+          {shown.length === 0 && !loading && (
             <p className="empty">{t("noMessages")}</p>
           )}
-          {filtered.map((m) => (
+          {shown.map((m) => (
             <button
               key={m.id}
               className={
@@ -278,7 +314,7 @@ export default function MailView({ account }: { account: Account | null }) {
             </button>
           ))}
           {loading && <p className="empty">{t("loading")}</p>}
-          {hasMore && !loading && (
+          {!searchResult && hasMore && !loading && (
             <button className="btn ghost load-more" onClick={() => loadPage(skip, false)}>
               {t("loadMore")}
             </button>
@@ -308,6 +344,9 @@ export default function MailView({ account }: { account: Account | null }) {
               </button>
               <button className="btn" onClick={() => toggleRead(selected)}>
                 {selected.isRead ? t("markUnread") : t("markRead")}
+              </button>
+              <button className="btn" onClick={() => archive(selected)} title={t("archive")}>
+                <ArchiveIcon size={18} />
               </button>
               <select
                 className="move-select"

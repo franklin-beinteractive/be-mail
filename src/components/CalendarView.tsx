@@ -5,7 +5,7 @@ import { useApp } from "../lib/ctx";
 import type { CalendarEvent } from "../lib/types";
 import { timeOnly } from "../lib/format";
 import EventDialog from "./EventDialog";
-import { ChevronLeft, ChevronRight, CloseIcon, PlusIcon, TrashIcon } from "./Icons";
+import { ChevronLeft, ChevronRight, CloseIcon, EditIcon, PlusIcon, TrashIcon } from "./Icons";
 
 type ViewMode = "month" | "week" | "list";
 
@@ -36,6 +36,7 @@ export default function CalendarView() {
   const [anchor, setAnchor] = useState(() => new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [creating, setCreating] = useState<string | null>(null);
+  const [editing, setEditing] = useState<CalendarEvent | null>(null);
   const [detail, setDetail] = useState<CalendarEvent | null>(null);
   const locale = settings.lang === "nl" ? "nl-NL" : "en-GB";
 
@@ -99,6 +100,8 @@ export default function CalendarView() {
       .then(setEvents)
       .catch((e) => notify(String(e), "error"));
     setCreating(null);
+    setEditing(null);
+    setDetail(null);
   }
 
   const title =
@@ -244,7 +247,16 @@ export default function CalendarView() {
         <EventDialog
           defaultDate={creating}
           onClose={() => setCreating(null)}
-          onCreated={reload}
+          onSaved={reload}
+        />
+      )}
+
+      {editing && (
+        <EventDialog
+          defaultDate={editing.start.dateTime.slice(0, 10)}
+          event={editing}
+          onClose={() => setEditing(null)}
+          onSaved={reload}
         />
       )}
 
@@ -278,6 +290,15 @@ export default function CalendarView() {
             <footer className="dialog-foot">
               <button className="btn danger" onClick={() => removeEvent(detail)}>
                 <TrashIcon size={18} /> {t("delete")}
+              </button>
+              <button
+                className="btn primary"
+                onClick={() => {
+                  setEditing(detail);
+                  setDetail(null);
+                }}
+              >
+                <EditIcon size={18} /> {t("edit")}
               </button>
             </footer>
           </div>

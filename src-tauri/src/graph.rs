@@ -101,6 +101,31 @@ impl GraphClient {
         self.get_json(&url).await
     }
 
+    /// Doorzoekt de héle mailbox (alle mappen) via Graph `$search`.
+    /// Let op: `$search` mag niet met `$orderby` gecombineerd worden — Graph
+    /// sorteert zelf op relevantie.
+    pub async fn search_messages(&self, query: &str, top: u32) -> Result<MessagesPage> {
+        // Dubbele quotes in de zoekterm breken de `$search="…"`-syntax; strip ze.
+        let search = format!("\"{}\"", query.replace('"', " "));
+        let top = top.to_string();
+        let resp = self
+            .http
+            .get(format!("{BASE}/me/messages"))
+            .bearer_auth(&self.token)
+            .query(&[
+                ("$search", search.as_str()),
+                ("$select", MSG_SELECT),
+                ("$top", top.as_str()),
+            ])
+            .send()
+            .await?;
+        let list: GraphList<Message> = self.parse(resp).await?;
+        Ok(MessagesPage {
+            has_more: list.next_link.is_some(),
+            messages: list.value,
+        })
+    }
+
     pub async fn set_read(&self, id: &str, is_read: bool) -> Result<()> {
         let resp = self
             .http
@@ -197,7 +222,8 @@ impl GraphClient {
         Ok(list.value)
     }
 
-    pub async fn create_event(&self, input: &EventInput) -> Result<Event> {
+    /// Bouwt de Graph-JSON voor een afspraak; gedeeld door aanmaken en bewerken.
+    fn event_body(input: &EventInput) -> serde_json::Value {
         let tz = input.time_zone.clone().unwrap_or_else(|| DEFAULT_TZ.to_string());
         let attendees: Vec<_> = input
             .attendees
@@ -212,21 +238,41 @@ impl GraphClient {
             "start": { "dateTime": input.start, "timeZone": tz },
             "end": { "dateTime": input.end, "timeZone": tz },
             "body": { "contentType": "HTML", "content": input.body.clone().unwrap_or_default() },
-            "attendees": attendees,
         });
-        if let Some(loc) = &input.location {
-            body["location"] = json!({ "displayName": loc });
+        // Bij een PATCH vervangt een lege attendees-lijst álle genodigden; laat het
+        // veld dan weg zodat bestaande genodigden intact blijven.
+        if !attendees.is_empty() {
+            body["attendees"] = json!(attendees);
         }
-        if let Some(min) = input.reminder_minutes {
-            body["isReminderOn"] = json!(true);
-            body["reminderMinutesBeforeStart"] = json!(min);
+        // Locatie altijd meesturen: een lege waarde wist een eerdere locatie bewust.
+        body["location"] = json!({ "displayName": input.location.clone().unwrap_or_default() });
+        match input.reminder_minutes {
+            Some(min) => {
+                body["isReminderOn"] = json!(true);
+                body["reminderMinutesBeforeStart"] = json!(min);
+            }
+            None => body["isReminderOn"] = json!(false),
         }
+        body
+    }
 
+    pub async fn create_event(&self, input: &EventInput) -> Result<Event> {
         let resp = self
             .http
             .post(format!("{BASE}/me/events"))
             .bearer_auth(&self.token)
-            .json(&body)
+            .json(&Self::event_body(input))
+            .send()
+            .await?;
+        self.parse(resp).await
+    }
+
+    pub async fn update_event(&self, id: &str, input: &EventInput) -> Result<Event> {
+        let resp = self
+            .http
+            .patch(format!("{BASE}/me/events/{id}"))
+            .bearer_auth(&self.token)
+            .json(&Self::event_body(input))
             .send()
             .await?;
         self.parse(resp).await

@@ -118,6 +118,15 @@ pub async fn send_message(input: ComposeInput) -> Result<(), String> {
     client().await?.send_mail(&input).await.map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn search_messages(query: String, top: Option<u32>) -> Result<MessagesPage, String> {
+    client()
+        .await?
+        .search_messages(&query, top.unwrap_or(50))
+        .await
+        .map_err(|e| e.to_string())
+}
+
 // ---- Agenda ----
 
 #[tauri::command]
@@ -132,6 +141,11 @@ pub async fn list_events(start: String, end: String) -> Result<Vec<Event>, Strin
 #[tauri::command]
 pub async fn create_event(input: EventInput) -> Result<Event, String> {
     client().await?.create_event(&input).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn update_event(id: String, input: EventInput) -> Result<Event, String> {
+    client().await?.update_event(&id, &input).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]

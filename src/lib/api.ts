@@ -37,13 +37,20 @@ export const api = {
   deleteMessage: (id: string) => invoke<void>("delete_message", { id }),
   moveMessage: (id: string, destinationId: string) =>
     invoke<void>("move_message", { id, destinationId }),
+  // Archiveren = verplaatsen naar de bekende map "archive" (well-known folder).
+  archiveMessage: (id: string) =>
+    invoke<void>("move_message", { id, destinationId: "archive" }),
   sendMessage: (input: ComposeInput) =>
     invoke<void>("send_message", { input }),
+  searchMessages: (query: string, top = 50) =>
+    invoke<MessagesPage>("search_messages", { query, top }),
 
   // Agenda
   listEvents: (start: string, end: string) =>
     invoke<CalendarEvent[]>("list_events", { start, end }),
   createEvent: (input: EventInput) =>
     invoke<CalendarEvent>("create_event", { input }),
+  updateEvent: (id: string, input: EventInput) =>
+    invoke<CalendarEvent>("update_event", { id, input }),
   deleteEvent: (id: string) => invoke<void>("delete_event", { id }),
 };
