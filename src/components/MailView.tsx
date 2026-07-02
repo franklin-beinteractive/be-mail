@@ -490,9 +490,9 @@ export default function MailView({ account }: { account: Account | null }) {
     <div className="mail">
       {/* Kolom 1: mappen */}
       <aside className="folders">
-        <button className="btn primary compose-btn" onClick={() => setCompose({})}>
-          <ComposeIcon size={18} /> {t("compose")}
-        </button>
+        <div className="account-label" title={account?.mail ?? account?.userPrincipalName ?? ""}>
+          {account?.mail ?? account?.userPrincipalName ?? ""}
+        </div>
         <div className="folders-head">
           <span className="muted small">{t("folders")}</span>
           <button
@@ -650,11 +650,12 @@ export default function MailView({ account }: { account: Account | null }) {
 
       {/* Kolom 3: leesvenster */}
       <section className="reader">
-        {!selected ? (
-          <div className="reader-empty">{t("selectMessage")}</div>
-        ) : (
-          <>
-            <div className="reader-actions">
+        <div className="reader-actions">
+          <button className="btn primary" onClick={() => setCompose({})}>
+            <ComposeIcon size={18} /> {t("compose")}
+          </button>
+          {selected && (
+            <>
               <button className="btn" onClick={() => setCompose(buildReply(selected, false))}>
                 <ReplyIcon size={18} /> {t("reply")}
               </button>
@@ -711,7 +712,13 @@ export default function MailView({ account }: { account: Account | null }) {
               <button className="btn danger" onClick={() => remove(selected)} title={t("delete")}>
                 <TrashIcon size={18} />
               </button>
-            </div>
+            </>
+          )}
+        </div>
+        {!selected ? (
+          <div className="reader-empty">{t("selectMessage")}</div>
+        ) : (
+          <>
             <div className="reader-head">
               <h2>{selected.subject || "(geen onderwerp)"}</h2>
               <div className="reader-meta">

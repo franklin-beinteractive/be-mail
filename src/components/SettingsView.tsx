@@ -1,4 +1,7 @@
-// Instellingen: weergave (thema, tekstgrootte, contrast, taal), handtekeningen + account.
+// Instellingen: weergave (thema, tekstgrootte, contrast, taal), gedrag,
+// handtekeningen + account.
+import { useEffect, useState } from "react";
+import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
 import type { Signature } from "../lib/settings";
 import type { Account } from "../lib/types";
@@ -13,7 +16,26 @@ export default function SettingsView({
   onLogout: () => void;
   onEditConnection: () => void;
 }) {
-  const { t, settings, setSettings } = useApp();
+  const { t, settings, setSettings, notify } = useApp();
+  // Notificatie-instelling leeft in config.json (de Rust-poller leest die).
+  const [notifEnabled, setNotifEnabled] = useState(true);
+
+  useEffect(() => {
+    api
+      .getConfig()
+      .then((cfg) => setNotifEnabled(cfg?.notificationsEnabled ?? true))
+      .catch(() => {});
+  }, []);
+
+  async function toggleNotifications(on: boolean) {
+    setNotifEnabled(on);
+    try {
+      await api.setNotificationsEnabled(on);
+    } catch (e) {
+      notify(String(e), "error");
+      setNotifEnabled(!on);
+    }
+  }
 
   function patchSignature(id: string, patch: Partial<Signature>) {
     setSettings({
@@ -116,6 +138,33 @@ export default function SettingsView({
               English
             </button>
           </div>
+        </div>
+      </section>
+
+      <section className="settings-block">
+        <h2>{t("behavior")}</h2>
+        <div className="setting-row">
+          <span>{t("sendDelay")}</span>
+          <input
+            type="number"
+            min="0"
+            max="60"
+            style={{ width: 80 }}
+            value={settings.sendDelaySeconds}
+            onChange={(e) =>
+              setSettings({
+                sendDelaySeconds: Math.max(0, parseInt(e.target.value, 10) || 0),
+              })
+            }
+          />
+        </div>
+        <div className="setting-row">
+          <span>{t("notifications")}</span>
+          <input
+            type="checkbox"
+            checked={notifEnabled}
+            onChange={(e) => toggleNotifications(e.target.checked)}
+          />
         </div>
       </section>
 

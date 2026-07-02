@@ -23,6 +23,8 @@ export interface UiSettings {
   signatureNewId: string | null;
   /** Standaard handtekening (id) bij beantwoorden/doorsturen; null = geen. */
   signatureReplyId: string | null;
+  /** Bedenktijd (undo send) in seconden; 0 = direct verzenden. */
+  sendDelaySeconds: number;
 }
 
 const KEY = "BE-Mail.ui";
@@ -35,6 +37,7 @@ export const defaultSettings: UiSettings = {
   signatures: [],
   signatureNewId: null,
   signatureReplyId: null,
+  sendDelaySeconds: 5,
 };
 
 export function loadSettings(): UiSettings {

@@ -3,6 +3,7 @@
 export interface AppConfig {
   clientId: string;
   tenantId: string;
+  notificationsEnabled?: boolean;
 }
 
 export interface Account {

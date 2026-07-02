@@ -19,6 +19,8 @@ export const api = {
   getConfig: () => invoke<AppConfig | null>("get_config"),
   saveConfig: (clientId: string, tenantId: string) =>
     invoke<void>("save_config", { clientId, tenantId }),
+  setNotificationsEnabled: (enabled: boolean) =>
+    invoke<void>("set_notifications_enabled", { enabled }),
 
   // Authenticatie
   authStatus: () => invoke<boolean>("auth_status"),

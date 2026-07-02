@@ -12,8 +12,6 @@ import { ClockIcon, CloseIcon, PaperclipIcon, SendIcon } from "./Icons";
 const MAX_ATTACH_BYTES = 3 * 1024 * 1024;
 // Autosave-vertraging na de laatste wijziging.
 const AUTOSAVE_MS = 3000;
-// Bedenktijd (undo send) in seconden.
-const UNDO_SECONDS = 5;
 
 interface PendingAttachment {
   name: string;
@@ -293,10 +291,15 @@ export default function ComposeDialog({
     return true;
   }
 
-  /** Start de aftelling; de echte verzending volgt na UNDO_SECONDS. */
+  /** Start de aftelling (instelbaar in Instellingen); 0 = direct verzenden. */
   function startSend() {
     if (!validRecipients()) return;
-    setUndoLeft(UNDO_SECONDS);
+    const delay = Math.max(0, settings.sendDelaySeconds ?? 5);
+    if (delay === 0) {
+      void reallySend();
+    } else {
+      setUndoLeft(delay);
+    }
   }
 
   useEffect(() => {

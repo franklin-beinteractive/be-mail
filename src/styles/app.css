@@ -180,7 +180,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   overflow-y: auto;
   background: var(--bg-sunken);
 }
-.compose-btn { width: 100%; justify-content: center; margin-bottom: 12px; }
+.account-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 4px 4px 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .folders-head {
   display: flex;
   align-items: center;
@@ -617,6 +625,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 
 /* ---------- Instellingen ---------- */
 .settings { padding: 24px 32px; overflow-y: auto; height: 100vh; }
+/* Op brede schermen: instel-blokken in 2 kolommen. */
+@media (min-width: 1100px) {
+  .settings {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 18px;
+    align-content: start;
+  }
+  .settings h1 { grid-column: 1 / -1; }
+  .settings-block { align-self: start; }
+}
 .settings-block {
   border: 1px solid var(--border);
   border-radius: 12px;

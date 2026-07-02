@@ -23,6 +23,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_config,
             commands::save_config,
+            commands::set_notifications_enabled,
             commands::auth_status,
             commands::login,
             commands::logout,

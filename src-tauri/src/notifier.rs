@@ -19,6 +19,12 @@ pub fn start(app: AppHandle) {
             tokio::time::sleep(std::time::Duration::from_secs(POLL_SECS)).await;
 
             let Ok(Some(cfg)) = config::load() else { continue };
+            if !cfg.notifications_enabled {
+                // Uitgeschakeld: opnieuw beginnen zodra het weer aan gaat,
+                // anders krijg je een stortvloed aan oude meldingen.
+                last_seen = None;
+                continue;
+            }
             if !cfg.is_complete() || !auth::is_logged_in() {
                 continue;
             }

@@ -148,6 +148,29 @@
 
 ---
 
+## 11. Gebruikerswensen (toegevoegd 2026-07-02)
+
+### E-mail / UI
+- [x] Nieuw bericht opstellen **in het leesvenster** (i.p.v. modal); kruisje sluit en toont de preview weer 🟡
+- [x] Bevestigingen als **eigen modal** (geen browser-confirm "localhost zegt…") 🟢
+- [x] Mappen **sorteren door te slepen**; eigen map **in een andere map slepen** (standaardmappen niet versleepbaar) 🔴
+- [x] **Geneste eigen mappen** (submappen) tonen in de mappenlijst 🟡
+- [x] **Accountnaam boven de mappenlijst** (bv. franklin@be-interactive.nl) 🟢
+- [x] Knop "Nieuw bericht" **links naast Beantwoorden** (zelfde stijl als reply-knoppen, maar blauw) 🟢
+- [x] **Kolombreedtes instelbaar** door te slepen (mappen | lijst | preview) 🟡
+
+### Agenda
+- [x] Genodigden **autoaanvullen** met personen uit de organisatie 🟡
+- [x] Agenda-items **naar een andere dag slepen**; genodigden krijgen automatisch een bijgewerkte uitnodiging 🟡
+
+### Accounts & instellingen
+- [x] **Meerdere accounts** koppelen; per account een mappengroep (in-/uitklapbaar, zoals Outlook) 🔴
+- [x] **Verzendvertraging instelbaar** in Instellingen (geldt automatisch voor elk nieuw bericht; de vertraging zelf bestond al als vaste 5 s) 🟢
+- [x] **Desktop-notificaties aan/uit** in Instellingen 🟢
+- [x] Instellingen-blokken in **2 kolommen** (grid) op brede schermen 🟢
+
+---
+
 ## Voorstel MVP (mijn advies voor "simpel & snel" — versie 1)
 Alleen 🟢/🟡 die samen een bruikbare client vormen:
 1. Login Office 365 (Graph API, OAuth2)

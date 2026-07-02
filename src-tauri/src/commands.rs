@@ -29,13 +29,26 @@ pub fn get_config() -> Result<Option<AppConfig>, String> {
 
 #[tauri::command]
 pub fn save_config(client_id: String, tenant_id: String) -> Result<(), String> {
+    // Bestaande overige instellingen (bv. notificaties) bewaren.
+    let existing = config::load().ok().flatten();
     let cfg = AppConfig {
         client_id: client_id.trim().to_string(),
         tenant_id: tenant_id.trim().to_string(),
+        notifications_enabled: existing.map(|c| c.notifications_enabled).unwrap_or(true),
     };
     if !cfg.is_complete() {
         return Err("Client-ID mag niet leeg zijn.".into());
     }
+    config::save(&cfg).map_err(|e| e.to_string())
+}
+
+/// Zet desktop-notificaties aan/uit (de poller leest dit elke ronde opnieuw).
+#[tauri::command]
+pub fn set_notifications_enabled(enabled: bool) -> Result<(), String> {
+    let Some(mut cfg) = config::load().map_err(|e| e.to_string())? else {
+        return Err("Nog geen verbinding ingesteld.".into());
+    };
+    cfg.notifications_enabled = enabled;
     config::save(&cfg).map_err(|e| e.to_string())
 }
 

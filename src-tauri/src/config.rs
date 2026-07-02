@@ -6,6 +6,10 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
@@ -14,6 +18,9 @@ pub struct AppConfig {
     /// Tenant-ID (GUID) of "organizations" / "common". Leeg => "organizations".
     #[serde(default)]
     pub tenant_id: String,
+    /// Desktop-notificaties bij nieuwe mail (poller leest dit elke ronde).
+    #[serde(default = "default_true")]
+    pub notifications_enabled: bool,
 }
 
 impl AppConfig {
