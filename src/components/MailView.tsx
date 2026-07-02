@@ -1,5 +1,6 @@
 // E-mailweergave: 3 kolommen — mappen | berichtenlijst | leesvenster.
 import { useEffect, useMemo, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
@@ -89,6 +90,20 @@ export default function MailView({ account }: { account: Account | null }) {
     loadPage(0, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folderId]);
+
+  // Nieuwe-mail-event vanuit de Rust-poller: tellers verversen en, als
+  // Postvak IN open staat (zonder zoekopdracht), de lijst opnieuw laden.
+  useEffect(() => {
+    const un = listen("new-mail", () => {
+      api.listFolders().then(setFolders).catch(() => {});
+      const inbox = folders.find((f) => /inbox|postvak in/i.test(f.displayName ?? ""));
+      if (!searchResult && folderId && folderId === inbox?.id) loadPage(0, true);
+    });
+    return () => {
+      un.then((f) => f());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folders, folderId, searchResult]);
 
   // Server-side zoeken door de héle mailbox, met korte debounce zodat we niet
   // bij elke toetsaanslag een call doen. Leeg zoekvak → terug naar de mapweergave.

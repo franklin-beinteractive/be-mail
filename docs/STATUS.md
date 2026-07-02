@@ -3,7 +3,7 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-02
+**Laatst bijgewerkt:** 2026-07-02 (avond — "hoog & middel"-pakket afgerond)
 
 ## ✅ Af
 
@@ -34,6 +34,19 @@
   interval + einddatum, instelbaar bij aanmaken. Weekdag/dag-v-d-maand
   volgt de startdatum. Bewerken van een reeks(patroon) kan nog niet;
   een los exemplaar bewerken/verwijderen werkt wel.
+- **Rich-text editor**: vet/cursief/onderstrepen, lijsten, links
+  (contentEditable, geen externe library). Concepten behouden opmaak.
+- **Undo send**: 5 s bedenktijd met aftelbalk vóór echte verzending.
+- **Later verzenden**: tijdstip kiezen; Exchange bezorgt (concept +
+  PidTagDeferredSendTime). Bericht wacht in Concepten/Postvak UIT.
+- **Dag- en werkweekweergave** in de agenda (naast week/maand/lijst).
+- **Spam melden** (→ Ongewenste e-mail) en **afzender blokkeren**
+  (inbox-regel "BE-Mail: … geblokkeerd" — beheerbaar via Outlook-regels).
+- **Uitschrijven-knop** bij nieuwsbrieven (List-Unsubscribe-header;
+  https → browser, mailto → opstelvenster).
+- **Desktop-notificaties**: Rust-poller (60 s) op Postvak IN; Windows-
+  notificatie per nieuw bericht (max 3, daarna samenvatting) en
+  "new-mail"-event dat lijst + tellers in de app ververst.
 - **Agenda**: maand/week/lijst, vandaag + navigatie, afspraak
   maken/**bewerken**/verwijderen, hele dag, locatie, herinnering, genodigden.
 - **Overig**: donkere modus, tekstgrootte, hoog contrast, NL/EN,
@@ -47,11 +60,15 @@
 4. ~~Mappenbeheer + bulkacties~~ ✅
 5. ~~RSVP + terugkerende afspraken~~ ✅
 
-**De afgesproken lijst is af.** Volgende stap kiezen uit de achterhoede
-(nog niet gepland): rich-text editor, dag-/werkweekweergave, send later /
-undo send, desktop-notificaties, spam melden, uitschrijven-knop, regels,
-OOF, offline caching, sneltoetsen. Ook open: opmerkingen van de gebruiker
-over de eerste rooktest.
+6. ~~"Hoog & middel"-pakket~~ ✅ — rich-text editor, undo send / later
+   verzenden, dag-/werkweekweergave, spam/blokkeren/uitschrijven,
+   desktop-notificaties.
+
+**Resterende achterhoede** (nog niet gepland): @-vermeldingen, regels-beheer
+(UI voor messageRules), OOF/automatisch antwoord, offline caching (SQLite +
+delta-sync), sneltoetsen, contacten/adresboek-autoaanvullen, threading,
+categorieën, snoozen. Ook open: opmerkingen van de gebruiker over de
+eerste rooktest.
 
 ## 📌 Openstaand / opmerkingen
 
