@@ -72,6 +72,21 @@ pub async fn list_folders() -> Result<Vec<MailFolder>, String> {
 }
 
 #[tauri::command]
+pub async fn create_folder(name: String) -> Result<MailFolder, String> {
+    client().await?.create_folder(&name).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn rename_folder(id: String, name: String) -> Result<(), String> {
+    client().await?.rename_folder(&id, &name).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn delete_folder(id: String) -> Result<(), String> {
+    client().await?.delete_folder(&id).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn list_messages(
     folder_id: String,
     top: Option<u32>,

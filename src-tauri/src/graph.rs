@@ -75,6 +75,40 @@ impl GraphClient {
         Ok(list.value)
     }
 
+    /// Nieuwe map op hoofdniveau.
+    pub async fn create_folder(&self, name: &str) -> Result<MailFolder> {
+        let resp = self
+            .http
+            .post(format!("{BASE}/me/mailFolders"))
+            .bearer_auth(&self.token)
+            .json(&json!({ "displayName": name }))
+            .send()
+            .await?;
+        self.parse(resp).await
+    }
+
+    pub async fn rename_folder(&self, id: &str, name: &str) -> Result<()> {
+        let resp = self
+            .http
+            .patch(format!("{BASE}/me/mailFolders/{id}"))
+            .bearer_auth(&self.token)
+            .json(&json!({ "displayName": name }))
+            .send()
+            .await?;
+        self.expect_ok(resp).await
+    }
+
+    /// Verwijdert een map (inclusief inhoud; Graph verplaatst naar Verwijderde items).
+    pub async fn delete_folder(&self, id: &str) -> Result<()> {
+        let resp = self
+            .http
+            .delete(format!("{BASE}/me/mailFolders/{id}"))
+            .bearer_auth(&self.token)
+            .send()
+            .await?;
+        self.expect_ok(resp).await
+    }
+
     // ---- Berichten ----
     pub async fn list_messages(
         &self,

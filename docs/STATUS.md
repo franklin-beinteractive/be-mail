@@ -23,6 +23,10 @@
 - **Handtekeningen**: meerdere beheren in Instellingen; aparte standaard voor
   nieuw bericht en beantwoorden/doorsturen; wisselen in het opstelvenster.
   Opslag lokaal (localStorage), platte tekst.
+- **Mappenbeheer**: eigen mappen aanmaken/hernoemen/verwijderen vanuit de
+  mappenlijst (systeemmappen op naam uitgesloten; Graph is de backstop).
+- **Bulkacties**: checkbox per bericht; balk met gelezen/ongelezen,
+  archiveren, verplaatsen, verwijderen. Werkt ook in zoekresultaten.
 - **Agenda**: maand/week/lijst, vandaag + navigatie, afspraak
   maken/**bewerken**/verwijderen, hele dag, locatie, herinnering, genodigden.
 - **Overig**: donkere modus, tekstgrootte, hoog contrast, NL/EN,
@@ -33,8 +37,8 @@
 1. ~~Bijlagen (lezen + downloaden + meesturen)~~ ✅
 2. ~~Concepten automatisch opslaan~~ ✅
 3. ~~Handtekening(en)~~ ✅
-4. **Mappenbeheer (aanmaken/hernoemen/verwijderen) + bulkacties** ← volgende
-5. RSVP (uitnodiging accepteren/afwijzen) + terugkerende afspraken
+4. ~~Mappenbeheer + bulkacties~~ ✅
+5. **RSVP (uitnodiging accepteren/afwijzen) + terugkerende afspraken** ← volgende
 
 Daarna (achterhoede, nog niet gepland): rich-text editor, dag-/werkweekweergave,
 send later / undo send, desktop-notificaties, spam melden, uitschrijven-knop,
@@ -42,6 +46,10 @@ regels, OOF, offline caching, sneltoetsen.
 
 ## 📌 Openstaand / opmerkingen
 
+- **Bitbucket-push geblokkeerd**: repo `quizmaster/be-mail` bestaat nog niet
+  (workspace bevat alleen `dim.beren`); gebruiker maakt hem aan, daarna
+  `git push -u origin main`. API-token van de MCP heeft geen
+  `admin:repository`-scope, dus aanmaken via API kon niet.
 - Gebruiker heeft nog opmerkingen over de eerste rooktest van de app —
   **nog niet besproken**, komt later.
 - Grote bijlagen (>3 MB) vereisen Graph upload-sessions — bewust uitgesteld.

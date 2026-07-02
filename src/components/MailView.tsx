@@ -16,10 +16,13 @@ import {
 import ComposeDialog, { type ComposeInitial } from "./ComposeDialog";
 import {
   ArchiveIcon,
+  CloseIcon,
   ComposeIcon,
+  EditIcon,
   FlagIcon,
   ForwardIcon,
   PaperclipIcon,
+  PlusIcon,
   ReplyAllIcon,
   ReplyIcon,
   SearchIcon,
@@ -27,6 +30,15 @@ import {
 } from "./Icons";
 
 const PAGE = 25;
+
+// Systeemmappen (NL/EN) krijgen geen hernoem-/verwijderknoppen; Graph weigert
+// het toch en dit voorkomt verwarring. Eigen mappen matchen hier nooit op.
+const SYSTEM_FOLDER =
+  /^(postvak in|inbox|verzonden items|sent items|concepten|drafts|verwijderde items|deleted items|ongewenste e-?mail|junk e-?mail|archief|archive|postvak uit|outbox|conversation history|gespreksgeschiedenis)$/i;
+
+function isSystemFolder(f: MailFolder): boolean {
+  return SYSTEM_FOLDER.test((f.displayName ?? "").trim());
+}
 
 export default function MailView({ account }: { account: Account | null }) {
   const { t, settings, notify } = useApp();
@@ -45,6 +57,13 @@ export default function MailView({ account }: { account: Account | null }) {
   // Bijlagen van het geopende bericht; id van de bijlage die nu downloadt.
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [downloading, setDownloading] = useState<string | null>(null);
+  // Mappenbeheer-dialoog (nieuw of hernoemen) + invoerveld.
+  const [folderDialog, setFolderDialog] = useState<
+    { mode: "create" } | { mode: "rename"; folder: MailFolder } | null
+  >(null);
+  const [folderName, setFolderName] = useState("");
+  // Bulkacties: ids van aangevinkte berichten.
+  const [checked, setChecked] = useState<Set<string>>(new Set());
 
   // Mappen laden bij start.
   useEffect(() => {
@@ -66,6 +85,7 @@ export default function MailView({ account }: { account: Account | null }) {
     setMessages([]);
     setSelected(null);
     setSkip(0);
+    setChecked(new Set());
     loadPage(0, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folderId]);
@@ -76,6 +96,7 @@ export default function MailView({ account }: { account: Account | null }) {
     const q = search.trim();
     if (!q) {
       setSearchResult(null);
+      setChecked(new Set());
       return;
     }
     const handle = setTimeout(async () => {
@@ -83,6 +104,7 @@ export default function MailView({ account }: { account: Account | null }) {
       try {
         const page = await api.searchMessages(q, 50);
         setSearchResult(page.messages);
+        setChecked(new Set());
       } catch (e) {
         notify(String(e), "error");
       } finally {
@@ -232,6 +254,92 @@ export default function MailView({ account }: { account: Account | null }) {
     }
   }
 
+  // ---- Mappenbeheer ----
+
+  async function saveFolderDialog() {
+    const name = folderName.trim();
+    if (!name || !folderDialog) return;
+    try {
+      if (folderDialog.mode === "create") {
+        const f = await api.createFolder(name);
+        setFolders((prev) => [...prev, f]);
+      } else {
+        await api.renameFolder(folderDialog.folder.id, name);
+        setFolders((prev) =>
+          prev.map((x) =>
+            x.id === folderDialog.folder.id ? { ...x, displayName: name } : x
+          )
+        );
+      }
+      setFolderDialog(null);
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  async function removeFolder(f: MailFolder) {
+    if (!confirm(t("confirmDeleteFolder"))) return;
+    try {
+      await api.deleteFolder(f.id);
+      const rest = folders.filter((x) => x.id !== f.id);
+      setFolders(rest);
+      if (folderId === f.id) {
+        // Terug naar Postvak IN (of de eerste overgebleven map).
+        const inbox =
+          rest.find((x) => /inbox|postvak in/i.test(x.displayName ?? "")) ?? rest[0];
+        if (inbox) setFolderId(inbox.id);
+      }
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  // ---- Bulkacties ----
+
+  function toggleCheck(id: string, on: boolean) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  async function bulk(action: "read" | "unread" | "archive" | "delete" | "move", destId?: string) {
+    const ids = [...checked];
+    if (ids.length === 0) return;
+    if (action === "delete" && !confirm(t("confirmDelete"))) return;
+    setLoading(true);
+    try {
+      for (const id of ids) {
+        if (action === "read") await api.setRead(id, true);
+        else if (action === "unread") await api.setRead(id, false);
+        else if (action === "archive") await api.archiveMessage(id);
+        else if (action === "delete") await api.deleteMessage(id);
+        else if (action === "move" && destId) await api.moveMessage(id, destId);
+      }
+    } catch (e) {
+      notify(String(e), "error");
+    } finally {
+      setChecked(new Set());
+      if (selected && ids.includes(selected.id) && action !== "read" && action !== "unread") {
+        setSelected(null);
+      }
+      // Zoekresultaten lokaal bijwerken; mapinhoud en tellers opnieuw laden.
+      if (searchResult) {
+        if (action === "read" || action === "unread") {
+          setSearchResult((prev) =>
+            prev ? prev.map((m) => (ids.includes(m.id) ? { ...m, isRead: action === "read" } : m)) : prev
+          );
+        } else {
+          setSearchResult((prev) => (prev ? prev.filter((m) => !ids.includes(m.id)) : prev));
+        }
+      }
+      api.listFolders().then(setFolders).catch(() => {});
+      loadPage(0, true);
+    }
+  }
+
   // Na sluiten/verzenden van het opstelvenster: Concepten-map verversen,
   // want autosave kan daar een concept hebben aangemaakt of verwijderd.
   function composeClosed() {
@@ -308,18 +416,53 @@ export default function MailView({ account }: { account: Account | null }) {
         <button className="btn primary compose-btn" onClick={() => setCompose({})}>
           <ComposeIcon size={18} /> {t("compose")}
         </button>
+        <div className="folders-head">
+          <span className="muted small">{t("folders")}</span>
+          <button
+            className="icon-btn"
+            onClick={() => {
+              setFolderName("");
+              setFolderDialog({ mode: "create" });
+            }}
+            aria-label={t("newFolder")}
+            title={t("newFolder")}
+          >
+            <PlusIcon size={16} />
+          </button>
+        </div>
         <nav>
           {folders.map((f) => (
-            <button
-              key={f.id}
-              className={"folder" + (f.id === folderId ? " active" : "")}
-              onClick={() => setFolderId(f.id)}
-            >
-              <span className="folder-name">{f.displayName}</span>
-              {!!f.unreadItemCount && (
-                <span className="badge">{f.unreadItemCount}</span>
+            <div key={f.id} className={"folder" + (f.id === folderId ? " active" : "")}>
+              <button className="folder-main" onClick={() => setFolderId(f.id)}>
+                <span className="folder-name">{f.displayName}</span>
+                {!!f.unreadItemCount && (
+                  <span className="badge">{f.unreadItemCount}</span>
+                )}
+              </button>
+              {!isSystemFolder(f) && (
+                <span className="folder-actions">
+                  <button
+                    className="icon-btn"
+                    onClick={() => {
+                      setFolderName(f.displayName ?? "");
+                      setFolderDialog({ mode: "rename", folder: f });
+                    }}
+                    aria-label={t("renameFolder")}
+                    title={t("renameFolder")}
+                  >
+                    <EditIcon size={14} />
+                  </button>
+                  <button
+                    className="icon-btn"
+                    onClick={() => removeFolder(f)}
+                    aria-label={t("deleteFolder")}
+                    title={t("deleteFolder")}
+                  >
+                    <TrashIcon size={14} />
+                  </button>
+                </span>
               )}
-            </button>
+            </div>
           ))}
         </nav>
       </aside>
@@ -334,32 +477,90 @@ export default function MailView({ account }: { account: Account | null }) {
             placeholder={t("search")}
           />
         </div>
+        {checked.size > 0 && (
+          <div className="bulk-bar">
+            <span className="bulk-count">
+              {checked.size} {t("selected")}
+            </span>
+            <button className="btn" onClick={() => bulk("read")} title={t("markRead")}>
+              {t("markRead")}
+            </button>
+            <button className="btn" onClick={() => bulk("unread")} title={t("markUnread")}>
+              {t("markUnread")}
+            </button>
+            <button className="btn" onClick={() => bulk("archive")} title={t("archive")}>
+              <ArchiveIcon size={16} />
+            </button>
+            <select
+              className="move-select"
+              value=""
+              onChange={(e) => bulk("move", e.target.value)}
+              title={t("move")}
+            >
+              <option value="">{t("move")}…</option>
+              {folders
+                .filter((f) => f.id !== folderId)
+                .map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.displayName}
+                  </option>
+                ))}
+            </select>
+            <button className="btn danger" onClick={() => bulk("delete")} title={t("delete")}>
+              <TrashIcon size={16} />
+            </button>
+            <button
+              className="icon-btn"
+              onClick={() => setChecked(new Set())}
+              aria-label={t("clearSelection")}
+              title={t("clearSelection")}
+            >
+              <CloseIcon size={16} />
+            </button>
+          </div>
+        )}
         <div className="list-scroll">
           {shown.length === 0 && !loading && (
             <p className="empty">{t("noMessages")}</p>
           )}
           {shown.map((m) => (
-            <button
+            <div
               key={m.id}
+              role="button"
+              tabIndex={0}
               className={
                 "msg" +
                 (m.isRead ? "" : " unread") +
-                (selected?.id === m.id ? " active" : "")
+                (selected?.id === m.id ? " active" : "") +
+                (checked.has(m.id) ? " checked" : "")
               }
               onClick={() => openMessage(m)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") openMessage(m);
+              }}
             >
-              <div className="msg-top">
-                <span className="msg-from">{senderName(m.from?.emailAddress)}</span>
-                <span className="msg-date">{shortDate(m.receivedDateTime, settings.lang)}</span>
+              <input
+                type="checkbox"
+                className="msg-check"
+                checked={checked.has(m.id)}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => toggleCheck(m.id, e.target.checked)}
+                aria-label={m.subject ?? ""}
+              />
+              <div className="msg-main">
+                <div className="msg-top">
+                  <span className="msg-from">{senderName(m.from?.emailAddress)}</span>
+                  <span className="msg-date">{shortDate(m.receivedDateTime, settings.lang)}</span>
+                </div>
+                <div className="msg-subject">
+                  {m.flag?.flagStatus === "flagged" && <span className="flagdot">⚑</span>}
+                  {m.importance === "high" && <span className="hi">!</span>}
+                  {m.subject || "(geen onderwerp)"}
+                  {m.hasAttachments && <PaperclipIcon size={14} style={{ marginLeft: 4 }} />}
+                </div>
+                <div className="msg-preview">{m.bodyPreview}</div>
               </div>
-              <div className="msg-subject">
-                {m.flag?.flagStatus === "flagged" && <span className="flagdot">⚑</span>}
-                {m.importance === "high" && <span className="hi">!</span>}
-                {m.subject || "(geen onderwerp)"}
-                {m.hasAttachments && <PaperclipIcon size={14} style={{ marginLeft: 4 }} />}
-              </div>
-              <div className="msg-preview">{m.bodyPreview}</div>
-            </button>
+            </div>
           ))}
           {loading && <p className="empty">{t("loading")}</p>}
           {!searchResult && hasMore && !loading && (
@@ -472,6 +673,44 @@ export default function MailView({ account }: { account: Account | null }) {
           onClose={composeClosed}
           onSent={composeClosed}
         />
+      )}
+
+      {folderDialog && (
+        <div className="overlay" role="dialog" aria-modal="true" onClick={() => setFolderDialog(null)}>
+          <div className="dialog" onClick={(e) => e.stopPropagation()}>
+            <header className="dialog-head">
+              <h2>{folderDialog.mode === "create" ? t("newFolder") : t("renameFolder")}</h2>
+              <button
+                className="icon-btn"
+                onClick={() => setFolderDialog(null)}
+                aria-label={t("cancel")}
+              >
+                <CloseIcon />
+              </button>
+            </header>
+            <div className="dialog-body">
+              <label className="row">
+                <span>{t("folderName")}</span>
+                <input
+                  value={folderName}
+                  onChange={(e) => setFolderName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveFolderDialog();
+                  }}
+                  autoFocus
+                />
+              </label>
+            </div>
+            <footer className="dialog-foot">
+              <button className="btn" onClick={() => setFolderDialog(null)}>
+                {t("cancel")}
+              </button>
+              <button className="btn primary" onClick={saveFolderDialog} disabled={!folderName.trim()}>
+                {t("save")}
+              </button>
+            </footer>
+          </div>
+        </div>
       )}
     </div>
   );
