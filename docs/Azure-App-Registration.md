@@ -102,3 +102,16 @@ De gebruiker vult ze in op het instelscherm van BE-Mail bij het eerste opstarten
   opslaan in de keychain"* — de Windows Credential Manager begrenst één item tot
   2560 bytes en Microsoft-tokens zijn groter. De app slaat tokens daarom in stukken
   op (zie `CLAUDE.md`).
+- **"Beheerdersgoedkeuring vereist" bij inloggen.** De app vraagt een (nieuwe)
+  Graph-permission waarvoor gebruikers in deze tenant zelf geen toestemming mogen
+  geven (bv. `People.Read`, nodig voor het autoaanvullen van genodigden). Oplossing
+  (eenmalig, door een beheerder):
+  1. Azure Portal → **App registrations** → *BE-Mail* → **API permissions**.
+  2. Voeg onder **Microsoft Graph → Delegated permissions** toe:
+     `User.Read`, `Mail.ReadWrite`, `Mail.Send`, `Calendars.ReadWrite`,
+     `People.Read`, `offline_access` (openid/profile gaan vanzelf mee).
+  3. Klik **Grant admin consent for &lt;organisatie&gt;** (vereist een
+     beheerdersrol). Alle statussen worden groen ("Granted").
+  4. Log daarna opnieuw in vanuit de app — de goedkeuringsvraag is weg.
+  Alternatief: een beheerder logt éénmalig zelf in en vinkt bij de prompt
+  *"Consent on behalf of your organization"* aan.

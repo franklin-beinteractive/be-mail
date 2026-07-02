@@ -168,6 +168,9 @@
 - [x] **Verzendvertraging instelbaar** in Instellingen (geldt automatisch voor elk nieuw bericht; de vertraging zelf bestond al als vaste 5 s) 🟢
 - [x] **Desktop-notificaties aan/uit** in Instellingen 🟢
 - [x] Instellingen-blokken in **2 kolommen** (grid) op brede schermen 🟢
+- [x] **Help-knop** met complete gebruiksaanwijzing (accounts, instellingen, mail, agenda) in NL én EN 🟡
+- [x] Actiebalk bovenin **uitlijnen** met de berichtenlijst-kolom 🟢
+- [x] **Lettertype instelbaar** in Instellingen (gangbare fonts + Calibri; Calibri = standaard) 🟢
 
 ---
 

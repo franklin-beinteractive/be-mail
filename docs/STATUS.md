@@ -3,7 +3,7 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-02 (avond — "hoog & middel"-pakket afgerond)
+**Laatst bijgewerkt:** 2026-07-02 (avond — gebruikerswensen-batch afgerond)
 
 ## ✅ Af
 
@@ -46,7 +46,18 @@
   https → browser, mailto → opstelvenster).
 - **Desktop-notificaties**: Rust-poller (60 s) op Postvak IN; Windows-
   notificatie per nieuw bericht (max 3, daarna samenvatting) en
-  "new-mail"-event dat lijst + tellers in de app ververst.
+  "new-mail"-event dat lijst + tellers in de app ververst. Aan/uit in
+  Instellingen; pollt álle accounts.
+- **Gebruikerswensen-batch (FEATURES.md §11)**: inline opstellen in de
+  previewkolom (kruisje sluit), eigen bevestigings-modals, kolombreedtes
+  verslepen, mappenboom met submappen + slepen (sorteren/nesten),
+  genodigden-autocomplete (People.Read!), afspraken slepen naar andere
+  dag, **multi-account** (mappengroepen per account, in-/uitklapbaar,
+  accountbeheer in Instellingen), verzendvertraging-instelling,
+  instellingen 2-koloms, accountnaam boven mappen, Nieuw-bericht-knop
+  naast Beantwoorden, **Help-pagina** (volledige handleiding NL/EN),
+  actiebalk uitgelijnd met lijstkolom, **lettertype-instelling**
+  (Calibri standaard).
 - **Agenda**: maand/week/lijst, vandaag + navigatie, afspraak
   maken/**bewerken**/verwijderen, hele dag, locatie, herinnering, genodigden.
 - **Overig**: donkere modus, tekstgrootte, hoog contrast, NL/EN,
@@ -72,6 +83,13 @@ eerste rooktest.
 
 ## 📌 Openstaand / opmerkingen
 
+- **Entra: beheerdersgoedkeuring vereist** — de nieuwe scope `People.Read`
+  (autocomplete genodigden) triggert "Beheerdersgoedkeuring vereist" bij
+  inloggen. Fix: in Entra bij de app-registratie de delegated permissions
+  toevoegen en **Grant admin consent** klikken (stappen in
+  `docs/Azure-App-Registration.md` → Troubleshooting).
+- **Multi-account-migratie**: tokens staan nu per account opgeslagen —
+  iedereen moet éénmalig opnieuw inloggen (koppelt het account).
 - **Bitbucket-push geblokkeerd**: repo `quizmaster/be-mail` bestaat nog niet
   (workspace bevat alleen `dim.beren`); gebruiker maakt hem aan, daarna
   `git push -u origin main`. API-token van de MCP heeft geen

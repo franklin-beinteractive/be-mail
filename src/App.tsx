@@ -14,10 +14,11 @@ import LoginScreen from "./components/LoginScreen";
 import MailView from "./components/MailView";
 import CalendarView from "./components/CalendarView";
 import SettingsView from "./components/SettingsView";
-import { CalendarIcon, MailIcon, SettingsIcon } from "./components/Icons";
+import HelpView from "./components/HelpView";
+import { CalendarIcon, HelpIcon, MailIcon, SettingsIcon } from "./components/Icons";
 
 type Phase = "loading" | "setup" | "login" | "app";
-type Section = "mail" | "calendar" | "settings";
+type Section = "mail" | "calendar" | "settings" | "help";
 
 export default function App() {
   const [settings, setSettingsState] = useState<UiSettings>(() => loadSettings());
@@ -140,6 +141,14 @@ export default function App() {
               </button>
               <span className="rail-spacer" />
               <button
+                className={"rail-btn" + (section === "help" ? " active" : "")}
+                onClick={() => setSection("help")}
+                title={t("help")}
+              >
+                <HelpIcon size={24} />
+                <span>{t("help")}</span>
+              </button>
+              <button
                 className={"rail-btn" + (section === "settings" ? " active" : "")}
                 onClick={() => setSection("settings")}
                 title={t("settings")}
@@ -152,6 +161,7 @@ export default function App() {
             <main className="content">
               {section === "mail" && <MailView />}
               {section === "calendar" && <CalendarView />}
+              {section === "help" && <HelpView />}
               {section === "settings" && (
                 <SettingsView
                   account={account}

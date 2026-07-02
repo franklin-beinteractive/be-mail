@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
-import type { Signature } from "../lib/settings";
+import { FONT_CHOICES, type Signature } from "../lib/settings";
 import type { Account, AccountsInfo } from "../lib/types";
 import { PlusIcon, TrashIcon } from "./Icons";
 
@@ -142,6 +142,21 @@ export default function SettingsView({
               {t("dark")}
             </button>
           </div>
+        </div>
+
+        <div className="setting-row">
+          <span>{t("font")}</span>
+          <select
+            value={settings.fontFamily}
+            onChange={(e) => setSettings({ fontFamily: e.target.value })}
+            style={{ fontFamily: settings.fontFamily }}
+          >
+            {FONT_CHOICES.map((f) => (
+              <option key={f} value={f} style={{ fontFamily: f }}>
+                {f}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="setting-row">

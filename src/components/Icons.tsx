@@ -86,6 +86,13 @@ export const ArchiveIcon = (p: Props) => (
     <path d="M5 8v12h14V8M10 12h4" />
   </Svg>
 );
+export const HelpIcon = (p: Props) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M9.5 9a2.5 2.5 0 1 1 3.4 2.3c-.8.3-.9.9-.9 1.7" />
+    <path d="M12 16.5v.01" />
+  </Svg>
+);
 export const BanIcon = (p: Props) => (
   <Svg {...p}>
     <circle cx="12" cy="12" r="9" />

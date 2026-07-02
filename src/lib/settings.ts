@@ -16,6 +16,8 @@ export interface UiSettings {
   theme: Theme;
   /** Schaalfactor voor tekst: 1 = normaal, tot 1.5 voor slechtzienden. */
   fontScale: number;
+  /** Lettertype voor de hele app; Calibri is de standaard. */
+  fontFamily: string;
   highContrast: boolean;
   lang: Lang;
   signatures: Signature[];
@@ -34,9 +36,22 @@ export interface UiSettings {
 
 const KEY = "BE-Mail.ui";
 
+/** Gangbare lettertypen (Windows) voor de keuzelijst in Instellingen. */
+export const FONT_CHOICES = [
+  "Calibri",
+  "Segoe UI",
+  "Arial",
+  "Verdana",
+  "Tahoma",
+  "Georgia",
+  "Times New Roman",
+  "Courier New",
+] as const;
+
 export const defaultSettings: UiSettings = {
   theme: "light",
   fontScale: 1,
+  fontFamily: "Calibri",
   highContrast: false,
   lang: "nl",
   signatures: [],
@@ -71,5 +86,6 @@ export function applySettings(s: UiSettings): void {
   root.dataset.theme = s.theme;
   root.dataset.contrast = s.highContrast ? "high" : "normal";
   root.style.setProperty("--font-scale", String(s.fontScale));
+  root.style.setProperty("--font-family", s.fontFamily || "Calibri");
   root.lang = s.lang;
 }
