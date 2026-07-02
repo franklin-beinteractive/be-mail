@@ -1,8 +1,8 @@
 // Afspraak aanmaken of bewerken.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
-import type { CalendarEvent, RecurrenceInput } from "../lib/types";
+import type { CalendarEvent, Person, RecurrenceInput } from "../lib/types";
 import { CloseIcon } from "./Icons";
 
 type RepeatChoice = "none" | RecurrenceInput["frequency"];
@@ -30,7 +30,10 @@ export default function EventDialog({
   );
   const [allDay, setAllDay] = useState(event?.isAllDay ?? false);
   const [location, setLocation] = useState(event?.location?.displayName ?? "");
-  const [attendees, setAttendees] = useState("");
+  // Genodigden als chips + autoaanvullen uit de organisatie (/me/people).
+  const [attendees, setAttendees] = useState<string[]>([]);
+  const [attQuery, setAttQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<Person[]>([]);
   const [reminder, setReminder] = useState("15");
   const [body, setBody] = useState(event?.bodyPreview ?? "");
   // Herhaling: alleen instelbaar bij aanmaken (bewerken raakt de reeks niet aan).
@@ -38,6 +41,29 @@ export default function EventDialog({
   const [repeatInterval, setRepeatInterval] = useState("1");
   const [repeatUntil, setRepeatUntil] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Autoaanvullen: kort debouncen; stil falen (dan blijft los intypen werken).
+  useEffect(() => {
+    const q = attQuery.trim();
+    if (q.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    const h = setTimeout(() => {
+      api
+        .searchPeople(q)
+        .then(setSuggestions)
+        .catch(() => setSuggestions([]));
+    }, 300);
+    return () => clearTimeout(h);
+  }, [attQuery]);
+
+  function addAttendee(address: string) {
+    const a = address.trim();
+    if (a && !attendees.includes(a)) setAttendees((prev) => [...prev, a]);
+    setAttQuery("");
+    setSuggestions([]);
+  }
 
   async function save() {
     if (!subject.trim()) {
@@ -55,12 +81,10 @@ export default function EventDialog({
       location: location.trim() || undefined,
       body: body.trim() || undefined,
       // Genodigden alleen bij aanmaken; bij bewerken laten we ze ongemoeid.
+      // Nog niet bevestigde invoer in het zoekveld telt ook mee.
       attendees: editing
         ? []
-        : attendees
-            .split(/[,;]/)
-            .map((s) => s.trim())
-            .filter(Boolean),
+        : [...attendees, attQuery.trim()].filter(Boolean),
       reminderMinutes: reminder ? parseInt(reminder, 10) : null,
       recurrence:
         !editing && repeat !== "none"
@@ -128,10 +152,58 @@ export default function EventDialog({
             <input value={location} onChange={(e) => setLocation(e.target.value)} />
           </label>
           {!editing && (
-            <label className="row">
+            <div className="row attendee-row">
               <span>{t("attendees")}</span>
-              <input value={attendees} onChange={(e) => setAttendees(e.target.value)} />
-            </label>
+              <div className="attendee-box">
+                {attendees.length > 0 && (
+                  <div className="attendee-chips">
+                    {attendees.map((a) => (
+                      <span key={a} className="attachment-chip">
+                        <span className="attachment-name">{a}</span>
+                        <button
+                          className="icon-btn"
+                          onClick={() =>
+                            setAttendees((prev) => prev.filter((x) => x !== a))
+                          }
+                          aria-label={t("delete")}
+                        >
+                          <CloseIcon size={14} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <input
+                  value={attQuery}
+                  onChange={(e) => setAttQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && attQuery.trim()) {
+                      e.preventDefault();
+                      addAttendee(attQuery);
+                    }
+                  }}
+                  placeholder="naam of e-mailadres…"
+                />
+                {suggestions.length > 0 && (
+                  <div className="suggest-list">
+                    {suggestions.map((p, i) => {
+                      const addr = p.scoredEmailAddresses[0]?.address ?? "";
+                      if (!addr) return null;
+                      return (
+                        <button
+                          key={i}
+                          className="suggest-item"
+                          onClick={() => addAttendee(addr)}
+                        >
+                          <strong>{p.displayName || addr}</strong>{" "}
+                          <span className="muted small">{addr}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
           <label className="row">
             <span>{t("reminder")}</span>

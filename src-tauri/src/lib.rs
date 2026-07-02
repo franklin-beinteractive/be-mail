@@ -51,6 +51,8 @@ pub fn run() {
             commands::list_events,
             commands::create_event,
             commands::update_event,
+            commands::update_event_times,
+            commands::search_people,
             commands::delete_event,
         ])
         .run(tauri::generate_context!())

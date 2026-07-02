@@ -14,7 +14,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 /// De Graph-rechten die we vragen (delegated). Least privilege voor mail + agenda.
-const SCOPES: &str = "openid profile offline_access User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite";
+/// People.Read is nodig voor het autoaanvullen van genodigden. Let op: na het
+/// toevoegen van een scope moet de gebruiker éénmalig opnieuw inloggen/toestemmen.
+const SCOPES: &str = "openid profile offline_access User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite People.Read";
 
 fn b64url(bytes: &[u8]) -> String {
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)

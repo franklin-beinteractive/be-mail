@@ -182,6 +182,23 @@ pub struct Event {
     pub is_cancelled: Option<bool>,
 }
 
+/// Persoon uit /me/people (voor autoaanvullen van genodigden).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Person {
+    #[serde(default)]
+    pub display_name: Option<String>,
+    #[serde(default)]
+    pub scored_email_addresses: Vec<ScoredEmail>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScoredEmail {
+    #[serde(default)]
+    pub address: Option<String>,
+}
+
 // ---- Invoer vanuit de frontend ----
 
 /// Bijlage vanuit de frontend (inhoud als base64).

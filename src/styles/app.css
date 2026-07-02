@@ -524,6 +524,35 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 .undo-bar { font-weight: 600; }
 
+/* Genodigden-autoaanvullen */
+.attendee-row { align-items: flex-start; }
+.attendee-box { flex: 1; position: relative; display: flex; flex-direction: column; gap: 6px; }
+.attendee-box input { width: 100%; }
+.attendee-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.suggest-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+.suggest-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.suggest-item:hover { background: var(--bg-sunken); }
+
 /* Opstellen inline in de leesvenster-kolom */
 .compose-inline {
   display: flex;
@@ -617,6 +646,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   white-space: nowrap;
 }
 .chip:hover { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+.cell.drop-target, .week-col.drop-target { outline: 2px dashed var(--accent); outline-offset: -2px; }
 .chip.block { white-space: normal; }
 .chip-time { font-weight: 700; }
 .more { font-size: 0.72rem; color: var(--text-muted); padding-left: 4px; }

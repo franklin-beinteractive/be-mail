@@ -12,6 +12,7 @@ import type {
   MailFolder,
   Message,
   MessagesPage,
+  Person,
 } from "./types";
 
 export const api = {
@@ -84,5 +85,9 @@ export const api = {
     invoke<CalendarEvent>("create_event", { input }),
   updateEvent: (id: string, input: EventInput) =>
     invoke<CalendarEvent>("update_event", { id, input }),
+  // Alleen tijden verschuiven (slepen); genodigden krijgen automatisch een update.
+  updateEventTimes: (id: string, start: string, end: string) =>
+    invoke<void>("update_event_times", { id, start, end }),
+  searchPeople: (query: string) => invoke<Person[]>("search_people", { query }),
   deleteEvent: (id: string) => invoke<void>("delete_event", { id }),
 };

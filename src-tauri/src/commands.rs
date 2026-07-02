@@ -244,6 +244,21 @@ pub async fn update_event(id: String, input: EventInput) -> Result<Event, String
     client().await?.update_event(&id, &input).await.map_err(|e| e.to_string())
 }
 
+/// Alleen de tijden verschuiven (slepen in de agenda).
+#[tauri::command]
+pub async fn update_event_times(id: String, start: String, end: String) -> Result<(), String> {
+    client()
+        .await?
+        .update_event_times(&id, &start, &end)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn search_people(query: String) -> Result<Vec<Person>, String> {
+    client().await?.search_people(&query).await.map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn delete_event(id: String) -> Result<(), String> {
     client().await?.delete_event(&id).await.map_err(|e| e.to_string())

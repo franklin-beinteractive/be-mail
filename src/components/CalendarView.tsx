@@ -38,6 +38,9 @@ export default function CalendarView() {
   const [creating, setCreating] = useState<string | null>(null);
   const [editing, setEditing] = useState<CalendarEvent | null>(null);
   const [detail, setDetail] = useState<CalendarEvent | null>(null);
+  // Slepen van een afspraak naar een andere dag.
+  const [dragEventId, setDragEventId] = useState<string | null>(null);
+  const [dropDay, setDropDay] = useState<string | null>(null);
   const locale = settings.lang === "nl" ? "nl-NL" : "en-GB";
 
   const range = useMemo(() => {
@@ -112,6 +115,65 @@ export default function CalendarView() {
     setCreating(null);
     setEditing(null);
     setDetail(null);
+  }
+
+  /** Verplaatst een afspraak naar een andere dag (tijden blijven gelijk).
+   *  Exchange stuurt genodigden automatisch een bijgewerkte uitnodiging. */
+  async function moveEventToDay(eventId: string, dateKey: string) {
+    const ev = events.find((x) => x.id === eventId);
+    if (!ev) return;
+    const startDate = ev.start.dateTime.slice(0, 10);
+    if (startDate === dateKey) return;
+    const days = Math.round(
+      (new Date(dateKey + "T00:00:00").getTime() -
+        new Date(startDate + "T00:00:00").getTime()) /
+        86400000
+    );
+    const shift = (dt: string) => {
+      const d = new Date(dt.slice(0, 10) + "T00:00:00");
+      d.setDate(d.getDate() + days);
+      return ymd(d) + dt.slice(10);
+    };
+    try {
+      await api.updateEventTimes(ev.id, shift(ev.start.dateTime), shift(ev.end.dateTime));
+      reload();
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  /** Drag & drop-handlers voor een dagcel/kolom. */
+  function dayDropProps(dateKey: string) {
+    return {
+      onDragOver: (e: React.DragEvent) => {
+        if (!dragEventId) return;
+        e.preventDefault();
+        setDropDay((d) => (d === dateKey ? d : dateKey));
+      },
+      onDragLeave: () => setDropDay((d) => (d === dateKey ? null : d)),
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault();
+        const id = dragEventId;
+        setDragEventId(null);
+        setDropDay(null);
+        if (id) void moveEventToDay(id, dateKey);
+      },
+    };
+  }
+
+  /** Drag-props voor een afspraak-chip. */
+  function chipDragProps(ev: CalendarEvent) {
+    return {
+      draggable: true,
+      onDragStart: (e: React.DragEvent) => {
+        setDragEventId(ev.id);
+        e.dataTransfer.effectAllowed = "move";
+      },
+      onDragEnd: () => {
+        setDragEventId(null);
+        setDropDay(null);
+      },
+    };
   }
 
   const title =
@@ -194,13 +256,24 @@ export default function CalendarView() {
             return (
               <div
                 key={key}
-                className={"cell" + (inMonth ? "" : " dim") + (key === today ? " today" : "")}
+                className={
+                  "cell" +
+                  (inMonth ? "" : " dim") +
+                  (key === today ? " today" : "") +
+                  (dropDay === key ? " drop-target" : "")
+                }
                 onDoubleClick={() => setCreating(key)}
+                {...dayDropProps(key)}
               >
                 <div className="cell-num">{d.getDate()}</div>
                 <div className="cell-events">
                   {dayEvents.slice(0, 4).map((e) => (
-                    <button key={e.id} className="chip" onClick={() => setDetail(e)}>
+                    <button
+                      key={e.id}
+                      className="chip"
+                      onClick={() => setDetail(e)}
+                      {...chipDragProps(e)}
+                    >
                       {!e.isAllDay && <span className="chip-time">{timeOnly(e.start.dateTime)}</span>}{" "}
                       {e.subject || "(—)"}
                     </button>
@@ -230,14 +303,27 @@ export default function CalendarView() {
               const key = ymd(d);
               const dayEvents = byDay.get(key) ?? [];
               return (
-                <div key={key} className={"week-col" + (key === today ? " today" : "")}>
+                <div
+                  key={key}
+                  className={
+                    "week-col" +
+                    (key === today ? " today" : "") +
+                    (dropDay === key ? " drop-target" : "")
+                  }
+                  {...dayDropProps(key)}
+                >
                   <div className="week-head" onDoubleClick={() => setCreating(key)}>
                     <span className="dow">{weekdayNames[(d.getDay() + 6) % 7]}</span>
                     <span className="week-num">{d.getDate()}</span>
                   </div>
                   <div className="week-events">
                     {dayEvents.map((e) => (
-                      <button key={e.id} className="chip block" onClick={() => setDetail(e)}>
+                      <button
+                        key={e.id}
+                        className="chip block"
+                        onClick={() => setDetail(e)}
+                        {...chipDragProps(e)}
+                      >
                         {!e.isAllDay && (
                           <span className="chip-time">{timeOnly(e.start.dateTime)}</span>
                         )}{" "}

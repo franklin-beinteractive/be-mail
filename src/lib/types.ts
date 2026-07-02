@@ -110,6 +110,11 @@ export interface ComposeInput {
   attachments?: AttachmentInput[];
 }
 
+export interface Person {
+  displayName?: string | null;
+  scoredEmailAddresses: { address?: string | null }[];
+}
+
 export interface RecurrenceInput {
   frequency: "daily" | "weekly" | "monthly" | "yearly";
   interval?: number;

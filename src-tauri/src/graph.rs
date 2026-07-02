@@ -552,6 +552,40 @@ impl GraphClient {
         self.parse(resp).await
     }
 
+    /// Verschuift alleen de tijden van een afspraak (voor slepen in de agenda).
+    /// Exchange stuurt genodigden automatisch een bijgewerkte uitnodiging.
+    pub async fn update_event_times(&self, id: &str, start: &str, end: &str) -> Result<()> {
+        let resp = self
+            .http
+            .patch(format!("{BASE}/me/events/{id}"))
+            .bearer_auth(&self.token)
+            .json(&json!({
+                "start": { "dateTime": start, "timeZone": DEFAULT_TZ },
+                "end": { "dateTime": end, "timeZone": DEFAULT_TZ },
+            }))
+            .send()
+            .await?;
+        self.expect_ok(resp).await
+    }
+
+    /// Personen uit de organisatie/contacten zoeken (autoaanvullen genodigden).
+    pub async fn search_people(&self, query: &str) -> Result<Vec<Person>> {
+        let q = format!("\"{}\"", query.replace('"', " "));
+        let resp = self
+            .http
+            .get(format!("{BASE}/me/people"))
+            .bearer_auth(&self.token)
+            .query(&[
+                ("$search", q.as_str()),
+                ("$select", "displayName,scoredEmailAddresses"),
+                ("$top", "8"),
+            ])
+            .send()
+            .await?;
+        let list: GraphList<Person> = self.parse(resp).await?;
+        Ok(list.value)
+    }
+
     pub async fn update_event(&self, id: &str, input: &EventInput) -> Result<Event> {
         let resp = self
             .http
