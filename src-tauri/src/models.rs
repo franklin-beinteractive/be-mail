@@ -182,6 +182,22 @@ pub struct Event {
     pub is_cancelled: Option<bool>,
 }
 
+/// Mappen per gekoppeld account (voor de zijbalk).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountFolders {
+    pub account: crate::config::StoredAccount,
+    pub folders: Vec<MailFolder>,
+}
+
+/// Overzicht van gekoppelde accounts + welk account actief is.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountsInfo {
+    pub accounts: Vec<crate::config::StoredAccount>,
+    pub active: Option<String>,
+}
+
 /// Persoon uit /me/people (voor autoaanvullen van genodigden).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

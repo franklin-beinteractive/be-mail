@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
 import type { Signature } from "../lib/settings";
-import type { Account } from "../lib/types";
+import type { Account, AccountsInfo } from "../lib/types";
 import { PlusIcon, TrashIcon } from "./Icons";
 
 export default function SettingsView({
@@ -19,13 +19,40 @@ export default function SettingsView({
   const { t, settings, setSettings, notify } = useApp();
   // Notificatie-instelling leeft in config.json (de Rust-poller leest die).
   const [notifEnabled, setNotifEnabled] = useState(true);
+  // Gekoppelde accounts (multi-account).
+  const [accInfo, setAccInfo] = useState<AccountsInfo>({ accounts: [], active: null });
+  const [linking, setLinking] = useState(false);
 
   useEffect(() => {
     api
       .getConfig()
       .then((cfg) => setNotifEnabled(cfg?.notificationsEnabled ?? true))
       .catch(() => {});
+    api.listAccounts().then(setAccInfo).catch(() => {});
   }, []);
+
+  async function addAccount() {
+    setLinking(true);
+    try {
+      await api.login();
+      setAccInfo(await api.listAccounts());
+    } catch (e) {
+      notify(String(e), "error");
+    } finally {
+      setLinking(false);
+    }
+  }
+
+  async function removeAccount(id: string) {
+    try {
+      await api.logout(id);
+      const info = await api.listAccounts();
+      setAccInfo(info);
+      if (info.accounts.length === 0) onLogout();
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
 
   async function toggleNotifications(on: boolean) {
     setNotifEnabled(on);
@@ -68,14 +95,31 @@ export default function SettingsView({
       <h1>{t("settings")}</h1>
 
       <section className="settings-block">
-        <h2>{t("account")}</h2>
-        <p>
-          <strong>{account?.displayName}</strong>
-          <br />
-          <span className="muted">{account?.mail ?? account?.userPrincipalName}</span>
-        </p>
-        <button className="btn" onClick={onLogout}>
-          {t("logout")}
+        <h2>{t("accounts")}</h2>
+        {accInfo.accounts.length === 0 && account && (
+          <p>
+            <strong>{account.displayName}</strong>
+            <br />
+            <span className="muted">{account.mail ?? account.userPrincipalName}</span>
+          </p>
+        )}
+        {accInfo.accounts.map((a) => (
+          <div key={a.id} className="setting-row">
+            <span>
+              <strong>{a.displayName ?? a.mail}</strong>
+              <br />
+              <span className="muted small">
+                {a.mail}
+                {accInfo.active === a.id ? ` — ${t("activeAccount")}` : ""}
+              </span>
+            </span>
+            <button className="btn" onClick={() => removeAccount(a.id)}>
+              {t("logout")}
+            </button>
+          </div>
+        ))}
+        <button className="btn primary" onClick={addAccount} disabled={linking}>
+          <PlusIcon size={18} /> {t("addAccount")}
         </button>
       </section>
 

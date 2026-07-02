@@ -150,8 +150,9 @@ fn urldecode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// Volledige interactieve login. Opent de systeembrowser, vangt de redirect af,
-/// wisselt de code in voor tokens en slaat ze veilig op.
+/// Volledige interactieve login. Opent de systeembrowser, vangt de redirect af
+/// en wisselt de code in voor tokens. Opslaan gebeurt door de aanroeper (pas
+/// nadat bekend is bij welk account de tokens horen).
 pub async fn login(config: &AppConfig) -> Result<TokenSet> {
     if !config.is_complete() {
         bail!("Nog geen Client-ID ingesteld. Vul eerst de verbindingsgegevens in.");
@@ -195,9 +196,7 @@ pub async fn login(config: &AppConfig) -> Result<TokenSet> {
         .await
         .context("Token-aanvraag mislukt")?;
 
-    let tokens = parse_token_response(resp, None).await?;
-    token_store::save(&tokens)?;
-    Ok(tokens)
+    parse_token_response(resp, None).await
 }
 
 async fn parse_token_response(
@@ -221,9 +220,10 @@ async fn parse_token_response(
     }
 }
 
-/// Geeft een geldig access-token terug; vernieuwt automatisch met het refresh-token.
-pub async fn valid_access_token(config: &AppConfig) -> Result<String> {
-    let tokens = token_store::load()?
+/// Geeft een geldig access-token voor een account terug; vernieuwt automatisch
+/// met het refresh-token.
+pub async fn valid_access_token(config: &AppConfig, account_id: &str) -> Result<String> {
+    let tokens = token_store::load(account_id)?
         .ok_or_else(|| anyhow!("Niet ingelogd"))?;
 
     if now_ts() < tokens.expires_at {
@@ -248,16 +248,16 @@ pub async fn valid_access_token(config: &AppConfig) -> Result<String> {
         .context("Vernieuwen van sessie mislukt")?;
 
     let refreshed = parse_token_response(resp, Some(&tokens.refresh_token)).await?;
-    token_store::save(&refreshed)?;
+    token_store::save(account_id, &refreshed)?;
     Ok(refreshed.access_token)
 }
 
-pub fn is_logged_in() -> bool {
-    matches!(token_store::load(), Ok(Some(_)))
+pub fn is_logged_in(account_id: &str) -> bool {
+    matches!(token_store::load(account_id), Ok(Some(_)))
 }
 
-pub fn logout() -> Result<()> {
-    token_store::clear()
+pub fn logout(account_id: &str) -> Result<()> {
+    token_store::clear(account_id)
 }
 
 fn urlencode(s: &str) -> String {

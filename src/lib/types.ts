@@ -13,6 +13,23 @@ export interface Account {
   userPrincipalName?: string | null;
 }
 
+/** Gekoppeld account zoals opgeslagen in de config (multi-account). */
+export interface StoredAccount {
+  id: string;
+  mail?: string | null;
+  displayName?: string | null;
+}
+
+export interface AccountsInfo {
+  accounts: StoredAccount[];
+  active?: string | null;
+}
+
+export interface AccountFolders {
+  account: StoredAccount;
+  folders: MailFolder[];
+}
+
 export interface MailFolder {
   id: string;
   displayName?: string | null;

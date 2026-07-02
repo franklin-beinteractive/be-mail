@@ -4,6 +4,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   Account,
+  AccountFolders,
+  AccountsInfo,
   AppConfig,
   Attachment,
   CalendarEvent,
@@ -23,11 +25,17 @@ export const api = {
   setNotificationsEnabled: (enabled: boolean) =>
     invoke<void>("set_notifications_enabled", { enabled }),
 
-  // Authenticatie
+  // Authenticatie & accounts
   authStatus: () => invoke<boolean>("auth_status"),
+  // Inloggen = account koppelen; wordt meteen het actieve account.
   login: () => invoke<Account>("login"),
-  logout: () => invoke<void>("logout"),
+  // Zonder id: het actieve account ontkoppelen.
+  logout: (accountId?: string) =>
+    invoke<void>("logout", { accountId: accountId ?? null }),
   getAccount: () => invoke<Account>("get_account"),
+  listAccounts: () => invoke<AccountsInfo>("list_accounts"),
+  setActiveAccount: (id: string) => invoke<void>("set_active_account", { id }),
+  listAllFolders: () => invoke<AccountFolders[]>("list_all_folders"),
 
   // Mail
   listFolders: () => invoke<MailFolder[]>("list_folders"),

@@ -10,6 +10,18 @@ fn default_true() -> bool {
     true
 }
 
+/// Gekoppeld Office 365-account (tokens staan apart in de keychain).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoredAccount {
+    /// Graph user-id; tevens de sleutel in de token-store.
+    pub id: String,
+    #[serde(default)]
+    pub mail: Option<String>,
+    #[serde(default)]
+    pub display_name: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
@@ -21,6 +33,12 @@ pub struct AppConfig {
     /// Desktop-notificaties bij nieuwe mail (poller leest dit elke ronde).
     #[serde(default = "default_true")]
     pub notifications_enabled: bool,
+    /// Gekoppelde accounts (multi-account).
+    #[serde(default)]
+    pub accounts: Vec<StoredAccount>,
+    /// Id van het account waar mail-/agenda-acties op werken.
+    #[serde(default)]
+    pub active_account: Option<String>,
 }
 
 impl AppConfig {

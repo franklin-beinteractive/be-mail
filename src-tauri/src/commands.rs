@@ -3,9 +3,10 @@
 //! belanden (in mensentaal, geen stacktraces).
 
 use crate::auth;
-use crate::config::{self, AppConfig};
+use crate::config::{self, AppConfig, StoredAccount};
 use crate::graph::GraphClient;
 use crate::models::*;
+use crate::token_store;
 
 /// Kleine helper: laad een volledige config of geef een nette fout.
 fn require_config() -> Result<AppConfig, String> {
@@ -15,9 +16,14 @@ fn require_config() -> Result<AppConfig, String> {
     }
 }
 
+/// Graph-client voor het actieve account.
 async fn client() -> Result<GraphClient, String> {
     let cfg = require_config()?;
-    GraphClient::new(&cfg).await.map_err(|e| e.to_string())
+    let account = cfg
+        .active_account
+        .clone()
+        .ok_or_else(|| "Niet ingelogd.".to_string())?;
+    GraphClient::new(&cfg, &account).await.map_err(|e| e.to_string())
 }
 
 // ---- Configuratie ----
@@ -29,12 +35,17 @@ pub fn get_config() -> Result<Option<AppConfig>, String> {
 
 #[tauri::command]
 pub fn save_config(client_id: String, tenant_id: String) -> Result<(), String> {
-    // Bestaande overige instellingen (bv. notificaties) bewaren.
+    // Bestaande overige instellingen (notificaties, accounts) bewaren.
     let existing = config::load().ok().flatten();
     let cfg = AppConfig {
         client_id: client_id.trim().to_string(),
         tenant_id: tenant_id.trim().to_string(),
-        notifications_enabled: existing.map(|c| c.notifications_enabled).unwrap_or(true),
+        notifications_enabled: existing
+            .as_ref()
+            .map(|c| c.notifications_enabled)
+            .unwrap_or(true),
+        accounts: existing.as_ref().map(|c| c.accounts.clone()).unwrap_or_default(),
+        active_account: existing.and_then(|c| c.active_account),
     };
     if !cfg.is_complete() {
         return Err("Client-ID mag niet leeg zijn.".into());
@@ -52,24 +63,93 @@ pub fn set_notifications_enabled(enabled: bool) -> Result<(), String> {
     config::save(&cfg).map_err(|e| e.to_string())
 }
 
-// ---- Authenticatie ----
+// ---- Authenticatie & accounts ----
 
 #[tauri::command]
 pub fn auth_status() -> bool {
-    auth::is_logged_in()
+    let Ok(Some(cfg)) = config::load() else { return false };
+    match &cfg.active_account {
+        Some(id) => auth::is_logged_in(id),
+        None => false,
+    }
 }
 
+/// Inloggen = een account koppelen (of opnieuw koppelen). Het nieuwe account
+/// wordt meteen het actieve account.
 #[tauri::command]
 pub async fn login() -> Result<Account, String> {
     let cfg = require_config()?;
-    auth::login(&cfg).await.map_err(|e| e.to_string())?;
-    let gc = GraphClient::new(&cfg).await.map_err(|e| e.to_string())?;
-    gc.me().await.map_err(|e| e.to_string())
+    let tokens = auth::login(&cfg).await.map_err(|e| e.to_string())?;
+    // Wie is dit? Daarna pas opslaan, onder het juiste account-id.
+    let gc = GraphClient::from_token(tokens.access_token.clone());
+    let me = gc.me().await.map_err(|e| e.to_string())?;
+    token_store::save(&me.id, &tokens).map_err(|e| e.to_string())?;
+
+    let mut cfg = require_config()?;
+    if !cfg.accounts.iter().any(|a| a.id == me.id) {
+        cfg.accounts.push(StoredAccount {
+            id: me.id.clone(),
+            mail: me.mail.clone().or_else(|| me.user_principal_name.clone()),
+            display_name: me.display_name.clone(),
+        });
+    }
+    cfg.active_account = Some(me.id.clone());
+    config::save(&cfg).map_err(|e| e.to_string())?;
+    Ok(me)
+}
+
+/// Ontkoppel een account (of het actieve account als er geen id meegegeven is).
+#[tauri::command]
+pub fn logout(account_id: Option<String>) -> Result<(), String> {
+    let mut cfg = require_config()?;
+    let Some(id) = account_id.or_else(|| cfg.active_account.clone()) else {
+        return Ok(());
+    };
+    auth::logout(&id).map_err(|e| e.to_string())?;
+    cfg.accounts.retain(|a| a.id != id);
+    if cfg.active_account.as_deref() == Some(id.as_str()) {
+        cfg.active_account = cfg.accounts.first().map(|a| a.id.clone());
+    }
+    config::save(&cfg).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn logout() -> Result<(), String> {
-    auth::logout().map_err(|e| e.to_string())
+pub fn list_accounts() -> Result<AccountsInfo, String> {
+    let cfg = require_config()?;
+    Ok(AccountsInfo {
+        accounts: cfg.accounts,
+        active: cfg.active_account,
+    })
+}
+
+/// Wissel het actieve account (mail-/agenda-acties werken daarna hierop).
+#[tauri::command]
+pub fn set_active_account(id: String) -> Result<(), String> {
+    let mut cfg = require_config()?;
+    if !cfg.accounts.iter().any(|a| a.id == id) {
+        return Err("Onbekend account.".into());
+    }
+    cfg.active_account = Some(id);
+    config::save(&cfg).map_err(|e| e.to_string())
+}
+
+/// Mappen van álle gekoppelde accounts (voor de zijbalk). Accounts waarvan de
+/// sessie stuk is, komen terug met een lege mappenlijst i.p.v. een harde fout.
+#[tauri::command]
+pub async fn list_all_folders() -> Result<Vec<AccountFolders>, String> {
+    let cfg = require_config()?;
+    let mut out = Vec::new();
+    for acc in &cfg.accounts {
+        let folders = match GraphClient::new(&cfg, &acc.id).await {
+            Ok(gc) => gc.list_folders().await.unwrap_or_default(),
+            Err(_) => Vec::new(),
+        };
+        out.push(AccountFolders {
+            account: acc.clone(),
+            folders,
+        });
+    }
+    Ok(out)
 }
 
 #[tauri::command]

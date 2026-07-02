@@ -150,7 +150,7 @@ export default function App() {
             </nav>
 
             <main className="content">
-              {section === "mail" && <MailView account={account} />}
+              {section === "mail" && <MailView />}
               {section === "calendar" && <CalendarView />}
               {section === "settings" && (
                 <SettingsView

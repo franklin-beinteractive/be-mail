@@ -191,11 +191,21 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   overflow-y: auto;
   background: var(--bg-sunken);
 }
+.account-group { margin-bottom: 10px; }
+.account-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 6px 4px;
+  color: var(--text-muted);
+}
 .account-label {
   font-size: 0.82rem;
   font-weight: 700;
-  color: var(--text-muted);
-  padding: 4px 4px 10px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

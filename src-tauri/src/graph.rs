@@ -20,12 +20,21 @@ pub struct GraphClient {
 }
 
 impl GraphClient {
-    pub async fn new(config: &AppConfig) -> Result<Self> {
-        let token = auth::valid_access_token(config).await?;
+    pub async fn new(config: &AppConfig, account_id: &str) -> Result<Self> {
+        let token = auth::valid_access_token(config, account_id).await?;
         Ok(Self {
             token,
             http: reqwest::Client::new(),
         })
+    }
+
+    /// Client op basis van een al verkregen access-token (direct na login,
+    /// vóórdat bekend is bij welk account de tokens horen).
+    pub fn from_token(token: String) -> Self {
+        Self {
+            token,
+            http: reqwest::Client::new(),
+        }
     }
 
     async fn get_json<T: DeserializeOwned>(&self, url: &str) -> Result<T> {

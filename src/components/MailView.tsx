@@ -4,7 +4,15 @@ import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
-import type { Account, Attachment, MailFolder, Message, Recipient } from "../lib/types";
+import type {
+  Account,
+  AccountFolders,
+  Attachment,
+  MailFolder,
+  Message,
+  Recipient,
+  StoredAccount,
+} from "../lib/types";
 import {
   fileSize,
   longDateTime,
@@ -43,10 +51,86 @@ function isSystemFolder(f: MailFolder): boolean {
   return SYSTEM_FOLDER.test((f.displayName ?? "").trim());
 }
 
-export default function MailView({ account }: { account: Account | null }) {
+interface FolderTree {
+  roots: MailFolder[];
+  kidsOf: (id: string) => MailFolder[];
+  hasKids: (id: string) => boolean;
+}
+
+/** Bouwt een boom uit de platte mappenlijst, met eigen (gesleepte) volgorde. */
+function buildTree(list: MailFolder[], order: Record<string, string[]>): FolderTree {
+  const ids = new Set(list.map((f) => f.id));
+  const kids = new Map<string, MailFolder[]>();
+  const roots: MailFolder[] = [];
+  for (const f of list) {
+    if (f.parentFolderId && ids.has(f.parentFolderId)) {
+      const arr = kids.get(f.parentFolderId) ?? [];
+      arr.push(f);
+      kids.set(f.parentFolderId, arr);
+    } else {
+      roots.push(f);
+    }
+  }
+  const sortLevel = (fs: MailFolder[], parentKey: string) => {
+    const seq = order[parentKey];
+    if (!seq) return fs;
+    return [...fs].sort((a, b) => {
+      const ia = seq.indexOf(a.id);
+      const ib = seq.indexOf(b.id);
+      return (ia === -1 ? 1e9 : ia) - (ib === -1 ? 1e9 : ib);
+    });
+  };
+  return {
+    roots: sortLevel(roots, "root"),
+    kidsOf: (id: string) => sortLevel(kids.get(id) ?? [], id),
+    hasKids: (id: string) => (kids.get(id) ?? []).length > 0,
+  };
+}
+
+export default function MailView() {
   const { t, settings, setSettings, notify, confirm } = useApp();
-  const [folders, setFolders] = useState<MailFolder[]>([]);
+  // Multi-account: mappen per account; acties werken op het actieve account.
+  const [accounts, setAccounts] = useState<StoredAccount[]>([]);
+  const [activeId, setActiveId] = useState<string>("");
+  const [accountFolders, setAccountFolders] = useState<AccountFolders[]>([]);
+  const [collapsedAccounts, setCollapsedAccounts] = useState<Set<string>>(new Set());
   const [folderId, setFolderId] = useState<string>("");
+
+  // Mappen van het actieve account (alle bestaande logica werkt hierop).
+  const folders = useMemo(
+    () => accountFolders.find((g) => g.account.id === activeId)?.folders ?? [],
+    [accountFolders, activeId]
+  );
+
+  // Adapter voor bestaande plekken die het account-object gebruiken.
+  const account: Account | null = useMemo(() => {
+    const a = accounts.find((x) => x.id === activeId);
+    return a
+      ? {
+          id: a.id,
+          mail: a.mail ?? null,
+          displayName: a.displayName ?? null,
+          userPrincipalName: a.mail ?? null,
+        }
+      : null;
+  }, [accounts, activeId]);
+
+  /** Wijzig alleen de mappen van het actieve account. */
+  function patchActiveFolders(fn: (fs: MailFolder[]) => MailFolder[]) {
+    setAccountFolders((prev) =>
+      prev.map((g) =>
+        g.account.id === activeId ? { ...g, folders: fn(g.folders) } : g
+      )
+    );
+  }
+
+  /** Ververs mappen + tellers van alle accounts. */
+  function reloadAllFolders() {
+    return api
+      .listAllFolders()
+      .then(setAccountFolders)
+      .catch((e) => notify(String(e), "error"));
+  }
   const [messages, setMessages] = useState<Message[]>([]);
   const [selected, setSelected] = useState<Message | null>(null);
   const [skip, setSkip] = useState(0);
@@ -100,19 +184,42 @@ export default function MailView({ account }: { account: Account | null }) {
   // Bulkacties: ids van aangevinkte berichten.
   const [checked, setChecked] = useState<Set<string>>(new Set());
 
-  // Mappen laden bij start.
+  // Accounts + mappen laden bij start; Postvak IN van het actieve account openen.
   useEffect(() => {
-    api
-      .listFolders()
-      .then((f) => {
-        setFolders(f);
+    (async () => {
+      try {
+        const info = await api.listAccounts();
+        setAccounts(info.accounts);
+        const active = info.active ?? info.accounts[0]?.id ?? "";
+        setActiveId(active);
+        const groups = await api.listAllFolders();
+        setAccountFolders(groups);
+        const g = groups.find((x) => x.account.id === active);
         const inbox =
-          f.find((x) => /inbox|postvak in/i.test(x.displayName ?? "")) ?? f[0];
+          g?.folders.find((x) => /inbox|postvak in/i.test(x.displayName ?? "")) ??
+          g?.folders[0];
         if (inbox) setFolderId(inbox.id);
-      })
-      .catch((e) => notify(String(e), "error"));
+      } catch (e) {
+        notify(String(e), "error");
+      }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Map kiezen — zo nodig eerst van account wisselen. */
+  async function selectFolder(accountId: string, fId: string) {
+    try {
+      if (accountId !== activeId) {
+        await api.setActiveAccount(accountId);
+        setActiveId(accountId);
+        setSearch("");
+        setSearchResult(null);
+      }
+      setFolderId(fId);
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
 
   // Berichten laden bij mapwissel.
   useEffect(() => {
@@ -129,7 +236,7 @@ export default function MailView({ account }: { account: Account | null }) {
   // Postvak IN open staat (zonder zoekopdracht), de lijst opnieuw laden.
   useEffect(() => {
     const un = listen("new-mail", () => {
-      api.listFolders().then(setFolders).catch(() => {});
+      void reloadAllFolders();
       const inbox = folders.find((f) => /inbox|postvak in/i.test(f.displayName ?? ""));
       if (!searchResult && folderId && folderId === inbox?.id) loadPage(0, true);
     });
@@ -220,7 +327,7 @@ export default function MailView({ account }: { account: Account | null }) {
       await api.reportJunk(m.id);
       notify(t("junkReported") + " ✓", "info");
       dropFromLists(m.id);
-      api.listFolders().then(setFolders).catch(() => {});
+      void reloadAllFolders();
     } catch (e) {
       notify(String(e), "error");
     }
@@ -236,7 +343,7 @@ export default function MailView({ account }: { account: Account | null }) {
       await api.reportJunk(m.id).catch(() => {});
       notify(t("senderBlocked") + " ✓", "info");
       dropFromLists(m.id);
-      api.listFolders().then(setFolders).catch(() => {});
+      void reloadAllFolders();
     } catch (e) {
       notify(String(e), "error");
     }
@@ -270,7 +377,7 @@ export default function MailView({ account }: { account: Account | null }) {
       await api.rsvpMessage(m.id, response);
       notify(t("responseSent") + " ✓", "info");
       dropFromLists(m.id);
-      api.listFolders().then(setFolders).catch(() => {});
+      void reloadAllFolders();
     } catch (e) {
       notify(String(e), "error");
     }
@@ -306,7 +413,7 @@ export default function MailView({ account }: { account: Account | null }) {
   }
 
   function refreshFolderUnread(delta: number) {
-    setFolders((prev) =>
+    patchActiveFolders((prev) =>
       prev.map((f) =>
         f.id === folderId
           ? { ...f, unreadItemCount: Math.max(0, (f.unreadItemCount ?? 0) + delta) }
@@ -367,36 +474,28 @@ export default function MailView({ account }: { account: Account | null }) {
 
   // ---- Mappenboom ----
 
-  const folderTree = useMemo(() => {
-    const ids = new Set(folders.map((f) => f.id));
-    const kids = new Map<string, MailFolder[]>();
-    const roots: MailFolder[] = [];
-    for (const f of folders) {
-      if (f.parentFolderId && ids.has(f.parentFolderId)) {
-        const arr = kids.get(f.parentFolderId) ?? [];
-        arr.push(f);
-        kids.set(f.parentFolderId, arr);
-      } else {
-        roots.push(f);
-      }
+  const folderTree = useMemo(
+    () => buildTree(folders, settings.folderOrder ?? {}),
+    [folders, settings.folderOrder]
+  );
+
+  // Boom per account (voor de zijbalk met accountgroepen).
+  const treeByAccount = useMemo(() => {
+    const map = new Map<string, FolderTree>();
+    for (const g of accountFolders) {
+      map.set(g.account.id, buildTree(g.folders, settings.folderOrder ?? {}));
     }
-    // Eigen (gesleepte) volgorde per niveau toepassen.
-    const order = settings.folderOrder ?? {};
-    const sortLevel = (list: MailFolder[], parentKey: string) => {
-      const seq = order[parentKey];
-      if (!seq) return list;
-      return [...list].sort((a, b) => {
-        const ia = seq.indexOf(a.id);
-        const ib = seq.indexOf(b.id);
-        return (ia === -1 ? 1e9 : ia) - (ib === -1 ? 1e9 : ib);
-      });
-    };
-    return {
-      roots: sortLevel(roots, "root"),
-      kidsOf: (id: string) => sortLevel(kids.get(id) ?? [], id),
-      hasKids: (id: string) => (kids.get(id) ?? []).length > 0,
-    };
-  }, [folders, settings.folderOrder]);
+    return map;
+  }, [accountFolders, settings.folderOrder]);
+
+  function toggleAccountCollapse(id: string) {
+    setCollapsedAccounts((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   /** Is `candidateId` een nakomeling van `ancestorId`? (voorkomt zelf-nesting) */
   function isDescendant(candidateId: string, ancestorId: string): boolean {
@@ -409,7 +508,7 @@ export default function MailView({ account }: { account: Account | null }) {
   }
 
   function reloadFolders() {
-    return api.listFolders().then(setFolders).catch((e) => notify(String(e), "error"));
+    return reloadAllFolders();
   }
 
   async function handleFolderDrop(target: MailFolder) {
@@ -477,10 +576,10 @@ export default function MailView({ account }: { account: Account | null }) {
     try {
       if (folderDialog.mode === "create") {
         const f = await api.createFolder(name);
-        setFolders((prev) => [...prev, f]);
+        patchActiveFolders((prev) => [...prev, f]);
       } else {
         await api.renameFolder(folderDialog.folder.id, name);
-        setFolders((prev) =>
+        patchActiveFolders((prev) =>
           prev.map((x) =>
             x.id === folderDialog.folder.id ? { ...x, displayName: name } : x
           )
@@ -497,7 +596,7 @@ export default function MailView({ account }: { account: Account | null }) {
     try {
       await api.deleteFolder(f.id);
       const rest = folders.filter((x) => x.id !== f.id);
-      setFolders(rest);
+      patchActiveFolders(() => rest);
       if (folderId === f.id) {
         // Terug naar Postvak IN (of de eerste overgebleven map).
         const inbox =
@@ -550,7 +649,7 @@ export default function MailView({ account }: { account: Account | null }) {
           setSearchResult((prev) => (prev ? prev.filter((m) => !ids.includes(m.id)) : prev));
         }
       }
-      api.listFolders().then(setFolders).catch(() => {});
+      void reloadAllFolders();
       loadPage(0, true);
     }
   }
@@ -625,26 +724,32 @@ export default function MailView({ account }: { account: Account | null }) {
   }
 
   /** Eén map-rij (recursief, met inklappen en drag & drop). */
-  function renderFolder(f: MailFolder, depth: number): React.ReactNode {
-    const hasKids = folderTree.hasKids(f.id);
+  function renderFolder(
+    accountId: string,
+    tree: FolderTree,
+    f: MailFolder,
+    depth: number
+  ): React.ReactNode {
+    const isActiveGroup = accountId === activeId;
+    const hasKids = tree.hasKids(f.id);
     const isCollapsed = collapsedFolders.has(f.id);
-    const hintHere = dropHint?.id === f.id ? dropHint.pos : null;
+    const hintHere = isActiveGroup && dropHint?.id === f.id ? dropHint.pos : null;
     return (
       <div key={f.id}>
         <div
           className={
             "folder" +
-            (f.id === folderId ? " active" : "") +
+            (isActiveGroup && f.id === folderId ? " active" : "") +
             (hintHere ? ` drop-${hintHere}` : "")
           }
           style={{ paddingLeft: depth * 14 }}
-          draggable={!isSystemFolder(f)}
+          draggable={isActiveGroup && !isSystemFolder(f)}
           onDragStart={(e) => {
             setDragFolderId(f.id);
             e.dataTransfer.effectAllowed = "move";
           }}
           onDragOver={(e) => {
-            if (!dragFolderId || dragFolderId === f.id) return;
+            if (!isActiveGroup || !dragFolderId || dragFolderId === f.id) return;
             e.preventDefault();
             const r = e.currentTarget.getBoundingClientRect();
             const y = e.clientY - r.top;
@@ -672,11 +777,11 @@ export default function MailView({ account }: { account: Account | null }) {
           ) : (
             <span className="fold-spacer" />
           )}
-          <button className="folder-main" onClick={() => setFolderId(f.id)}>
+          <button className="folder-main" onClick={() => void selectFolder(accountId, f.id)}>
             <span className="folder-name">{f.displayName}</span>
             {!!f.unreadItemCount && <span className="badge">{f.unreadItemCount}</span>}
           </button>
-          {!isSystemFolder(f) && (
+          {isActiveGroup && !isSystemFolder(f) && (
             <span className="folder-actions">
               <button
                 className="icon-btn"
@@ -700,7 +805,9 @@ export default function MailView({ account }: { account: Account | null }) {
             </span>
           )}
         </div>
-        {hasKids && !isCollapsed && folderTree.kidsOf(f.id).map((k) => renderFolder(k, depth + 1))}
+        {hasKids &&
+          !isCollapsed &&
+          tree.kidsOf(f.id).map((k) => renderFolder(accountId, tree, k, depth + 1))}
       </div>
     );
   }
@@ -715,11 +822,8 @@ export default function MailView({ account }: { account: Account | null }) {
         } as React.CSSProperties
       }
     >
-      {/* Kolom 1: mappen */}
+      {/* Kolom 1: mappen, gegroepeerd per account */}
       <aside className="folders">
-        <div className="account-label" title={account?.mail ?? account?.userPrincipalName ?? ""}>
-          {account?.mail ?? account?.userPrincipalName ?? ""}
-        </div>
         <div className="folders-head">
           <span className="muted small">{t("folders")}</span>
           <button
@@ -734,7 +838,28 @@ export default function MailView({ account }: { account: Account | null }) {
             <PlusIcon size={16} />
           </button>
         </div>
-        <nav>{folderTree.roots.map((f) => renderFolder(f, 0))}</nav>
+        <nav>
+          {accountFolders.map((g) => {
+            const tree = treeByAccount.get(g.account.id);
+            const isCollapsed = collapsedAccounts.has(g.account.id);
+            return (
+              <div key={g.account.id} className="account-group">
+                <button
+                  className="account-head"
+                  onClick={() => toggleAccountCollapse(g.account.id)}
+                  title={g.account.mail ?? ""}
+                >
+                  {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                  <span className="account-label">
+                    {g.account.mail ?? g.account.displayName ?? "?"}
+                  </span>
+                </button>
+                {!isCollapsed &&
+                  tree?.roots.map((f) => renderFolder(g.account.id, tree, f, 0))}
+              </div>
+            );
+          })}
+        </nav>
       </aside>
 
       <div
