@@ -60,10 +60,13 @@ export default function ComposeDialog({
   initial,
   onClose,
   onSent,
+  inline = false,
 }: {
   initial: ComposeInitial;
   onClose: () => void;
   onSent: () => void;
+  /** In de leesvenster-kolom (geen modal-overlay); kruisje sluit. */
+  inline?: boolean;
 }) {
   const { t, notify, settings } = useApp();
 
@@ -372,9 +375,8 @@ export default function ComposeDialog({
     }
   }
 
-  return (
-    <div className="overlay" role="dialog" aria-modal="true">
-      <div className="dialog compose">
+  const panel = (
+      <div className={inline ? "compose-inline" : "dialog compose"}>
         <header className="dialog-head">
           <h2>{t("compose")}</h2>
           <button className="icon-btn" onClick={closeAndSave} aria-label={t("cancel")}>
@@ -569,6 +571,12 @@ export default function ComposeDialog({
           </button>
         </footer>
       </div>
+  );
+
+  if (inline) return panel;
+  return (
+    <div className="overlay" role="dialog" aria-modal="true">
+      {panel}
     </div>
   );
 }

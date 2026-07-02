@@ -648,8 +648,17 @@ export default function MailView({ account }: { account: Account | null }) {
         </div>
       </section>
 
-      {/* Kolom 3: leesvenster */}
+      {/* Kolom 3: leesvenster (of het opstelvenster, inline) */}
       <section className="reader">
+        {compose ? (
+          <ComposeDialog
+            inline
+            initial={compose}
+            onClose={composeClosed}
+            onSent={composeClosed}
+          />
+        ) : (
+          <>
         <div className="reader-actions">
           <button className="btn primary" onClick={() => setCompose({})}>
             <ComposeIcon size={18} /> {t("compose")}
@@ -782,15 +791,9 @@ export default function MailView({ account }: { account: Account | null }) {
             />
           </>
         )}
+          </>
+        )}
       </section>
-
-      {compose && (
-        <ComposeDialog
-          initial={compose}
-          onClose={composeClosed}
-          onSent={composeClosed}
-        />
-      )}
 
       {folderDialog && (
         <div className="overlay" role="dialog" aria-modal="true" onClick={() => setFolderDialog(null)}>

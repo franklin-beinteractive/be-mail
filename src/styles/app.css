@@ -507,6 +507,16 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 .undo-bar { font-weight: 600; }
 
+/* Opstellen inline in de leesvenster-kolom */
+.compose-inline {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-raised);
+}
+.compose-inline .dialog-body { flex: 1; overflow-y: auto; }
+
 .confirm-dialog { max-width: 420px; }
 .confirm-dialog .dialog-body p { margin: 4px 0; }
 
