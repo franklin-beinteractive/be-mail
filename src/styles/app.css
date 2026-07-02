@@ -507,6 +507,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 .undo-bar { font-weight: 600; }
 
+.confirm-dialog { max-width: 420px; }
+.confirm-dialog .dialog-body p { margin: 4px 0; }
+
 .quoted {
   margin-top: 12px;
   padding-top: 12px;

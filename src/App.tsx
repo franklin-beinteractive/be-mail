@@ -44,6 +44,21 @@ export default function App() {
     window.setTimeout(() => setToast(null), 4500);
   }, []);
 
+  // Eigen bevestigings-modal (i.p.v. browser-confirm met "localhost zegt…").
+  const [confirmReq, setConfirmReq] = useState<{
+    msg: string;
+    resolve: (ok: boolean) => void;
+  } | null>(null);
+  const confirm = useCallback(
+    (msg: string) =>
+      new Promise<boolean>((resolve) => setConfirmReq({ msg, resolve })),
+    []
+  );
+  function answerConfirm(ok: boolean) {
+    confirmReq?.resolve(ok);
+    setConfirmReq(null);
+  }
+
   const bootstrap = useCallback(async () => {
     setPhase("loading");
     try {
@@ -88,7 +103,7 @@ export default function App() {
     setPhase("login");
   }
 
-  const ctx: AppContextValue = { t, settings, setSettings, notify };
+  const ctx: AppContextValue = { t, settings, setSettings, notify, confirm };
 
   return (
     <AppContext.Provider value={ctx}>
@@ -145,6 +160,24 @@ export default function App() {
                 />
               )}
             </main>
+          </div>
+        )}
+
+        {confirmReq && (
+          <div className="overlay" role="alertdialog" aria-modal="true">
+            <div className="dialog confirm-dialog">
+              <div className="dialog-body">
+                <p>{confirmReq.msg}</p>
+              </div>
+              <footer className="dialog-foot">
+                <button className="btn" onClick={() => answerConfirm(false)}>
+                  {t("cancel")}
+                </button>
+                <button className="btn primary" onClick={() => answerConfirm(true)} autoFocus>
+                  {t("ok")}
+                </button>
+              </footer>
+            </div>
           </div>
         )}
 

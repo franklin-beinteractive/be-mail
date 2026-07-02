@@ -31,7 +31,7 @@ function addDays(d: Date, n: number): Date {
 }
 
 export default function CalendarView() {
-  const { t, settings, notify } = useApp();
+  const { t, settings, notify, confirm } = useApp();
   const [mode, setMode] = useState<ViewMode>("month");
   const [anchor, setAnchor] = useState(() => new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -94,7 +94,7 @@ export default function CalendarView() {
   }
 
   async function removeEvent(ev: CalendarEvent) {
-    if (!confirm(t("confirmDelete"))) return;
+    if (!(await confirm(t("confirmDelete")))) return;
     try {
       await api.deleteEvent(ev.id);
       setEvents((prev) => prev.filter((x) => x.id !== ev.id));

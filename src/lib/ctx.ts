@@ -10,6 +10,8 @@ export interface AppContextValue {
   setSettings: (patch: Partial<UiSettings>) => void;
   /** Toon een korte melding (fout of info) onderin het scherm. */
   notify: (message: string, kind?: "info" | "error") => void;
+  /** Eigen bevestigings-modal (geen browser-confirm). */
+  confirm: (message: string) => Promise<boolean>;
 }
 
 export const AppContext = createContext<AppContextValue | null>(null);

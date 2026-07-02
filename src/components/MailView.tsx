@@ -42,7 +42,7 @@ function isSystemFolder(f: MailFolder): boolean {
 }
 
 export default function MailView({ account }: { account: Account | null }) {
-  const { t, settings, notify } = useApp();
+  const { t, settings, notify, confirm } = useApp();
   const [folders, setFolders] = useState<MailFolder[]>([]);
   const [folderId, setFolderId] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -196,7 +196,7 @@ export default function MailView({ account }: { account: Account | null }) {
   async function blockSender(m: Message) {
     const addr = senderAddress(m.from?.emailAddress);
     if (!addr) return;
-    if (!confirm(t("confirmBlock"))) return;
+    if (!(await confirm(t("confirmBlock")))) return;
     try {
       await api.blockSender(addr);
       await api.reportJunk(m.id).catch(() => {});
@@ -303,7 +303,7 @@ export default function MailView({ account }: { account: Account | null }) {
   }
 
   async function remove(m: Message) {
-    if (!confirm(t("confirmDelete"))) return;
+    if (!(await confirm(t("confirmDelete")))) return;
     try {
       await api.deleteMessage(m.id);
       dropFromLists(m.id);
@@ -355,7 +355,7 @@ export default function MailView({ account }: { account: Account | null }) {
   }
 
   async function removeFolder(f: MailFolder) {
-    if (!confirm(t("confirmDeleteFolder"))) return;
+    if (!(await confirm(t("confirmDeleteFolder")))) return;
     try {
       await api.deleteFolder(f.id);
       const rest = folders.filter((x) => x.id !== f.id);
@@ -385,7 +385,7 @@ export default function MailView({ account }: { account: Account | null }) {
   async function bulk(action: "read" | "unread" | "archive" | "delete" | "move", destId?: string) {
     const ids = [...checked];
     if (ids.length === 0) return;
-    if (action === "delete" && !confirm(t("confirmDelete"))) return;
+    if (action === "delete" && !(await confirm(t("confirmDelete")))) return;
     setLoading(true);
     try {
       for (const id of ids) {
