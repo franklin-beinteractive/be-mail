@@ -136,6 +136,11 @@ export const ChevronRight = (p: Props) => (
     <path d="m9 18 6-6-6-6" />
   </Svg>
 );
+export const ChevronDown = (p: Props) => (
+  <Svg {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Svg>
+);
 export const PaperclipIcon = (p: Props) => (
   <Svg {...p}>
     <path d="M21 12 12 21a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8" />

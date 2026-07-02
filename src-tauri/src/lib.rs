@@ -32,6 +32,7 @@ pub fn run() {
             commands::create_folder,
             commands::rename_folder,
             commands::delete_folder,
+            commands::move_folder,
             commands::list_messages,
             commands::get_message,
             commands::set_read,

@@ -100,6 +100,15 @@ pub async fn delete_folder(id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn move_folder(id: String, destination_id: String) -> Result<(), String> {
+    client()
+        .await?
+        .move_folder(&id, &destination_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn list_messages(
     folder_id: String,
     top: Option<u32>,

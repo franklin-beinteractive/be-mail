@@ -241,6 +241,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .folder.active .folder-actions { display: inline-flex; }
 .folder-actions .icon-btn { color: inherit; }
 .folder-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fold-toggle { flex-shrink: 0; width: 20px; height: 20px; padding: 0; color: inherit; }
+.fold-spacer { width: 20px; flex-shrink: 0; }
+/* Drag & drop-indicatoren */
+.folder.drop-into { outline: 2px solid var(--accent); outline-offset: -2px; }
+.folder.drop-before { box-shadow: 0 -2px 0 0 var(--accent); }
+.folder.drop-after { box-shadow: 0 2px 0 0 var(--accent); }
 .badge {
   background: var(--accent);
   color: #fff;

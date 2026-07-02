@@ -17,6 +17,8 @@ import ComposeDialog, { type ComposeInitial } from "./ComposeDialog";
 import {
   ArchiveIcon,
   BanIcon,
+  ChevronDown,
+  ChevronRight,
   CloseIcon,
   ComposeIcon,
   EditIcon,
@@ -88,6 +90,13 @@ export default function MailView({ account }: { account: Account | null }) {
     { mode: "create" } | { mode: "rename"; folder: MailFolder } | null
   >(null);
   const [folderName, setFolderName] = useState("");
+  // Mappenboom: ingeklapte mappen + drag & drop-status.
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+  const [dragFolderId, setDragFolderId] = useState<string | null>(null);
+  const [dropHint, setDropHint] = useState<{
+    id: string;
+    pos: "before" | "after" | "into";
+  } | null>(null);
   // Bulkacties: ids van aangevinkte berichten.
   const [checked, setChecked] = useState<Set<string>>(new Set());
 
@@ -356,6 +365,110 @@ export default function MailView({ account }: { account: Account | null }) {
     }
   }
 
+  // ---- Mappenboom ----
+
+  const folderTree = useMemo(() => {
+    const ids = new Set(folders.map((f) => f.id));
+    const kids = new Map<string, MailFolder[]>();
+    const roots: MailFolder[] = [];
+    for (const f of folders) {
+      if (f.parentFolderId && ids.has(f.parentFolderId)) {
+        const arr = kids.get(f.parentFolderId) ?? [];
+        arr.push(f);
+        kids.set(f.parentFolderId, arr);
+      } else {
+        roots.push(f);
+      }
+    }
+    // Eigen (gesleepte) volgorde per niveau toepassen.
+    const order = settings.folderOrder ?? {};
+    const sortLevel = (list: MailFolder[], parentKey: string) => {
+      const seq = order[parentKey];
+      if (!seq) return list;
+      return [...list].sort((a, b) => {
+        const ia = seq.indexOf(a.id);
+        const ib = seq.indexOf(b.id);
+        return (ia === -1 ? 1e9 : ia) - (ib === -1 ? 1e9 : ib);
+      });
+    };
+    return {
+      roots: sortLevel(roots, "root"),
+      kidsOf: (id: string) => sortLevel(kids.get(id) ?? [], id),
+      hasKids: (id: string) => (kids.get(id) ?? []).length > 0,
+    };
+  }, [folders, settings.folderOrder]);
+
+  /** Is `candidateId` een nakomeling van `ancestorId`? (voorkomt zelf-nesting) */
+  function isDescendant(candidateId: string, ancestorId: string): boolean {
+    let cur = folders.find((f) => f.id === candidateId);
+    for (let i = 0; cur && i < 10; i++) {
+      if (cur.parentFolderId === ancestorId) return true;
+      cur = folders.find((f) => f.id === cur!.parentFolderId);
+    }
+    return false;
+  }
+
+  function reloadFolders() {
+    return api.listFolders().then(setFolders).catch((e) => notify(String(e), "error"));
+  }
+
+  async function handleFolderDrop(target: MailFolder) {
+    const hint = dropHint;
+    const dragId = dragFolderId;
+    setDropHint(null);
+    setDragFolderId(null);
+    if (!hint || !dragId || dragId === target.id) return;
+    const dragged = folders.find((x) => x.id === dragId);
+    if (!dragged || isSystemFolder(dragged)) return;
+    if (isDescendant(target.id, dragId)) return;
+
+    const idSet = new Set(folders.map((f) => f.id));
+    const parentKey =
+      target.parentFolderId && idSet.has(target.parentFolderId)
+        ? target.parentFolderId
+        : "root";
+    const dragParentKey =
+      dragged.parentFolderId && idSet.has(dragged.parentFolderId)
+        ? dragged.parentFolderId
+        : "root";
+
+    try {
+      if (hint.pos === "into") {
+        await api.moveFolder(dragId, target.id);
+        await reloadFolders();
+        return;
+      }
+      // Ervoor/erna: eerst naar dezelfde bovenliggende map (indien nodig),
+      // daarna de lokale volgorde bijwerken.
+      if (parentKey !== dragParentKey) {
+        await api.moveFolder(dragId, parentKey === "root" ? "msgfolderroot" : parentKey);
+      }
+      const siblings = (parentKey === "root"
+        ? folderTree.roots
+        : folderTree.kidsOf(parentKey)
+      )
+        .map((x) => x.id)
+        .filter((id) => id !== dragId);
+      const idx = siblings.indexOf(target.id);
+      siblings.splice(hint.pos === "before" ? idx : idx + 1, 0, dragId);
+      setSettings({
+        folderOrder: { ...(settings.folderOrder ?? {}), [parentKey]: siblings },
+      });
+      if (parentKey !== dragParentKey) await reloadFolders();
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  function toggleCollapse(id: string) {
+    setCollapsedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   // ---- Mappenbeheer ----
 
   async function saveFolderDialog() {
@@ -511,6 +624,87 @@ export default function MailView({ account }: { account: Account | null }) {
     }
   }
 
+  /** Eén map-rij (recursief, met inklappen en drag & drop). */
+  function renderFolder(f: MailFolder, depth: number): React.ReactNode {
+    const hasKids = folderTree.hasKids(f.id);
+    const isCollapsed = collapsedFolders.has(f.id);
+    const hintHere = dropHint?.id === f.id ? dropHint.pos : null;
+    return (
+      <div key={f.id}>
+        <div
+          className={
+            "folder" +
+            (f.id === folderId ? " active" : "") +
+            (hintHere ? ` drop-${hintHere}` : "")
+          }
+          style={{ paddingLeft: depth * 14 }}
+          draggable={!isSystemFolder(f)}
+          onDragStart={(e) => {
+            setDragFolderId(f.id);
+            e.dataTransfer.effectAllowed = "move";
+          }}
+          onDragOver={(e) => {
+            if (!dragFolderId || dragFolderId === f.id) return;
+            e.preventDefault();
+            const r = e.currentTarget.getBoundingClientRect();
+            const y = e.clientY - r.top;
+            const pos = y < r.height * 0.3 ? "before" : y > r.height * 0.7 ? "after" : "into";
+            setDropHint((h) => (h?.id === f.id && h.pos === pos ? h : { id: f.id, pos }));
+          }}
+          onDragLeave={() => setDropHint((h) => (h?.id === f.id ? null : h))}
+          onDrop={(e) => {
+            e.preventDefault();
+            void handleFolderDrop(f);
+          }}
+          onDragEnd={() => {
+            setDragFolderId(null);
+            setDropHint(null);
+          }}
+        >
+          {hasKids ? (
+            <button
+              className="icon-btn fold-toggle"
+              onClick={() => toggleCollapse(f.id)}
+              aria-label={isCollapsed ? t("next") : t("prev")}
+            >
+              {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+            </button>
+          ) : (
+            <span className="fold-spacer" />
+          )}
+          <button className="folder-main" onClick={() => setFolderId(f.id)}>
+            <span className="folder-name">{f.displayName}</span>
+            {!!f.unreadItemCount && <span className="badge">{f.unreadItemCount}</span>}
+          </button>
+          {!isSystemFolder(f) && (
+            <span className="folder-actions">
+              <button
+                className="icon-btn"
+                onClick={() => {
+                  setFolderName(f.displayName ?? "");
+                  setFolderDialog({ mode: "rename", folder: f });
+                }}
+                aria-label={t("renameFolder")}
+                title={t("renameFolder")}
+              >
+                <EditIcon size={14} />
+              </button>
+              <button
+                className="icon-btn"
+                onClick={() => removeFolder(f)}
+                aria-label={t("deleteFolder")}
+                title={t("deleteFolder")}
+              >
+                <TrashIcon size={14} />
+              </button>
+            </span>
+          )}
+        </div>
+        {hasKids && !isCollapsed && folderTree.kidsOf(f.id).map((k) => renderFolder(k, depth + 1))}
+      </div>
+    );
+  }
+
   return (
     <div
       className="mail"
@@ -540,41 +734,7 @@ export default function MailView({ account }: { account: Account | null }) {
             <PlusIcon size={16} />
           </button>
         </div>
-        <nav>
-          {folders.map((f) => (
-            <div key={f.id} className={"folder" + (f.id === folderId ? " active" : "")}>
-              <button className="folder-main" onClick={() => setFolderId(f.id)}>
-                <span className="folder-name">{f.displayName}</span>
-                {!!f.unreadItemCount && (
-                  <span className="badge">{f.unreadItemCount}</span>
-                )}
-              </button>
-              {!isSystemFolder(f) && (
-                <span className="folder-actions">
-                  <button
-                    className="icon-btn"
-                    onClick={() => {
-                      setFolderName(f.displayName ?? "");
-                      setFolderDialog({ mode: "rename", folder: f });
-                    }}
-                    aria-label={t("renameFolder")}
-                    title={t("renameFolder")}
-                  >
-                    <EditIcon size={14} />
-                  </button>
-                  <button
-                    className="icon-btn"
-                    onClick={() => removeFolder(f)}
-                    aria-label={t("deleteFolder")}
-                    title={t("deleteFolder")}
-                  >
-                    <TrashIcon size={14} />
-                  </button>
-                </span>
-              )}
-            </div>
-          ))}
-        </nav>
+        <nav>{folderTree.roots.map((f) => renderFolder(f, 0))}</nav>
       </aside>
 
       <div

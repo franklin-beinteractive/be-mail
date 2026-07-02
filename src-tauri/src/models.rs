@@ -65,6 +65,11 @@ pub struct MailFolder {
     pub unread_item_count: Option<i64>,
     #[serde(default)]
     pub total_item_count: Option<i64>,
+    /// Voor de boomweergave: id van de bovenliggende map.
+    #[serde(default)]
+    pub parent_folder_id: Option<String>,
+    #[serde(default)]
+    pub child_folder_count: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

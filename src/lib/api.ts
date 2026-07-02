@@ -34,6 +34,9 @@ export const api = {
   renameFolder: (id: string, name: string) =>
     invoke<void>("rename_folder", { id, name }),
   deleteFolder: (id: string) => invoke<void>("delete_folder", { id }),
+  // Map in een andere map slepen; "msgfolderroot" = terug naar hoofdniveau.
+  moveFolder: (id: string, destinationId: string) =>
+    invoke<void>("move_folder", { id, destinationId }),
   listMessages: (folderId: string, top = 25, skip = 0) =>
     invoke<MessagesPage>("list_messages", { folderId, top, skip }),
   getMessage: (id: string) => invoke<Message>("get_message", { id }),

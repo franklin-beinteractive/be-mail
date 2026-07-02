@@ -28,6 +28,8 @@ export interface UiSettings {
   /** Kolombreedtes (px) in de mailweergave; instelbaar door te slepen. */
   foldersWidth: number;
   listWidth: number;
+  /** Eigen mapvolgorde per bovenliggende map ("root" = hoofdniveau). */
+  folderOrder: Record<string, string[]>;
 }
 
 const KEY = "BE-Mail.ui";
@@ -43,6 +45,7 @@ export const defaultSettings: UiSettings = {
   sendDelaySeconds: 5,
   foldersWidth: 240,
   listWidth: 340,
+  folderOrder: {},
 };
 
 export function loadSettings(): UiSettings {

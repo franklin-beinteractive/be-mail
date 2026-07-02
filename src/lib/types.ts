@@ -18,6 +18,8 @@ export interface MailFolder {
   displayName?: string | null;
   unreadItemCount?: number | null;
   totalItemCount?: number | null;
+  parentFolderId?: string | null;
+  childFolderCount?: number | null;
 }
 
 export interface EmailAddress {

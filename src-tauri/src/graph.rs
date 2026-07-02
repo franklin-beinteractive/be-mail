@@ -67,12 +67,58 @@ impl GraphClient {
     }
 
     // ---- Mappen ----
+
+    /// Alle mappen, inclusief submappen (tot 3 niveaus diep), als platte lijst;
+    /// de frontend bouwt er een boom van via `parentFolderId`.
     pub async fn list_folders(&self) -> Result<Vec<MailFolder>> {
-        let url = format!(
-            "{BASE}/me/mailFolders?$top=100&$select=id,displayName,unreadItemCount,totalItemCount"
-        );
-        let list: GraphList<MailFolder> = self.get_json(&url).await?;
-        Ok(list.value)
+        const SEL: &str =
+            "id,displayName,unreadItemCount,totalItemCount,parentFolderId,childFolderCount";
+        let top: GraphList<MailFolder> = self
+            .get_json(&format!("{BASE}/me/mailFolders?$top=100&$select={SEL}"))
+            .await?;
+
+        let mut all = Vec::new();
+        let mut queue: Vec<String> = top
+            .value
+            .iter()
+            .filter(|f| f.child_folder_count.unwrap_or(0) > 0)
+            .map(|f| f.id.clone())
+            .collect();
+        all.extend(top.value);
+
+        let mut depth = 0;
+        while !queue.is_empty() && depth < 3 {
+            let mut next = Vec::new();
+            for id in queue {
+                let kids: GraphList<MailFolder> = self
+                    .get_json(&format!(
+                        "{BASE}/me/mailFolders/{id}/childFolders?$top=100&$select={SEL}"
+                    ))
+                    .await?;
+                next.extend(
+                    kids.value
+                        .iter()
+                        .filter(|f| f.child_folder_count.unwrap_or(0) > 0)
+                        .map(|f| f.id.clone()),
+                );
+                all.extend(kids.value);
+            }
+            queue = next;
+            depth += 1;
+        }
+        Ok(all)
+    }
+
+    /// Verplaatst een map in een andere map ("msgfolderroot" = hoofdniveau).
+    pub async fn move_folder(&self, id: &str, destination_id: &str) -> Result<()> {
+        let resp = self
+            .http
+            .post(format!("{BASE}/me/mailFolders/{id}/move"))
+            .bearer_auth(&self.token)
+            .json(&json!({ "destinationId": destination_id }))
+            .send()
+            .await?;
+        self.expect_ok(resp).await
     }
 
     /// Nieuwe map op hoofdniveau.
