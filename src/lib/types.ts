@@ -59,6 +59,21 @@ export interface MessagesPage {
   hasMore: boolean;
 }
 
+export interface Attachment {
+  id: string;
+  name?: string | null;
+  contentType?: string | null;
+  size?: number | null;
+  isInline?: boolean | null;
+}
+
+// Bijlage om mee te sturen (inhoud als base64).
+export interface AttachmentInput {
+  name: string;
+  contentType?: string;
+  contentBase64: string;
+}
+
 export interface DateTimeTimeZone {
   dateTime: string;
   timeZone: string;
@@ -83,6 +98,7 @@ export interface ComposeInput {
   subject: string;
   bodyHtml: string;
   importance?: string;
+  attachments?: AttachmentInput[];
 }
 
 export interface EventInput {

@@ -52,3 +52,6 @@ mapnaam). **Fix:** `cargo clean` in `src-tauri/`, daarna opnieuw bouwen.
 
 - Houd project-specifieke Claude-config (dit bestand, skills, docs) **in de repo**,
   zodat het meereist naar andere omgevingen/machines.
+- **Voortgang bijhouden in `docs/STATUS.md`**: wat af is, waar we mee bezig zijn
+  en de afgesproken volgorde van volgende stappen. Werk dit bij na elke
+  afgeronde feature. (`docs/FEATURES.md` is de wensenlijst, geen status.)

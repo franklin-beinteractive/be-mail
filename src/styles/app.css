@@ -293,6 +293,33 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   font-size: 0.82rem;
   font-weight: 600;
 }
+.attachments-bar {
+  margin: 0 20px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  max-width: 320px;
+}
+.attachment-chip:hover { border-color: var(--accent); }
+.attachment-chip:disabled { opacity: 0.6; cursor: wait; }
+.attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .images-bar {
   margin: 0 20px;
   padding: 8px 12px;

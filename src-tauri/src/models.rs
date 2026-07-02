@@ -108,6 +108,21 @@ pub struct MessagesPage {
     pub has_more: bool,
 }
 
+/// Bijlage-metadata (zonder inhoud; die halen we pas op bij downloaden).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Attachment {
+    pub id: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub content_type: Option<String>,
+    #[serde(default)]
+    pub size: Option<i64>,
+    #[serde(default)]
+    pub is_inline: Option<bool>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DateTimeTimeZone {
@@ -144,6 +159,16 @@ pub struct Event {
 
 // ---- Invoer vanuit de frontend ----
 
+/// Bijlage vanuit de frontend (inhoud als base64).
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentInput {
+    pub name: String,
+    #[serde(default)]
+    pub content_type: Option<String>,
+    pub content_base64: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ComposeInput {
@@ -159,6 +184,8 @@ pub struct ComposeInput {
     /// "low" | "normal" | "high"
     #[serde(default)]
     pub importance: Option<String>,
+    #[serde(default)]
+    pub attachments: Vec<AttachmentInput>,
 }
 
 #[derive(Debug, Deserialize)]

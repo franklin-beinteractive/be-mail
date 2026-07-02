@@ -43,6 +43,14 @@ export function longDateTime(iso?: string | null, lang: Lang = "nl"): string {
   });
 }
 
+/** Mensvriendelijke bestandsgrootte: 824 B, 3,1 kB, 2,4 MB. */
+export function fileSize(bytes?: number | null): string {
+  if (bytes == null || bytes < 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1).replace(".", ",")} kB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
+}
+
 /** Tijd HH:MM uit een Graph dateTime (geen tijdzone-conversie: Graph levert al lokaal). */
 export function timeOnly(iso?: string | null): string {
   if (!iso) return "";

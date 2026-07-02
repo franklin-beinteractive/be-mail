@@ -3,8 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
-import type { Account, MailFolder, Message } from "../lib/types";
+import type { Account, Attachment, MailFolder, Message } from "../lib/types";
 import {
+  fileSize,
   longDateTime,
   sanitizeEmail,
   senderAddress,
@@ -40,6 +41,9 @@ export default function MailView({ account }: { account: Account | null }) {
   const [searchResult, setSearchResult] = useState<Message[] | null>(null);
   const [allowImages, setAllowImages] = useState(false);
   const [compose, setCompose] = useState<ComposeInitial | null>(null);
+  // Bijlagen van het geopende bericht; id van de bijlage die nu downloadt.
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   // Mappen laden bij start.
   useEffect(() => {
@@ -105,9 +109,17 @@ export default function MailView({ account }: { account: Account | null }) {
 
   async function openMessage(m: Message) {
     setAllowImages(false);
+    setAttachments([]);
     try {
       const full = await api.getMessage(m.id);
       setSelected(full);
+      if (full.hasAttachments) {
+        // Losse call; falen hiervan mag het lezen niet blokkeren.
+        api
+          .listAttachments(m.id)
+          .then((list) => setAttachments(list.filter((a) => !a.isInline)))
+          .catch(() => {});
+      }
       if (!m.isRead) {
         await api.setRead(m.id, true).catch(() => {});
         patch(m.id, { isRead: true });
@@ -115,6 +127,19 @@ export default function MailView({ account }: { account: Account | null }) {
       }
     } catch (e) {
       notify(String(e), "error");
+    }
+  }
+
+  async function downloadAttachment(a: Attachment) {
+    if (!selected || downloading) return;
+    setDownloading(a.id);
+    try {
+      const path = await api.downloadAttachment(selected.id, a.id);
+      notify(`${t("attachmentSaved")}: ${path.split(/[\\/]/).pop()}`, "info");
+    } catch (e) {
+      notify(String(e), "error");
+    } finally {
+      setDownloading(null);
     }
   }
 
@@ -382,6 +407,25 @@ export default function MailView({ account }: { account: Account | null }) {
                 )}
               </div>
             </div>
+            {attachments.length > 0 && (
+              <div className="attachments-bar">
+                {attachments.map((a) => (
+                  <button
+                    key={a.id}
+                    className="attachment-chip"
+                    onClick={() => downloadAttachment(a)}
+                    disabled={downloading !== null}
+                    title={downloading === a.id ? t("downloading") : t("attachmentSaved")}
+                  >
+                    <PaperclipIcon size={14} />
+                    <span className="attachment-name">{a.name}</span>
+                    <span className="muted small">
+                      {downloading === a.id ? t("downloading") : fileSize(a.size)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
             {externalBlocked && (
               <div className="images-bar">
                 {t("externalImagesBlocked")}{" "}

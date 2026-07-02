@@ -171,6 +171,47 @@ impl GraphClient {
         self.expect_ok(resp).await
     }
 
+    // ---- Bijlagen ----
+
+    /// Bijlage-metadata van een bericht (zonder inhoud — die kan groot zijn).
+    pub async fn list_attachments(&self, message_id: &str) -> Result<Vec<Attachment>> {
+        let url = format!(
+            "{BASE}/me/messages/{message_id}/attachments?$select=id,name,contentType,size,isInline"
+        );
+        let list: GraphList<Attachment> = self.get_json(&url).await?;
+        Ok(list.value)
+    }
+
+    /// Downloadt een bijlage naar de Downloads-map en geeft het volledige pad terug.
+    pub async fn download_attachment(&self, message_id: &str, attachment_id: &str) -> Result<String> {
+        /// Antwoord van Graph mét inhoud (alleen fileAttachment heeft contentBytes).
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Content {
+            #[serde(default)]
+            name: Option<String>,
+            #[serde(default)]
+            content_bytes: Option<String>,
+        }
+
+        let url = format!("{BASE}/me/messages/{message_id}/attachments/{attachment_id}");
+        let att: Content = self.get_json(&url).await?;
+        let b64 = att.content_bytes.ok_or_else(|| {
+            anyhow::anyhow!("Deze bijlage is geen los bestand (bv. een bijgevoegde mail) en kan niet worden gedownload.")
+        })?;
+
+        use base64::Engine as _;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(b64.as_bytes())
+            .context("Kon de bijlage-inhoud niet decoderen")?;
+
+        let dir = dirs::download_dir()
+            .ok_or_else(|| anyhow::anyhow!("Kon de Downloads-map niet vinden"))?;
+        let path = unique_path(&dir, &sanitize_filename(att.name.as_deref().unwrap_or("bijlage")));
+        std::fs::write(&path, bytes).context("Kon het bestand niet opslaan in Downloads")?;
+        Ok(path.to_string_lossy().into_owned())
+    }
+
     pub async fn send_mail(&self, input: &ComposeInput) -> Result<()> {
         let to = recipients(&input.to);
         let cc = recipients(&input.cc);
@@ -180,6 +221,18 @@ impl GraphClient {
             Some("low") => "low",
             _ => "normal",
         };
+        let attachments: Vec<_> = input
+            .attachments
+            .iter()
+            .map(|a| {
+                json!({
+                    "@odata.type": "#microsoft.graph.fileAttachment",
+                    "name": a.name,
+                    "contentType": a.content_type.clone().unwrap_or_else(|| "application/octet-stream".into()),
+                    "contentBytes": a.content_base64,
+                })
+            })
+            .collect();
         let body = json!({
             "message": {
                 "subject": input.subject,
@@ -188,6 +241,7 @@ impl GraphClient {
                 "toRecipients": to,
                 "ccRecipients": cc,
                 "bccRecipients": bcc,
+                "attachments": attachments,
             },
             "saveToSentItems": true
         });
@@ -295,6 +349,43 @@ fn recipients(addresses: &[String]) -> Vec<serde_json::Value> {
         .filter(|a| !a.trim().is_empty())
         .map(|a| json!({ "emailAddress": { "address": a.trim() } }))
         .collect()
+}
+
+/// Haalt tekens uit een bestandsnaam die op Windows niet mogen (en padscheiders).
+fn sanitize_filename(name: &str) -> String {
+    let cleaned: String = name
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            c if (c as u32) < 0x20 => '_',
+            c => c,
+        })
+        .collect();
+    let trimmed = cleaned.trim().trim_matches('.');
+    if trimmed.is_empty() {
+        "bijlage".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+/// Geeft een pad dat nog niet bestaat: "naam.pdf", anders "naam (1).pdf", enz.
+fn unique_path(dir: &std::path::Path, filename: &str) -> std::path::PathBuf {
+    let candidate = dir.join(filename);
+    if !candidate.exists() {
+        return candidate;
+    }
+    let (stem, ext) = match filename.rsplit_once('.') {
+        Some((s, e)) if !s.is_empty() => (s.to_string(), format!(".{e}")),
+        _ => (filename.to_string(), String::new()),
+    };
+    for i in 1..1000 {
+        let p = dir.join(format!("{stem} ({i}){ext}"));
+        if !p.exists() {
+            return p;
+        }
+    }
+    dir.join(filename)
 }
 
 /// Kort een lange (fout)tekst in zodat foutmeldingen leesbaar blijven.

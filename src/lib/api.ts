@@ -5,6 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   Account,
   AppConfig,
+  Attachment,
   CalendarEvent,
   ComposeInput,
   EventInput,
@@ -44,6 +45,11 @@ export const api = {
     invoke<void>("send_message", { input }),
   searchMessages: (query: string, top = 50) =>
     invoke<MessagesPage>("search_messages", { query, top }),
+  listAttachments: (messageId: string) =>
+    invoke<Attachment[]>("list_attachments", { messageId }),
+  // Downloadt naar de Downloads-map; geeft het opgeslagen pad terug.
+  downloadAttachment: (messageId: string, attachmentId: string) =>
+    invoke<string>("download_attachment", { messageId, attachmentId }),
 
   // Agenda
   listEvents: (start: string, end: string) =>

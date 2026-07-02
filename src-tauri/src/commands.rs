@@ -119,6 +119,28 @@ pub async fn send_message(input: ComposeInput) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn list_attachments(message_id: String) -> Result<Vec<Attachment>, String> {
+    client()
+        .await?
+        .list_attachments(&message_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Downloadt een bijlage naar de Downloads-map; geeft het opgeslagen pad terug.
+#[tauri::command]
+pub async fn download_attachment(
+    message_id: String,
+    attachment_id: String,
+) -> Result<String, String> {
+    client()
+        .await?
+        .download_attachment(&message_id, &attachment_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn search_messages(query: String, top: Option<u32>) -> Result<MessagesPage, String> {
     client()
         .await?

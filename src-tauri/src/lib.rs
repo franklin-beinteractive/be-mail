@@ -29,6 +29,8 @@ pub fn run() {
             commands::move_message,
             commands::send_message,
             commands::search_messages,
+            commands::list_attachments,
+            commands::download_attachment,
             commands::list_events,
             commands::create_event,
             commands::update_event,
