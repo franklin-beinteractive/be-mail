@@ -6,7 +6,6 @@ import { useApp } from "../lib/ctx";
 import type { Account, Attachment, MailFolder, Message, Recipient } from "../lib/types";
 import {
   fileSize,
-  htmlToText,
   longDateTime,
   sanitizeEmail,
   senderAddress,
@@ -143,7 +142,7 @@ export default function MailView({ account }: { account: Account | null }) {
           cc: joinAddresses(full.ccRecipients),
           bcc: joinAddresses(full.bccRecipients),
           subject: full.subject ?? "",
-          text: htmlToText(full.body?.content ?? ""),
+          html: sanitizeEmail(full.body?.content ?? "", true),
         });
         return;
       }

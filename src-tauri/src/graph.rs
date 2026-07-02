@@ -352,8 +352,24 @@ impl GraphClient {
 
     /// Verstuurt een bestaand concept: laatste velden bijwerken, bijlagen
     /// toevoegen, dan versturen. Het concept verdwijnt naar Verzonden items.
-    pub async fn send_draft(&self, id: &str, input: &ComposeInput) -> Result<()> {
+    /// Met `defer_utc` (ISO 8601 UTC) stelt Exchange de bezorging uit
+    /// (PidTagDeferredSendTime, "later verzenden").
+    pub async fn send_draft(&self, id: &str, input: &ComposeInput, defer_utc: Option<&str>) -> Result<()> {
         self.update_draft(id, input).await?;
+        if let Some(when) = defer_utc {
+            let resp = self
+                .http
+                .patch(format!("{BASE}/me/messages/{id}"))
+                .bearer_auth(&self.token)
+                .json(&json!({
+                    "singleValueExtendedProperties": [
+                        { "id": "SystemTime 0x3FEF", "value": when }
+                    ]
+                }))
+                .send()
+                .await?;
+            self.expect_ok(resp).await?;
+        }
         // Bijlagen die al op het concept staan eerst weghalen, zodat een eerdere
         // (mislukte) verzendpoging geen dubbele bijlagen oplevert.
         for existing in self.list_attachments(id).await? {

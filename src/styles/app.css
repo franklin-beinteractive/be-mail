@@ -445,6 +445,60 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .row.check input { flex: none; width: 20px; height: 20px; }
 .inline-inputs { display: flex; gap: 8px; flex: 1; }
 .compose-body { width: 100%; resize: vertical; margin-top: 8px; line-height: 1.5; }
+
+/* Rich-text editor */
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: var(--bg-sunken);
+  flex-wrap: wrap;
+}
+.tool-btn {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  min-width: 30px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.tool-btn:hover { background: var(--bg-raised); }
+.tool-sep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
+.link-input { display: inline-flex; align-items: center; gap: 4px; }
+.link-input input { padding: 4px 8px; font-size: 0.85rem; width: 240px; }
+.editor {
+  min-height: 220px;
+  max-height: 40vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 0 0 6px 6px;
+  background: var(--bg-raised);
+  padding: 10px 12px;
+  line-height: 1.5;
+}
+.editor:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.editor [data-sig] { color: inherit; }
+
+/* Undo-send en later-verzenden */
+.undo-bar,
+.later-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-sunken);
+  font-size: 0.9rem;
+}
+.undo-bar { font-weight: 600; }
+
 .quoted {
   margin-top: 12px;
   padding-top: 12px;

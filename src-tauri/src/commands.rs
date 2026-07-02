@@ -152,8 +152,16 @@ pub async fn update_draft(id: String, input: ComposeInput) -> Result<(), String>
 }
 
 #[tauri::command]
-pub async fn send_draft(id: String, input: ComposeInput) -> Result<(), String> {
-    client().await?.send_draft(&id, &input).await.map_err(|e| e.to_string())
+pub async fn send_draft(
+    id: String,
+    input: ComposeInput,
+    scheduled_utc: Option<String>,
+) -> Result<(), String> {
+    client()
+        .await?
+        .send_draft(&id, &input, scheduled_utc.as_deref())
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

@@ -55,8 +55,9 @@ export const api = {
     invoke<Message>("create_draft", { input }),
   updateDraft: (id: string, input: ComposeInput) =>
     invoke<void>("update_draft", { id, input }),
-  sendDraft: (id: string, input: ComposeInput) =>
-    invoke<void>("send_draft", { id, input }),
+  // scheduledUtc (ISO, UTC) = "later verzenden": Exchange bezorgt op dat moment.
+  sendDraft: (id: string, input: ComposeInput, scheduledUtc?: string) =>
+    invoke<void>("send_draft", { id, input, scheduledUtc: scheduledUtc ?? null }),
   listAttachments: (messageId: string) =>
     invoke<Attachment[]>("list_attachments", { messageId }),
   // Downloadt naar de Downloads-map; geeft het opgeslagen pad terug.
