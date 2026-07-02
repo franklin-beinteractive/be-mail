@@ -129,10 +129,45 @@ impl GraphClient {
     }
 
     pub async fn get_message(&self, id: &str) -> Result<Message> {
+        // internetMessageHeaders alleen hier (niet in lijsten): nodig voor
+        // o.a. de List-Unsubscribe-header, maar relatief zwaar.
         let url = format!(
-            "{BASE}/me/messages/{id}?$select={MSG_SELECT},body",
+            "{BASE}/me/messages/{id}?$select={MSG_SELECT},body,internetMessageHeaders",
         );
         self.get_json(&url).await
+    }
+
+    /// Blokkeert een afzender via een inbox-regel: nieuwe berichten van dit
+    /// adres gaan voortaan rechtstreeks naar Ongewenste e-mail.
+    pub async fn block_sender(&self, address: &str) -> Result<()> {
+        #[derive(serde::Deserialize)]
+        struct Folder {
+            id: String,
+        }
+        let junk: Folder = self
+            .get_json(&format!("{BASE}/me/mailFolders/junkemail?$select=id"))
+            .await?;
+
+        let rule = json!({
+            "displayName": format!("BE-Mail: {address} geblokkeerd"),
+            "sequence": 1,
+            "isEnabled": true,
+            "conditions": {
+                "fromAddresses": [ { "emailAddress": { "address": address } } ]
+            },
+            "actions": {
+                "moveToFolder": junk.id,
+                "stopProcessingRules": true
+            }
+        });
+        let resp = self
+            .http
+            .post(format!("{BASE}/me/mailFolders/inbox/messageRules"))
+            .bearer_auth(&self.token)
+            .json(&rule)
+            .send()
+            .await?;
+        self.expect_ok(resp).await
     }
 
     /// Doorzoekt de héle mailbox (alle mappen) via Graph `$search`.

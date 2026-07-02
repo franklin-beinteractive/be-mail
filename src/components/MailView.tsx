@@ -15,6 +15,7 @@ import {
 import ComposeDialog, { type ComposeInitial } from "./ComposeDialog";
 import {
   ArchiveIcon,
+  BanIcon,
   CloseIcon,
   ComposeIcon,
   EditIcon,
@@ -161,6 +162,56 @@ export default function MailView({ account }: { account: Account | null }) {
       }
     } catch (e) {
       notify(String(e), "error");
+    }
+  }
+
+  /** Spam melden: bericht naar Ongewenste e-mail. */
+  async function reportJunk(m: Message) {
+    try {
+      await api.reportJunk(m.id);
+      notify(t("junkReported") + " ✓", "info");
+      dropFromLists(m.id);
+      api.listFolders().then(setFolders).catch(() => {});
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  /** Afzender blokkeren (inbox-regel) + dit bericht naar Ongewenste e-mail. */
+  async function blockSender(m: Message) {
+    const addr = senderAddress(m.from?.emailAddress);
+    if (!addr) return;
+    if (!confirm(t("confirmBlock"))) return;
+    try {
+      await api.blockSender(addr);
+      await api.reportJunk(m.id).catch(() => {});
+      notify(t("senderBlocked") + " ✓", "info");
+      dropFromLists(m.id);
+      api.listFolders().then(setFolders).catch(() => {});
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  /** Leest het List-Unsubscribe-doel uit de headers (https heeft voorrang). */
+  function unsubscribeTarget(m: Message): { url?: string; mailto?: string } | null {
+    const h = (m.internetMessageHeaders ?? []).find(
+      (x) => (x.name ?? "").toLowerCase() === "list-unsubscribe"
+    );
+    if (!h?.value) return null;
+    const url = h.value.match(/<(https?:[^>]+)>/i)?.[1];
+    const mailto = h.value.match(/<mailto:([^>?]+)[^>]*>/i)?.[1];
+    if (!url && !mailto) return null;
+    return { url, mailto };
+  }
+
+  function unsubscribe(m: Message) {
+    const tgt = unsubscribeTarget(m);
+    if (!tgt) return;
+    if (tgt.url) {
+      openUrl(tgt.url).catch(() => {});
+    } else if (tgt.mailto) {
+      setCompose({ to: tgt.mailto, subject: "unsubscribe" });
     }
   }
 
@@ -599,6 +650,25 @@ export default function MailView({ account }: { account: Account | null }) {
                 <ForwardIcon size={18} /> {t("forward")}
               </button>
               <span className="spacer" />
+              {unsubscribeTarget(selected) && (
+                <button className="btn" onClick={() => unsubscribe(selected)}>
+                  {t("unsubscribe")}
+                </button>
+              )}
+              <button
+                className="btn"
+                onClick={() => reportJunk(selected)}
+                title={t("reportJunk")}
+              >
+                Spam
+              </button>
+              <button
+                className="btn"
+                onClick={() => blockSender(selected)}
+                title={t("blockSender")}
+              >
+                <BanIcon size={18} />
+              </button>
               <button className="btn" onClick={() => toggleFlag(selected)} title={t("flag")}>
                 <FlagIcon size={18} />
               </button>

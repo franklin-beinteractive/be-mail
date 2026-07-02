@@ -133,6 +133,12 @@ pub async fn send_message(input: ComposeInput) -> Result<(), String> {
     client().await?.send_mail(&input).await.map_err(|e| e.to_string())
 }
 
+/// Blokkeer een afzender (inbox-regel → Ongewenste e-mail).
+#[tauri::command]
+pub async fn block_sender(address: String) -> Result<(), String> {
+    client().await?.block_sender(&address).await.map_err(|e| e.to_string())
+}
+
 /// Antwoord op een vergaderuitnodiging: "accept" | "tentative" | "decline".
 #[tauri::command]
 pub async fn rsvp_message(message_id: String, response: String) -> Result<(), String> {

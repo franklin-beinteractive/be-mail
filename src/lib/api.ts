@@ -66,6 +66,11 @@ export const api = {
   // Antwoord op een vergaderuitnodiging.
   rsvpMessage: (messageId: string, response: "accept" | "tentative" | "decline") =>
     invoke<void>("rsvp_message", { messageId, response }),
+  // Spam melden = verplaatsen naar de bekende map "junkemail".
+  reportJunk: (id: string) =>
+    invoke<void>("move_message", { id, destinationId: "junkemail" }),
+  // Afzender blokkeren via een inbox-regel.
+  blockSender: (address: string) => invoke<void>("block_sender", { address }),
 
   // Agenda
   listEvents: (start: string, end: string) =>

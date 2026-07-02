@@ -105,6 +105,18 @@ pub struct Message {
     pub web_link: Option<String>,
     #[serde(default)]
     pub is_draft: Option<bool>,
+    /// Alleen gevuld bij het openen van één bericht (o.a. List-Unsubscribe).
+    #[serde(default)]
+    pub internet_message_headers: Option<Vec<MessageHeader>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageHeader {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub value: Option<String>,
 }
 
 /// Eén pagina berichten voor de frontend.

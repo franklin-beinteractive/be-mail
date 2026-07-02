@@ -56,6 +56,8 @@ export interface Message {
   body?: ItemBody | null;
   webLink?: string | null;
   isDraft?: boolean | null;
+  /** Alleen gevuld bij het openen van één bericht (o.a. List-Unsubscribe). */
+  internetMessageHeaders?: { name?: string | null; value?: string | null }[] | null;
 }
 
 export interface MessagesPage {

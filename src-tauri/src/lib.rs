@@ -38,6 +38,7 @@ pub fn run() {
             commands::list_attachments,
             commands::download_attachment,
             commands::rsvp_message,
+            commands::block_sender,
             commands::list_events,
             commands::create_event,
             commands::update_event,
