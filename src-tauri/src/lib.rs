@@ -37,6 +37,7 @@ pub fn run() {
             commands::send_draft,
             commands::list_attachments,
             commands::download_attachment,
+            commands::rsvp_message,
             commands::list_events,
             commands::create_event,
             commands::update_event,

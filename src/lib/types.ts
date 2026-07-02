@@ -38,6 +38,8 @@ export interface FollowupFlag {
 }
 
 export interface Message {
+  /** Graph-subtype, bv. "#microsoft.graph.eventMessageRequest" (uitnodiging). */
+  odataType?: string | null;
   id: string;
   subject?: string | null;
   from?: Recipient | null;
@@ -103,6 +105,13 @@ export interface ComposeInput {
   attachments?: AttachmentInput[];
 }
 
+export interface RecurrenceInput {
+  frequency: "daily" | "weekly" | "monthly" | "yearly";
+  interval?: number;
+  /** Einddatum "YYYY-MM-DD"; weglaten = geen einde. */
+  until?: string;
+}
+
 export interface EventInput {
   subject: string;
   start: string;
@@ -113,4 +122,5 @@ export interface EventInput {
   body?: string;
   attendees: string[];
   reminderMinutes?: number | null;
+  recurrence?: RecurrenceInput | null;
 }

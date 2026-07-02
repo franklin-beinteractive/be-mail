@@ -70,6 +70,10 @@ pub struct MailFolder {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Message {
+    /// Graph zet hier het subtype in (bv. "#microsoft.graph.eventMessageRequest"
+    /// bij een vergaderuitnodiging). Naar de frontend gaat dit als `odataType`.
+    #[serde(rename(deserialize = "@odata.type", serialize = "odataType"), default)]
+    pub odata_type: Option<String>,
     pub id: String,
     #[serde(default)]
     pub subject: Option<String>,
@@ -192,6 +196,21 @@ pub struct ComposeInput {
     pub attachments: Vec<AttachmentInput>,
 }
 
+/// Herhaalpatroon voor een afspraak (eenvoudig model; details zoals
+/// weekdag/dag-van-de-maand worden uit de startdatum afgeleid).
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecurrenceInput {
+    /// "daily" | "weekly" | "monthly" | "yearly"
+    pub frequency: String,
+    /// Om de hoeveel dagen/weken/maanden/jaren (standaard 1).
+    #[serde(default)]
+    pub interval: Option<i32>,
+    /// Einddatum "YYYY-MM-DD"; leeg = geen einde.
+    #[serde(default)]
+    pub until: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EventInput {
@@ -213,4 +232,7 @@ pub struct EventInput {
     /// Herinnering in minuten voor aanvang.
     #[serde(default)]
     pub reminder_minutes: Option<i32>,
+    /// Herhaalpatroon; alleen bij aanmaken meegestuurd.
+    #[serde(default)]
+    pub recurrence: Option<RecurrenceInput>,
 }

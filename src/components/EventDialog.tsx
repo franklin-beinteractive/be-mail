@@ -2,8 +2,10 @@
 import { useState } from "react";
 import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
-import type { CalendarEvent } from "../lib/types";
+import type { CalendarEvent, RecurrenceInput } from "../lib/types";
 import { CloseIcon } from "./Icons";
+
+type RepeatChoice = "none" | RecurrenceInput["frequency"];
 
 export default function EventDialog({
   defaultDate,
@@ -31,6 +33,10 @@ export default function EventDialog({
   const [attendees, setAttendees] = useState("");
   const [reminder, setReminder] = useState("15");
   const [body, setBody] = useState(event?.bodyPreview ?? "");
+  // Herhaling: alleen instelbaar bij aanmaken (bewerken raakt de reeks niet aan).
+  const [repeat, setRepeat] = useState<RepeatChoice>("none");
+  const [repeatInterval, setRepeatInterval] = useState("1");
+  const [repeatUntil, setRepeatUntil] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function save() {
@@ -56,6 +62,14 @@ export default function EventDialog({
             .map((s) => s.trim())
             .filter(Boolean),
       reminderMinutes: reminder ? parseInt(reminder, 10) : null,
+      recurrence:
+        !editing && repeat !== "none"
+          ? {
+              frequency: repeat,
+              interval: Math.max(1, parseInt(repeatInterval, 10) || 1),
+              until: repeatUntil || undefined,
+            }
+          : undefined,
     };
     try {
       if (editing) {
@@ -128,6 +142,48 @@ export default function EventDialog({
               onChange={(e) => setReminder(e.target.value)}
             />
           </label>
+          {!editing && (
+            <>
+              <label className="row">
+                <span>{t("repeat")}</span>
+                <span className="inline-inputs">
+                  <select
+                    value={repeat}
+                    onChange={(e) => setRepeat(e.target.value as RepeatChoice)}
+                  >
+                    <option value="none">{t("none")}</option>
+                    <option value="daily">{t("daily")}</option>
+                    <option value="weekly">{t("weekly")}</option>
+                    <option value="monthly">{t("monthly")}</option>
+                    <option value="yearly">{t("yearly")}</option>
+                  </select>
+                  {repeat !== "none" && (
+                    <>
+                      <span className="muted small">{t("repeatEvery")}</span>
+                      <input
+                        type="number"
+                        min="1"
+                        style={{ width: 64 }}
+                        value={repeatInterval}
+                        onChange={(e) => setRepeatInterval(e.target.value)}
+                      />
+                    </>
+                  )}
+                </span>
+              </label>
+              {repeat !== "none" && (
+                <label className="row">
+                  <span>{t("repeatUntil")}</span>
+                  <input
+                    type="date"
+                    value={repeatUntil}
+                    min={date}
+                    onChange={(e) => setRepeatUntil(e.target.value)}
+                  />
+                </label>
+              )}
+            </>
+          )}
           <textarea
             className="compose-body"
             value={body}

@@ -165,6 +165,18 @@ export default function MailView({ account }: { account: Account | null }) {
     }
   }
 
+  /** Antwoord op een vergaderuitnodiging; daarna verdwijnt de mail uit de lijst. */
+  async function rsvp(m: Message, response: "accept" | "tentative" | "decline") {
+    try {
+      await api.rsvpMessage(m.id, response);
+      notify(t("responseSent") + " ✓", "info");
+      dropFromLists(m.id);
+      api.listFolders().then(setFolders).catch(() => {});
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
   async function downloadAttachment(a: Attachment) {
     if (!selected || downloading) return;
     setDownloading(a.id);
@@ -631,6 +643,20 @@ export default function MailView({ account }: { account: Account | null }) {
                 )}
               </div>
             </div>
+            {selected.odataType?.includes("eventMessageRequest") && (
+              <div className="rsvp-bar">
+                <span className="rsvp-label">{t("invitation")}:</span>
+                <button className="btn primary" onClick={() => rsvp(selected, "accept")}>
+                  ✓ {t("acceptInvite")}
+                </button>
+                <button className="btn" onClick={() => rsvp(selected, "tentative")}>
+                  ? {t("tentativeInvite")}
+                </button>
+                <button className="btn danger" onClick={() => rsvp(selected, "decline")}>
+                  ✕ {t("declineInvite")}
+                </button>
+              </div>
+            )}
             {attachments.length > 0 && (
               <div className="attachments-bar">
                 {attachments.map((a) => (

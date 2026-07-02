@@ -62,6 +62,9 @@ export const api = {
   // Downloadt naar de Downloads-map; geeft het opgeslagen pad terug.
   downloadAttachment: (messageId: string, attachmentId: string) =>
     invoke<string>("download_attachment", { messageId, attachmentId }),
+  // Antwoord op een vergaderuitnodiging.
+  rsvpMessage: (messageId: string, response: "accept" | "tentative" | "decline") =>
+    invoke<void>("rsvp_message", { messageId, response }),
 
   // Agenda
   listEvents: (start: string, end: string) =>

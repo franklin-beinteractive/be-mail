@@ -27,6 +27,13 @@
   mappenlijst (systeemmappen op naam uitgesloten; Graph is de backstop).
 - **Bulkacties**: checkbox per bericht; balk met gelezen/ongelezen,
   archiveren, verplaatsen, verwijderen. Werkt ook in zoekresultaten.
+- **RSVP**: vergaderuitnodigingen (eventMessageRequest) krijgen in het
+  leesvenster knoppen Accepteren / Voorlopig / Afwijzen (antwoord gaat naar
+  de organisator; uitnodiging verdwijnt uit de lijst).
+- **Terugkerende afspraken**: dagelijks/wekelijks/maandelijks/jaarlijks +
+  interval + einddatum, instelbaar bij aanmaken. Weekdag/dag-v-d-maand
+  volgt de startdatum. Bewerken van een reeks(patroon) kan nog niet;
+  een los exemplaar bewerken/verwijderen werkt wel.
 - **Agenda**: maand/week/lijst, vandaag + navigatie, afspraak
   maken/**bewerken**/verwijderen, hele dag, locatie, herinnering, genodigden.
 - **Overig**: donkere modus, tekstgrootte, hoog contrast, NL/EN,
@@ -38,11 +45,13 @@
 2. ~~Concepten automatisch opslaan~~ ✅
 3. ~~Handtekening(en)~~ ✅
 4. ~~Mappenbeheer + bulkacties~~ ✅
-5. **RSVP (uitnodiging accepteren/afwijzen) + terugkerende afspraken** ← volgende
+5. ~~RSVP + terugkerende afspraken~~ ✅
 
-Daarna (achterhoede, nog niet gepland): rich-text editor, dag-/werkweekweergave,
-send later / undo send, desktop-notificaties, spam melden, uitschrijven-knop,
-regels, OOF, offline caching, sneltoetsen.
+**De afgesproken lijst is af.** Volgende stap kiezen uit de achterhoede
+(nog niet gepland): rich-text editor, dag-/werkweekweergave, send later /
+undo send, desktop-notificaties, spam melden, uitschrijven-knop, regels,
+OOF, offline caching, sneltoetsen. Ook open: opmerkingen van de gebruiker
+over de eerste rooktest.
 
 ## 📌 Openstaand / opmerkingen
 

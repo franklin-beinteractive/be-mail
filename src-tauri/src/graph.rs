@@ -205,6 +205,43 @@ impl GraphClient {
         self.expect_ok(resp).await
     }
 
+    /// Beantwoordt een vergaderuitnodiging (eventMessageRequest) namens de
+    /// gebruiker: zoekt het bijbehorende event op en accepteert/weigert dat.
+    pub async fn rsvp(&self, message_id: &str, response: &str) -> Result<()> {
+        let action = match response {
+            "accept" => "accept",
+            "tentative" => "tentativelyAccept",
+            "decline" => "decline",
+            _ => bail!("Onbekend antwoord op uitnodiging: {response}"),
+        };
+
+        #[derive(serde::Deserialize)]
+        struct Ev {
+            id: String,
+        }
+        #[derive(serde::Deserialize)]
+        struct Msg {
+            event: Option<Ev>,
+        }
+        // Cast naar eventMessage om de gekoppelde afspraak te kunnen expanden.
+        let url = format!(
+            "{BASE}/me/messages/{message_id}?$select=id&$expand=microsoft.graph.eventMessage/event($select=id)"
+        );
+        let m: Msg = self.get_json(&url).await?;
+        let ev = m.event.ok_or_else(|| {
+            anyhow::anyhow!("Geen afspraak gevonden bij deze uitnodiging (mogelijk al verlopen).")
+        })?;
+
+        let resp = self
+            .http
+            .post(format!("{BASE}/me/events/{}/{action}", ev.id))
+            .bearer_auth(&self.token)
+            .json(&json!({ "sendResponse": true }))
+            .send()
+            .await?;
+        self.expect_ok(resp).await
+    }
+
     // ---- Bijlagen ----
 
     /// Bijlage-metadata van een bericht (zonder inhoud — die kan groot zijn).
@@ -399,6 +436,11 @@ impl GraphClient {
             }
             None => body["isReminderOn"] = json!(false),
         }
+        if let Some(rec) = &input.recurrence {
+            if let Some(recurrence) = recurrence_json(rec, &input.start) {
+                body["recurrence"] = recurrence;
+            }
+        }
         body
     }
 
@@ -441,6 +483,53 @@ fn recipients(addresses: &[String]) -> Vec<serde_json::Value> {
         .filter(|a| !a.trim().is_empty())
         .map(|a| json!({ "emailAddress": { "address": a.trim() } }))
         .collect()
+}
+
+/// Bouwt de Graph `recurrence`-JSON. Weekdag/dag-van-de-maand komen uit de
+/// startdatum ("YYYY-MM-DD…"); onherkenbare invoer levert None (geen herhaling).
+fn recurrence_json(rec: &crate::models::RecurrenceInput, start: &str) -> Option<serde_json::Value> {
+    use chrono::Datelike;
+    let date = chrono::NaiveDate::parse_from_str(start.get(..10)?, "%Y-%m-%d").ok()?;
+    let interval = rec.interval.unwrap_or(1).max(1);
+
+    let mut pattern = json!({ "interval": interval });
+    match rec.frequency.as_str() {
+        "daily" => pattern["type"] = json!("daily"),
+        "weekly" => {
+            pattern["type"] = json!("weekly");
+            let dow = match date.weekday() {
+                chrono::Weekday::Mon => "monday",
+                chrono::Weekday::Tue => "tuesday",
+                chrono::Weekday::Wed => "wednesday",
+                chrono::Weekday::Thu => "thursday",
+                chrono::Weekday::Fri => "friday",
+                chrono::Weekday::Sat => "saturday",
+                chrono::Weekday::Sun => "sunday",
+            };
+            pattern["daysOfWeek"] = json!([dow]);
+        }
+        "monthly" => {
+            pattern["type"] = json!("absoluteMonthly");
+            pattern["dayOfMonth"] = json!(date.day());
+        }
+        "yearly" => {
+            pattern["type"] = json!("absoluteYearly");
+            pattern["dayOfMonth"] = json!(date.day());
+            pattern["month"] = json!(date.month());
+        }
+        _ => return None,
+    }
+
+    let range = match rec.until.as_deref().filter(|s| !s.trim().is_empty()) {
+        Some(end) => json!({
+            "type": "endDate",
+            "startDate": date.to_string(),
+            "endDate": end,
+        }),
+        None => json!({ "type": "noEnd", "startDate": date.to_string() }),
+    };
+
+    Some(json!({ "pattern": pattern, "range": range }))
 }
 
 /// Haalt tekens uit een bestandsnaam die op Windows niet mogen (en padscheiders).

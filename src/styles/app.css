@@ -340,6 +340,18 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   font-size: 0.82rem;
   font-weight: 600;
 }
+.rsvp-bar {
+  margin: 0 20px 8px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-sunken);
+}
+.rsvp-label { font-weight: 600; font-size: 0.9rem; }
+
 .attachments-bar {
   margin: 0 20px 8px;
   display: flex;

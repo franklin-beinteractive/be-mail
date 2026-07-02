@@ -133,6 +133,12 @@ pub async fn send_message(input: ComposeInput) -> Result<(), String> {
     client().await?.send_mail(&input).await.map_err(|e| e.to_string())
 }
 
+/// Antwoord op een vergaderuitnodiging: "accept" | "tentative" | "decline".
+#[tauri::command]
+pub async fn rsvp_message(message_id: String, response: String) -> Result<(), String> {
+    client().await?.rsvp(&message_id, &response).await.map_err(|e| e.to_string())
+}
+
 // ---- Concepten ----
 
 #[tauri::command]
