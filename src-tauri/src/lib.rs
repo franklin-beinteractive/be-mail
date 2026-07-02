@@ -1,0 +1,37 @@
+//! BE-Mail — Rust-kern.
+//! De kern fungeert als "trusted backend": alle Graph-calls en tokens leven hier,
+//! nooit in de webview.
+
+mod auth;
+mod commands;
+mod config;
+mod graph;
+mod models;
+mod token_store;
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![
+            commands::get_config,
+            commands::save_config,
+            commands::auth_status,
+            commands::login,
+            commands::logout,
+            commands::get_account,
+            commands::list_folders,
+            commands::list_messages,
+            commands::get_message,
+            commands::set_read,
+            commands::set_flag,
+            commands::delete_message,
+            commands::move_message,
+            commands::send_message,
+            commands::list_events,
+            commands::create_event,
+            commands::delete_event,
+        ])
+        .run(tauri::generate_context!())
+        .expect("Fout bij het starten van BE-Mail");
+}

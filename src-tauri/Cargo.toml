@@ -1,0 +1,42 @@
+[package]
+name = "be-mail"
+version = "0.1.0"
+description = "Simpele, snelle en veilige e-mail- en agenda-client voor Office 365"
+authors = ["Be Interactive"]
+edition = "2021"
+
+[lib]
+# De `_lib`-suffix is nodig zodat de lib-naam uniek is en niet botst met de bin-naam (Windows).
+name = "be_mail_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "time"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# We bouwen nu een Windows .exe -> alleen de Windows-backend. Voor macOS/Linux later
+# de features "apple-native" resp. "sync-secret-service" toevoegen (zie README).
+keyring = { version = "3", features = ["windows-native"] }
+url = "2"
+base64 = "0.22"
+sha2 = "0.10"
+rand = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1"
+thiserror = "2"
+webbrowser = "1"
+dirs = "5"
+
+[profile.release]
+# Kleinere, snellere binary.
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

@@ -1,0 +1,185 @@
+//! Datamodellen die 1-op-1 mappen op Microsoft Graph JSON (v1.0).
+//! Onbekende velden worden door serde genegeerd, dus we hoeven niet alles te modelleren.
+
+use serde::{Deserialize, Serialize};
+
+/// Generieke Graph-collectie met paginering.
+#[derive(Debug, Deserialize)]
+pub struct GraphList<T> {
+    pub value: Vec<T>,
+    #[serde(rename = "@odata.nextLink")]
+    pub next_link: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct EmailAddress {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub address: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Recipient {
+    pub email_address: EmailAddress,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemBody {
+    #[serde(default)]
+    pub content_type: String,
+    #[serde(default)]
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FollowupFlag {
+    #[serde(default)]
+    pub flag_status: Option<String>,
+}
+
+/// Ingelogd account (uit /me).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Account {
+    pub id: String,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    #[serde(default)]
+    pub mail: Option<String>,
+    #[serde(default)]
+    pub user_principal_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MailFolder {
+    pub id: String,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    #[serde(default)]
+    pub unread_item_count: Option<i64>,
+    #[serde(default)]
+    pub total_item_count: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Message {
+    pub id: String,
+    #[serde(default)]
+    pub subject: Option<String>,
+    #[serde(default)]
+    pub from: Option<Recipient>,
+    #[serde(default)]
+    pub to_recipients: Option<Vec<Recipient>>,
+    #[serde(default)]
+    pub cc_recipients: Option<Vec<Recipient>>,
+    #[serde(default)]
+    pub received_date_time: Option<String>,
+    #[serde(default)]
+    pub sent_date_time: Option<String>,
+    #[serde(default)]
+    pub is_read: Option<bool>,
+    #[serde(default)]
+    pub has_attachments: Option<bool>,
+    #[serde(default)]
+    pub body_preview: Option<String>,
+    #[serde(default)]
+    pub importance: Option<String>,
+    #[serde(default)]
+    pub flag: Option<FollowupFlag>,
+    #[serde(default)]
+    pub body: Option<ItemBody>,
+    #[serde(default)]
+    pub web_link: Option<String>,
+}
+
+/// Eén pagina berichten voor de frontend.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessagesPage {
+    pub messages: Vec<Message>,
+    /// Zijn er meer berichten? (voor "meer laden")
+    pub has_more: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DateTimeTimeZone {
+    pub date_time: String,
+    pub time_zone: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct EventLocation {
+    #[serde(default)]
+    pub display_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Event {
+    pub id: String,
+    #[serde(default)]
+    pub subject: Option<String>,
+    #[serde(default)]
+    pub body_preview: Option<String>,
+    pub start: DateTimeTimeZone,
+    pub end: DateTimeTimeZone,
+    #[serde(default)]
+    pub is_all_day: Option<bool>,
+    #[serde(default)]
+    pub location: Option<EventLocation>,
+    #[serde(default)]
+    pub organizer: Option<Recipient>,
+    #[serde(default)]
+    pub is_cancelled: Option<bool>,
+}
+
+// ---- Invoer vanuit de frontend ----
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ComposeInput {
+    pub to: Vec<String>,
+    #[serde(default)]
+    pub cc: Vec<String>,
+    #[serde(default)]
+    pub bcc: Vec<String>,
+    #[serde(default)]
+    pub subject: String,
+    #[serde(default)]
+    pub body_html: String,
+    /// "low" | "normal" | "high"
+    #[serde(default)]
+    pub importance: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EventInput {
+    pub subject: String,
+    /// ISO 8601 lokaal, bv. "2026-07-01T09:00:00"
+    pub start: String,
+    pub end: String,
+    #[serde(default)]
+    pub time_zone: Option<String>,
+    #[serde(default)]
+    pub is_all_day: bool,
+    #[serde(default)]
+    pub location: Option<String>,
+    #[serde(default)]
+    pub body: Option<String>,
+    /// E-mailadressen van genodigden.
+    #[serde(default)]
+    pub attendees: Vec<String>,
+    /// Herinnering in minuten voor aanvang.
+    #[serde(default)]
+    pub reminder_minutes: Option<i32>,
+}

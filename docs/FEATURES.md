@@ -28,7 +28,7 @@
 - [x] **OAuth2 Authorization Code Flow + PKCE**, public/native client (géén client secret).
 - [x] **Redirect**: loopback `http://localhost:<poort>` (aanbevolen voor native apps).
 - [x] **Token-opslag**: OS-keychain (Windows Credential Manager / macOS Keychain / Linux Secret Service) via `keyring`-crate of Tauri Stronghold. Per account een eigen sleutel.
-- [x] **Multi-account**: meerdere Office 365-accounts naast elkaar (token-store per account, account-switcher in UI).
+- [x] **Eén account** in v1 (single-account). Multi-account = later (token-store is al per-account opgezet, dus uitbreidbaar).
 - [ ] **Azure App Registration** aanmaken (client-id, redirect-URI, delegated Graph-permissions: `Mail.ReadWrite`, `Mail.Send`, `Calendars.ReadWrite`, `offline_access`, `User.Read`)
 - [ ] **Provider-abstractie** (Rust-trait `MailProvider` / `CalendarProvider`) zodat Google later inplugbaar is
 - [ ] **Offline/caching-strategie** (lokale cache, bv. SQLite, van mails/afspraken voor snelheid)

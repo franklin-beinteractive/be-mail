@@ -1,0 +1,49 @@
+// UI-voorkeuren (niet-gevoelig) — lokaal opgeslagen in localStorage en toegepast
+// op de <html>-tag via data-attributen en CSS-variabelen.
+
+import type { Lang } from "./i18n";
+
+export type Theme = "light" | "dark";
+
+export interface UiSettings {
+  theme: Theme;
+  /** Schaalfactor voor tekst: 1 = normaal, tot 1.5 voor slechtzienden. */
+  fontScale: number;
+  highContrast: boolean;
+  lang: Lang;
+}
+
+const KEY = "BE-Mail.ui";
+
+export const defaultSettings: UiSettings = {
+  theme: "light",
+  fontScale: 1,
+  highContrast: false,
+  lang: "nl",
+};
+
+export function loadSettings(): UiSettings {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return { ...defaultSettings };
+    return { ...defaultSettings, ...JSON.parse(raw) };
+  } catch {
+    return { ...defaultSettings };
+  }
+}
+
+export function saveSettings(s: UiSettings): void {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(s));
+  } catch {
+    /* opslag niet beschikbaar: geen ramp */
+  }
+}
+
+export function applySettings(s: UiSettings): void {
+  const root = document.documentElement;
+  root.dataset.theme = s.theme;
+  root.dataset.contrast = s.highContrast ? "high" : "normal";
+  root.style.setProperty("--font-scale", String(s.fontScale));
+  root.lang = s.lang;
+}
