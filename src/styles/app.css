@@ -173,7 +173,18 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .content { flex: 1; overflow: hidden; }
 
 /* ---------- Mailweergave (3 kolommen) ---------- */
-.mail { display: grid; grid-template-columns: 240px 340px 1fr; height: 100vh; }
+.mail {
+  display: grid;
+  grid-template-columns: var(--col-folders, 240px) 6px var(--col-list, 340px) 6px 1fr;
+  height: 100vh;
+}
+.col-resizer {
+  cursor: col-resize;
+  background: transparent;
+  margin: 0 -2px;
+  z-index: 2;
+}
+.col-resizer:hover, .col-resizer:active { background: var(--accent); opacity: 0.5; }
 .folders {
   border-right: 1px solid var(--border);
   padding: 12px;
@@ -702,6 +713,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {
   .mail { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; }
+  .col-resizer { display: none; }
   .folders { flex-direction: row; overflow-x: auto; }
   .folders nav { display: flex; gap: 6px; }
   .rail { width: 64px; }

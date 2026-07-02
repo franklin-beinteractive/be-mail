@@ -42,7 +42,7 @@ function isSystemFolder(f: MailFolder): boolean {
 }
 
 export default function MailView({ account }: { account: Account | null }) {
-  const { t, settings, notify, confirm } = useApp();
+  const { t, settings, setSettings, notify, confirm } = useApp();
   const [folders, setFolders] = useState<MailFolder[]>([]);
   const [folderId, setFolderId] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -58,6 +58,31 @@ export default function MailView({ account }: { account: Account | null }) {
   // Bijlagen van het geopende bericht; id van de bijlage die nu downloadt.
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [downloading, setDownloading] = useState<string | null>(null);
+  // Kolombreedtes (px); tijdens slepen lokaal, bij loslaten opgeslagen.
+  const [colW, setColW] = useState({
+    folders: settings.foldersWidth,
+    list: settings.listWidth,
+  });
+
+  function startResize(which: "folders" | "list", e: React.MouseEvent) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = colW[which];
+    const min = which === "folders" ? 160 : 240;
+    const max = which === "folders" ? 440 : 640;
+    const clamp = (x: number) => Math.min(max, Math.max(min, x));
+    const onMove = (ev: MouseEvent) =>
+      setColW((p) => ({ ...p, [which]: clamp(startW + ev.clientX - startX) }));
+    const onUp = (ev: MouseEvent) => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      const w = clamp(startW + ev.clientX - startX);
+      setSettings(which === "folders" ? { foldersWidth: w } : { listWidth: w });
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+
   // Mappenbeheer-dialoog (nieuw of hernoemen) + invoerveld.
   const [folderDialog, setFolderDialog] = useState<
     { mode: "create" } | { mode: "rename"; folder: MailFolder } | null
@@ -487,7 +512,15 @@ export default function MailView({ account }: { account: Account | null }) {
   }
 
   return (
-    <div className="mail">
+    <div
+      className="mail"
+      style={
+        {
+          "--col-folders": `${colW.folders}px`,
+          "--col-list": `${colW.list}px`,
+        } as React.CSSProperties
+      }
+    >
       {/* Kolom 1: mappen */}
       <aside className="folders">
         <div className="account-label" title={account?.mail ?? account?.userPrincipalName ?? ""}>
@@ -543,6 +576,13 @@ export default function MailView({ account }: { account: Account | null }) {
           ))}
         </nav>
       </aside>
+
+      <div
+        className="col-resizer"
+        onMouseDown={(e) => startResize("folders", e)}
+        role="separator"
+        aria-orientation="vertical"
+      />
 
       {/* Kolom 2: berichtenlijst */}
       <section className="list">
@@ -647,6 +687,13 @@ export default function MailView({ account }: { account: Account | null }) {
           )}
         </div>
       </section>
+
+      <div
+        className="col-resizer"
+        onMouseDown={(e) => startResize("list", e)}
+        role="separator"
+        aria-orientation="vertical"
+      />
 
       {/* Kolom 3: leesvenster (of het opstelvenster, inline) */}
       <section className="reader">

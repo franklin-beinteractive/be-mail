@@ -25,6 +25,9 @@ export interface UiSettings {
   signatureReplyId: string | null;
   /** Bedenktijd (undo send) in seconden; 0 = direct verzenden. */
   sendDelaySeconds: number;
+  /** Kolombreedtes (px) in de mailweergave; instelbaar door te slepen. */
+  foldersWidth: number;
+  listWidth: number;
 }
 
 const KEY = "BE-Mail.ui";
@@ -38,6 +41,8 @@ export const defaultSettings: UiSettings = {
   signatureNewId: null,
   signatureReplyId: null,
   sendDelaySeconds: 5,
+  foldersWidth: 240,
+  listWidth: 340,
 };
 
 export function loadSettings(): UiSettings {
