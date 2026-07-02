@@ -45,6 +45,14 @@ export const api = {
     invoke<void>("send_message", { input }),
   searchMessages: (query: string, top = 50) =>
     invoke<MessagesPage>("search_messages", { query, top }),
+  // Concepten: aanmaken geeft het bericht (met id) terug; verzenden van een
+  // concept werkt eerst de velden/bijlagen bij zodat er geen duplicaat ontstaat.
+  createDraft: (input: ComposeInput) =>
+    invoke<Message>("create_draft", { input }),
+  updateDraft: (id: string, input: ComposeInput) =>
+    invoke<void>("update_draft", { id, input }),
+  sendDraft: (id: string, input: ComposeInput) =>
+    invoke<void>("send_draft", { id, input }),
   listAttachments: (messageId: string) =>
     invoke<Attachment[]>("list_attachments", { messageId }),
   // Downloadt naar de Downloads-map; geeft het opgeslagen pad terug.

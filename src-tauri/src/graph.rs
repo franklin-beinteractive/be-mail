@@ -12,7 +12,7 @@ const BASE: &str = "https://graph.microsoft.com/v1.0";
 /// Standaard tijdzone (Windows-notatie zoals Graph die verwacht).
 const DEFAULT_TZ: &str = "W. Europe Standard Time";
 
-const MSG_SELECT: &str = "id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,isRead,hasAttachments,bodyPreview,importance,flag,webLink";
+const MSG_SELECT: &str = "id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,isRead,hasAttachments,bodyPreview,importance,flag,webLink,isDraft";
 
 pub struct GraphClient {
     token: String,
@@ -212,44 +212,102 @@ impl GraphClient {
         Ok(path.to_string_lossy().into_owned())
     }
 
-    pub async fn send_mail(&self, input: &ComposeInput) -> Result<()> {
-        let to = recipients(&input.to);
-        let cc = recipients(&input.cc);
-        let bcc = recipients(&input.bcc);
+    /// Berichtvelden voor sendMail/concepten (zonder bijlagen).
+    fn message_json(input: &ComposeInput) -> serde_json::Value {
         let importance = match input.importance.as_deref() {
             Some("high") => "high",
             Some("low") => "low",
             _ => "normal",
         };
-        let attachments: Vec<_> = input
-            .attachments
-            .iter()
-            .map(|a| {
-                json!({
-                    "@odata.type": "#microsoft.graph.fileAttachment",
-                    "name": a.name,
-                    "contentType": a.content_type.clone().unwrap_or_else(|| "application/octet-stream".into()),
-                    "contentBytes": a.content_base64,
-                })
-            })
-            .collect();
-        let body = json!({
-            "message": {
-                "subject": input.subject,
-                "importance": importance,
-                "body": { "contentType": "HTML", "content": input.body_html },
-                "toRecipients": to,
-                "ccRecipients": cc,
-                "bccRecipients": bcc,
-                "attachments": attachments,
-            },
-            "saveToSentItems": true
-        });
+        json!({
+            "subject": input.subject,
+            "importance": importance,
+            "body": { "contentType": "HTML", "content": input.body_html },
+            "toRecipients": recipients(&input.to),
+            "ccRecipients": recipients(&input.cc),
+            "bccRecipients": recipients(&input.bcc),
+        })
+    }
+
+    fn attachment_json(a: &AttachmentInput) -> serde_json::Value {
+        json!({
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            "name": a.name,
+            "contentType": a.content_type.clone().unwrap_or_else(|| "application/octet-stream".into()),
+            "contentBytes": a.content_base64,
+        })
+    }
+
+    pub async fn send_mail(&self, input: &ComposeInput) -> Result<()> {
+        let mut message = Self::message_json(input);
+        let attachments: Vec<_> = input.attachments.iter().map(Self::attachment_json).collect();
+        message["attachments"] = json!(attachments);
+        let body = json!({ "message": message, "saveToSentItems": true });
         let resp = self
             .http
             .post(format!("{BASE}/me/sendMail"))
             .bearer_auth(&self.token)
             .json(&body)
+            .send()
+            .await?;
+        self.expect_ok(resp).await
+    }
+
+    // ---- Concepten ----
+
+    /// Maakt een concept aan in de Concepten-map; geeft het bericht (met id) terug.
+    pub async fn create_draft(&self, input: &ComposeInput) -> Result<Message> {
+        let resp = self
+            .http
+            .post(format!("{BASE}/me/messages"))
+            .bearer_auth(&self.token)
+            .json(&Self::message_json(input))
+            .send()
+            .await?;
+        self.parse(resp).await
+    }
+
+    /// Werkt een bestaand concept bij (alleen tekstvelden; bijlagen gaan pas mee bij verzenden).
+    pub async fn update_draft(&self, id: &str, input: &ComposeInput) -> Result<()> {
+        let resp = self
+            .http
+            .patch(format!("{BASE}/me/messages/{id}"))
+            .bearer_auth(&self.token)
+            .json(&Self::message_json(input))
+            .send()
+            .await?;
+        self.expect_ok(resp).await
+    }
+
+    /// Verstuurt een bestaand concept: laatste velden bijwerken, bijlagen
+    /// toevoegen, dan versturen. Het concept verdwijnt naar Verzonden items.
+    pub async fn send_draft(&self, id: &str, input: &ComposeInput) -> Result<()> {
+        self.update_draft(id, input).await?;
+        // Bijlagen die al op het concept staan eerst weghalen, zodat een eerdere
+        // (mislukte) verzendpoging geen dubbele bijlagen oplevert.
+        for existing in self.list_attachments(id).await? {
+            let resp = self
+                .http
+                .delete(format!("{BASE}/me/messages/{id}/attachments/{}", existing.id))
+                .bearer_auth(&self.token)
+                .send()
+                .await?;
+            self.expect_ok(resp).await?;
+        }
+        for a in &input.attachments {
+            let resp = self
+                .http
+                .post(format!("{BASE}/me/messages/{id}/attachments"))
+                .bearer_auth(&self.token)
+                .json(&Self::attachment_json(a))
+                .send()
+                .await?;
+            self.expect_ok(resp).await?;
+        }
+        let resp = self
+            .http
+            .post(format!("{BASE}/me/messages/{id}/send"))
+            .bearer_auth(&self.token)
             .send()
             .await?;
         self.expect_ok(resp).await

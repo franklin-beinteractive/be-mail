@@ -1,12 +1,16 @@
 // Opstellen / beantwoorden / doorsturen. Eenvoudige teksteditor (rich-text = TODO).
-import { useRef, useState } from "react";
+// Concepten worden automatisch opgeslagen (debounced) en bij sluiten bewaard.
+import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
+import type { ComposeInput } from "../lib/types";
 import { fileSize } from "../lib/format";
 import { CloseIcon, PaperclipIcon, SendIcon } from "./Icons";
 
 // Graph sendMail accepteert max ~3 MB aan inline bijlagen per bericht.
 const MAX_ATTACH_BYTES = 3 * 1024 * 1024;
+// Autosave-vertraging na de laatste wijziging.
+const AUTOSAVE_MS = 3000;
 
 interface PendingAttachment {
   name: string;
@@ -18,8 +22,13 @@ interface PendingAttachment {
 export interface ComposeInitial {
   to?: string;
   cc?: string;
+  bcc?: string;
   subject?: string;
   bodyHtml?: string;
+  /** Platte tekst om de editor mee te vullen (bij het openen van een concept). */
+  text?: string;
+  /** Id van een bestaand concept; wijzigingen worden dan dáárin opgeslagen. */
+  draftId?: string;
 }
 
 function escapeHtml(s: string): string {
@@ -51,13 +60,21 @@ export default function ComposeDialog({
   const { t, notify } = useApp();
   const [to, setTo] = useState(initial.to ?? "");
   const [cc, setCc] = useState(initial.cc ?? "");
-  const [bcc, setBcc] = useState("");
+  const [bcc, setBcc] = useState(initial.bcc ?? "");
   const [subject, setSubject] = useState(initial.subject ?? "");
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initial.text ?? "");
   const [importance, setImportance] = useState("normal");
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // Concept-administratie. Refs zodat de autosave-timer altijd de actuele
+  // stand ziet zonder de effect-afhankelijkheden op te blazen.
+  const draftIdRef = useRef<string | null>(initial.draftId ?? null);
+  const dirtyRef = useRef(false);
+  const savingRef = useRef(false);
+  const busyRef = useRef(false);
+  busyRef.current = busy;
 
   const quoted = initial.bodyHtml ?? "";
 
@@ -66,6 +83,75 @@ export default function ComposeDialog({
       .split(/[,;]/)
       .map((s) => s.trim())
       .filter(Boolean);
+  }
+
+  function buildInput(): ComposeInput {
+    const bodyHtml =
+      `<div>${escapeHtml(text).replace(/\n/g, "<br>")}</div>` +
+      (quoted ? `<hr>${quoted}` : "");
+    return {
+      to: split(to),
+      cc: split(cc),
+      bcc: split(bcc),
+      subject,
+      bodyHtml,
+      importance,
+      attachments: attachments.map(({ name, contentType, contentBase64 }) => ({
+        name,
+        contentType,
+        contentBase64,
+      })),
+    };
+  }
+
+  function hasContent(): boolean {
+    return !!(to.trim() || cc.trim() || bcc.trim() || subject.trim() || text.trim());
+  }
+
+  /** Slaat het concept op (eerste keer aanmaken, daarna bijwerken). */
+  async function saveDraft() {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    try {
+      const input = buildInput();
+      if (draftIdRef.current) {
+        await api.updateDraft(draftIdRef.current, input);
+      } else {
+        const m = await api.createDraft(input);
+        draftIdRef.current = m.id;
+      }
+      dirtyRef.current = false;
+    } finally {
+      savingRef.current = false;
+    }
+  }
+
+  // Autosave: na elke wijziging een timer; stil falen (geen toast-spam).
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    dirtyRef.current = true;
+    const h = setTimeout(() => {
+      if (!busyRef.current && hasContent()) saveDraft().catch(() => {});
+    }, AUTOSAVE_MS);
+    return () => clearTimeout(h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [to, cc, bcc, subject, text, importance]);
+
+  /** Sluiten: laatste wijzigingen als concept bewaren en dat even melden. */
+  async function closeAndSave() {
+    if (hasContent() && (dirtyRef.current || draftIdRef.current)) {
+      try {
+        if (dirtyRef.current) await saveDraft();
+        notify(t("draftSaved") + " ✓", "info");
+      } catch (e) {
+        notify(String(e), "error");
+      }
+    }
+    onClose();
   }
 
   async function addFiles(list: FileList | null) {
@@ -96,23 +182,15 @@ export default function ComposeDialog({
       return;
     }
     setBusy(true);
-    const bodyHtml =
-      `<div>${escapeHtml(text).replace(/\n/g, "<br>")}</div>` +
-      (quoted ? `<hr>${quoted}` : "");
     try {
-      await api.sendMessage({
-        to: split(to),
-        cc: split(cc),
-        bcc: split(bcc),
-        subject,
-        bodyHtml,
-        importance,
-        attachments: attachments.map(({ name, contentType, contentBase64 }) => ({
-          name,
-          contentType,
-          contentBase64,
-        })),
-      });
+      const input = buildInput();
+      if (draftIdRef.current) {
+        // Bestaand concept versturen: geen duplicaat, concept → Verzonden items.
+        await api.sendDraft(draftIdRef.current, input);
+      } else {
+        await api.sendMessage(input);
+      }
+      dirtyRef.current = false;
       notify(t("send") + " ✓", "info");
       onSent();
     } catch (e) {
@@ -127,7 +205,7 @@ export default function ComposeDialog({
       <div className="dialog compose">
         <header className="dialog-head">
           <h2>{t("compose")}</h2>
-          <button className="icon-btn" onClick={onClose} aria-label={t("cancel")}>
+          <button className="icon-btn" onClick={closeAndSave} aria-label={t("cancel")}>
             <CloseIcon />
           </button>
         </header>
@@ -202,7 +280,7 @@ export default function ComposeDialog({
             <PaperclipIcon size={18} /> {t("attach")}
           </button>
           <span className="spacer" />
-          <button className="btn" onClick={onClose}>
+          <button className="btn" onClick={closeAndSave}>
             {t("cancel")}
           </button>
           <button className="btn primary" onClick={send} disabled={busy}>

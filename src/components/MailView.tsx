@@ -3,9 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
-import type { Account, Attachment, MailFolder, Message } from "../lib/types";
+import type { Account, Attachment, MailFolder, Message, Recipient } from "../lib/types";
 import {
   fileSize,
+  htmlToText,
   longDateTime,
   sanitizeEmail,
   senderAddress,
@@ -112,6 +113,18 @@ export default function MailView({ account }: { account: Account | null }) {
     setAttachments([]);
     try {
       const full = await api.getMessage(m.id);
+      if (full.isDraft) {
+        // Concepten open je niet in het leesvenster maar in het opstelvenster.
+        setCompose({
+          draftId: full.id,
+          to: joinAddresses(full.toRecipients),
+          cc: joinAddresses(full.ccRecipients),
+          bcc: joinAddresses(full.bccRecipients),
+          subject: full.subject ?? "",
+          text: htmlToText(full.body?.content ?? ""),
+        });
+        return;
+      }
       setSelected(full);
       if (full.hasAttachments) {
         // Losse call; falen hiervan mag het lezen niet blokkeren.
@@ -217,6 +230,14 @@ export default function MailView({ account }: { account: Account | null }) {
     } catch (e) {
       notify(String(e), "error");
     }
+  }
+
+  // Na sluiten/verzenden van het opstelvenster: Concepten-map verversen,
+  // want autosave kan daar een concept hebben aangemaakt of verwijderd.
+  function composeClosed() {
+    setCompose(null);
+    const drafts = folders.find((f) => /concepten|drafts/i.test(f.displayName ?? ""));
+    if (folderId && folderId === drafts?.id) loadPage(0, true);
   }
 
   // Reply / forward-voorvulling.
@@ -446,8 +467,8 @@ export default function MailView({ account }: { account: Account | null }) {
       {compose && (
         <ComposeDialog
           initial={compose}
-          onClose={() => setCompose(null)}
-          onSent={() => setCompose(null)}
+          onClose={composeClosed}
+          onSent={composeClosed}
         />
       )}
     </div>
@@ -456,6 +477,13 @@ export default function MailView({ account }: { account: Account | null }) {
 
 function stripPrefix(s: string): string {
   return s.replace(/^(re|fw|fwd)\s*:\s*/i, "");
+}
+
+function joinAddresses(rs?: Recipient[] | null): string {
+  return (rs ?? [])
+    .map((r) => r.emailAddress.address ?? "")
+    .filter(Boolean)
+    .join(", ");
 }
 
 function isExternal(m: Message, account: Account | null): boolean {

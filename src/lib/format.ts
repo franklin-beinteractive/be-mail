@@ -87,3 +87,15 @@ export function sanitizeEmail(html: string, allowImages: boolean): string {
 export function hasExternalImages(html: string): boolean {
   return /<img[^>]+src=["']https?:/i.test(html);
 }
+
+/**
+ * Zet e-mail-HTML om naar platte tekst voor de eenvoudige editor
+ * (gebruikt bij het heropenen van een concept). Opmaak gaat verloren.
+ */
+export function htmlToText(html: string): string {
+  const withBreaks = html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|tr|li|h[1-6])>/gi, "\n");
+  const doc = new DOMParser().parseFromString(withBreaks, "text/html");
+  return (doc.body.textContent ?? "").replace(/\n{3,}/g, "\n\n").trim();
+}

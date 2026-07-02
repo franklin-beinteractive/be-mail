@@ -118,6 +118,23 @@ pub async fn send_message(input: ComposeInput) -> Result<(), String> {
     client().await?.send_mail(&input).await.map_err(|e| e.to_string())
 }
 
+// ---- Concepten ----
+
+#[tauri::command]
+pub async fn create_draft(input: ComposeInput) -> Result<Message, String> {
+    client().await?.create_draft(&input).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn update_draft(id: String, input: ComposeInput) -> Result<(), String> {
+    client().await?.update_draft(&id, &input).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn send_draft(id: String, input: ComposeInput) -> Result<(), String> {
+    client().await?.send_draft(&id, &input).await.map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub async fn list_attachments(message_id: String) -> Result<Vec<Attachment>, String> {
     client()

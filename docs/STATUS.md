@@ -16,6 +16,10 @@
 - **Mail opstellen**: nieuw/reply/reply-all/forward, CC/BCC, prioriteit,
   **bijlagen meesturen** (max ~3 MB per mail, Graph-limiet inline attachments).
 - **Bijlagen lezen**: lijst in leesvenster, downloaden naar Downloads-map.
+- **Concepten**: automatisch opslaan tijdens typen (3 s debounce), bewaren bij
+  sluiten, concept openen vanuit Concepten-map (→ opstelvenster), verzenden
+  van een concept zonder duplicaat. Let op: opmaak wordt platte tekst bij
+  heropenen (simpele editor); bijlagen gaan pas mee bij verzenden.
 - **Agenda**: maand/week/lijst, vandaag + navigatie, afspraak
   maken/**bewerken**/verwijderen, hele dag, locatie, herinnering, genodigden.
 - **Overig**: donkere modus, tekstgrootte, hoog contrast, NL/EN,
@@ -24,8 +28,8 @@
 ## 🔜 Volgende stappen (afgesproken volgorde)
 
 1. ~~Bijlagen (lezen + downloaden + meesturen)~~ ✅
-2. **Concepten automatisch opslaan** ← volgende
-3. Handtekening(en)
+2. ~~Concepten automatisch opslaan~~ ✅
+3. **Handtekening(en)** ← volgende
 4. Mappenbeheer (aanmaken/hernoemen/verwijderen) + bulkacties
 5. RSVP (uitnodiging accepteren/afwijzen) + terugkerende afspraken
 

@@ -80,6 +80,8 @@ pub struct Message {
     #[serde(default)]
     pub cc_recipients: Option<Vec<Recipient>>,
     #[serde(default)]
+    pub bcc_recipients: Option<Vec<Recipient>>,
+    #[serde(default)]
     pub received_date_time: Option<String>,
     #[serde(default)]
     pub sent_date_time: Option<String>,
@@ -97,6 +99,8 @@ pub struct Message {
     pub body: Option<ItemBody>,
     #[serde(default)]
     pub web_link: Option<String>,
+    #[serde(default)]
+    pub is_draft: Option<bool>,
 }
 
 /// Eén pagina berichten voor de frontend.

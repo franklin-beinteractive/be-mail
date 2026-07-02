@@ -43,6 +43,7 @@ export interface Message {
   from?: Recipient | null;
   toRecipients?: Recipient[] | null;
   ccRecipients?: Recipient[] | null;
+  bccRecipients?: Recipient[] | null;
   receivedDateTime?: string | null;
   sentDateTime?: string | null;
   isRead?: boolean | null;
@@ -52,6 +53,7 @@ export interface Message {
   flag?: FollowupFlag | null;
   body?: ItemBody | null;
   webLink?: string | null;
+  isDraft?: boolean | null;
 }
 
 export interface MessagesPage {
