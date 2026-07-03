@@ -411,15 +411,16 @@ export default function SettingsView({
             )}
             {oof.status !== "disabled" && (
               <>
-                <div className="setting-row">
-                  <span>{t("oofInternal")}</span>
-                  <textarea
-                    rows={3}
-                    style={{ flex: 1 }}
-                    value={oof.internalReplyMessage ?? ""}
-                    onChange={(e) =>
-                      setOof({ ...oof, internalReplyMessage: e.target.value })
+                <div className="setting-col">
+                  <span className="muted small">{t("oofInternal")}</span>
+                  <RichTextEditor
+                    initialHtml={oof.internalReplyMessage ?? ""}
+                    onChange={(html) =>
+                      setOof((prev) =>
+                        prev ? { ...prev, internalReplyMessage: html } : prev
+                      )
                     }
+                    minHeight={90}
                   />
                 </div>
                 <div className="setting-row">
@@ -436,15 +437,16 @@ export default function SettingsView({
                   </select>
                 </div>
                 {(oof.externalAudience ?? "none") !== "none" && (
-                  <div className="setting-row">
-                    <span>{t("oofExternal")}</span>
-                    <textarea
-                      rows={3}
-                      style={{ flex: 1 }}
-                      value={oof.externalReplyMessage ?? ""}
-                      onChange={(e) =>
-                        setOof({ ...oof, externalReplyMessage: e.target.value })
+                  <div className="setting-col">
+                    <span className="muted small">{t("oofExternal")}</span>
+                    <RichTextEditor
+                      initialHtml={oof.externalReplyMessage ?? ""}
+                      onChange={(html) =>
+                        setOof((prev) =>
+                          prev ? { ...prev, externalReplyMessage: html } : prev
+                        )
                       }
+                      minHeight={90}
                     />
                   </div>
                 )}

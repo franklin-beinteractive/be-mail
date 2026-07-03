@@ -255,6 +255,23 @@ export default function MailView() {
   } | null>(null);
   // Bulkacties: ids van aangevinkte berichten.
   const [checked, setChecked] = useState<Set<string>>(new Set());
+  // Contextmenu (rechtermuisknop) op een bericht in de lijst.
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; msg: Message } | null>(null);
+
+  // Contextmenu sluiten bij een klik of Escape, waar dan ook.
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = () => setCtxMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [ctxMenu]);
 
   // Accounts + mappen laden bij start; Postvak IN van het actieve account openen.
   useEffect(() => {
@@ -1298,6 +1315,14 @@ export default function MailView() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") openMessage(m);
                 }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setCtxMenu({
+                    x: Math.min(e.clientX, window.innerWidth - 200),
+                    y: Math.min(e.clientY, window.innerHeight - 220),
+                    msg: m,
+                  });
+                }}
                 draggable
                 onDragStart={(e) => {
                   // Aangevinkte selectie sleept mee als het bericht erin zit.
@@ -1398,54 +1423,78 @@ export default function MailView() {
         ) : (
           <>
         <div className="reader-actions">
-          <button className="btn primary" onClick={() => setCompose({})}>
+          <button
+            className="btn primary"
+            onClick={() => setCompose({})}
+            title={t("tipCompose")}
+          >
             <ComposeIcon size={18} /> {t("compose")}
           </button>
           {selected && (
             <>
-              <button className="btn" onClick={() => setCompose(buildReply(selected, false))}>
+              <button
+                className="btn"
+                onClick={() => setCompose(buildReply(selected, false))}
+                title={t("tipReply")}
+              >
                 <ReplyIcon size={18} /> {t("reply")}
               </button>
-              <button className="btn" onClick={() => setCompose(buildReply(selected, true))}>
+              <button
+                className="btn"
+                onClick={() => setCompose(buildReply(selected, true))}
+                title={t("tipReplyAll")}
+              >
                 <ReplyAllIcon size={18} /> {t("replyAll")}
               </button>
-              <button className="btn" onClick={() => setCompose(buildForward(selected))}>
+              <button
+                className="btn"
+                onClick={() => setCompose(buildForward(selected))}
+                title={t("tipForward")}
+              >
                 <ForwardIcon size={18} /> {t("forward")}
               </button>
               <span className="spacer" />
               {unsubscribeTarget(selected) && (
-                <button className="btn" onClick={() => unsubscribe(selected)}>
+                <button
+                  className="btn"
+                  onClick={() => unsubscribe(selected)}
+                  title={t("tipUnsubscribe")}
+                >
                   {t("unsubscribe")}
                 </button>
               )}
               <button
                 className="btn"
                 onClick={() => reportJunk(selected)}
-                title={t("reportJunk")}
+                title={t("tipSpam")}
               >
                 Spam
               </button>
               <button
                 className="btn"
                 onClick={() => blockSender(selected)}
-                title={t("blockSender")}
+                title={t("tipBlock")}
               >
                 <BanIcon size={18} />
               </button>
-              <button className="btn" onClick={() => toggleFlag(selected)} title={t("flag")}>
+              <button className="btn" onClick={() => toggleFlag(selected)} title={t("tipFlag")}>
                 <FlagIcon size={18} />
               </button>
-              <button className="btn" onClick={() => toggleRead(selected)}>
+              <button
+                className="btn"
+                onClick={() => toggleRead(selected)}
+                title={t("tipRead")}
+              >
                 {selected.isRead ? t("markUnread") : t("markRead")}
               </button>
-              <button className="btn" onClick={() => archive(selected)} title={t("archive")}>
+              <button className="btn" onClick={() => archive(selected)} title={t("tipArchive")}>
                 <ArchiveIcon size={18} />
               </button>
               <span className="snooze-wrap">
                 <button
                   className="btn"
                   onClick={() => setSnoozeOpen((v) => !v)}
-                  title={t("snooze")}
+                  title={t("tipSnooze")}
                 >
                   <ClockIcon size={18} />
                 </button>
@@ -1493,7 +1542,7 @@ export default function MailView() {
                 )}
               </span>
               {/* Verplaatsen gaat door het bericht naar een map te slepen. */}
-              <button className="btn danger" onClick={() => remove(selected)} title={t("delete")}>
+              <button className="btn danger" onClick={() => remove(selected)} title={t("tipDelete")}>
                 <TrashIcon size={18} />
               </button>
             </>
@@ -1506,61 +1555,63 @@ export default function MailView() {
             <div className="reader-head">
               <h2>{selected.subject || "(geen onderwerp)"}</h2>
               <div className="reader-meta">
-                <strong>{senderName(selected.from?.emailAddress)}</strong>{" "}
-                <span className="muted">
-                  &lt;{senderAddress(selected.from?.emailAddress)}&gt;
-                </span>
-                <div className="muted small">
-                  {longDateTime(selected.receivedDateTime, settings.lang)}
-                </div>
-                {(masterCats.length > 0 ||
-                  (selected.categories ?? []).length > 0) && (
-                  <div className="cat-row">
-                    {(selected.categories ?? []).map((c) => (
-                      <span
-                        key={c}
-                        className="cat-chip"
-                        style={{ background: catColor(c) }}
-                      >
-                        {c}
-                        <button
-                          className="cat-x"
-                          onClick={() => void toggleCategory(selected, c)}
-                          aria-label={t("delete")}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                    {masterCats.length > 0 && (
-                      <select
-                        className="cat-add"
-                        value=""
-                        onChange={(e) => {
-                          if (e.target.value)
-                            void toggleCategory(selected, e.target.value);
-                        }}
-                        title={t("category")}
-                      >
-                        <option value="">{t("category")}…</option>
-                        {masterCats
-                          .filter(
-                            (c) =>
-                              !(selected.categories ?? []).includes(
-                                c.displayName ?? ""
-                              )
-                          )
-                          .map((c) => (
-                            <option key={c.id} value={c.displayName ?? ""}>
-                              {c.displayName}
-                            </option>
-                          ))}
-                      </select>
-                    )}
+                <div className="reader-meta-main">
+                  <strong>{senderName(selected.from?.emailAddress)}</strong>{" "}
+                  <span className="muted">
+                    &lt;{senderAddress(selected.from?.emailAddress)}&gt;
+                  </span>
+                  <div className="muted small">
+                    {longDateTime(selected.receivedDateTime, settings.lang)}
                   </div>
-                )}
-                {isExternal(selected, account) && (
-                  <div className="warn">{t("externalSender")}</div>
+                  {(selected.categories ?? []).length > 0 && (
+                    <div className="cat-row">
+                      {(selected.categories ?? []).map((c) => (
+                        <span
+                          key={c}
+                          className="cat-chip"
+                          style={{ background: catColor(c) }}
+                        >
+                          {c}
+                          <button
+                            className="cat-x"
+                            onClick={() => void toggleCategory(selected, c)}
+                            aria-label={t("delete")}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {isExternal(selected, account) && (
+                    <div className="warn">{t("externalSender")}</div>
+                  )}
+                </div>
+                {/* Rechts uitgelijnd op de afzenderregel. */}
+                {masterCats.length > 0 && (
+                  <select
+                    className="cat-add"
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value)
+                        void toggleCategory(selected, e.target.value);
+                    }}
+                    title={t("category")}
+                  >
+                    <option value="">{t("category")}…</option>
+                    {masterCats
+                      .filter(
+                        (c) =>
+                          !(selected.categories ?? []).includes(
+                            c.displayName ?? ""
+                          )
+                      )
+                      .map((c) => (
+                        <option key={c.id} value={c.displayName ?? ""}>
+                          {c.displayName}
+                        </option>
+                      ))}
+                  </select>
                 )}
               </div>
             </div>
@@ -1615,6 +1666,63 @@ export default function MailView() {
           </>
         )}
       </section>
+
+      {ctxMenu && (
+        <div
+          className="ctx-menu"
+          style={{ left: ctxMenu.x, top: ctxMenu.y }}
+          role="menu"
+          // mousedown sluit het menu globaal; hier tegenhouden zodat de
+          // klik op een menu-item nog aankomt.
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="suggest-item"
+            onClick={() => {
+              void reportJunk(ctxMenu.msg);
+              setCtxMenu(null);
+            }}
+          >
+            {t("reportJunk")}
+          </button>
+          <button
+            className="suggest-item"
+            onClick={() => {
+              void blockSender(ctxMenu.msg);
+              setCtxMenu(null);
+            }}
+          >
+            {t("blockSender")}
+          </button>
+          <button
+            className="suggest-item"
+            onClick={() => {
+              void toggleRead(ctxMenu.msg);
+              setCtxMenu(null);
+            }}
+          >
+            {ctxMenu.msg.isRead ? t("markUnread") : t("markRead")}
+          </button>
+          <button
+            className="suggest-item"
+            onClick={() => {
+              void archive(ctxMenu.msg);
+              setCtxMenu(null);
+            }}
+          >
+            {t("archive")}
+          </button>
+          <button
+            className="suggest-item"
+            onClick={() => {
+              void remove(ctxMenu.msg);
+              setCtxMenu(null);
+            }}
+          >
+            {t("delete")}
+          </button>
+        </div>
+      )}
 
       {folderDialog && (
         <div className="overlay" role="dialog" aria-modal="true" onClick={() => setFolderDialog(null)}>

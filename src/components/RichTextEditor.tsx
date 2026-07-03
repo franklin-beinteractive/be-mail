@@ -28,6 +28,10 @@ export default function RichTextEditor({
   onMention?: (address: string) => void;
 }) {
   const { t, notify } = useApp();
+  // Bevries de start-HTML: de editor-DOM is daarna de waarheid. Zou de prop
+  // live meebewegen (parent slaat onChange-waarde op), dan schrijft React de
+  // innerHTML opnieuw en springt de cursor naar het begin.
+  const [frozenInitial] = useState(initialHtml);
   const innerRef = useRef<HTMLDivElement>(null);
   const ref = editorRef ?? innerRef;
   const imgInput = useRef<HTMLInputElement>(null);
@@ -264,7 +268,7 @@ export default function RichTextEditor({
               if (addr) applyMention(addr, p.displayName || addr);
             }
           }}
-          dangerouslySetInnerHTML={{ __html: initialHtml }}
+          dangerouslySetInnerHTML={{ __html: frozenInitial }}
         />
         {mentions.length > 0 && (
           <span className="suggest-list mention-list">

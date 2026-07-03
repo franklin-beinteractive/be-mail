@@ -400,7 +400,16 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .move-select { padding: 7px 8px; }
 .reader-head { padding: 16px 20px 8px; }
 .reader-head h2 { margin: 0 0 8px; }
-.reader-meta { font-size: 0.9rem; }
+/* Links de afzender-info, rechts (op de afzenderregel) de categorie-select. */
+.reader-meta {
+  font-size: 0.9rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.reader-meta-main { min-width: 0; }
+.reader-meta .cat-add { flex-shrink: 0; }
 .warn {
   margin-top: 8px;
   background: var(--warn-bg);
@@ -583,6 +592,20 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .editor a[data-mention] { color: var(--accent); font-weight: 600; text-decoration: none; }
 .editor-wrap { position: relative; display: block; }
 .mention-list { top: 8px; left: 12px; right: auto; min-width: 280px; }
+
+/* Contextmenu (rechtermuisknop) op een bericht */
+.ctx-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+  padding: 4px;
+}
 
 /* Offline cache-indicator boven de berichtenlijst */
 .offline-bar {
@@ -854,6 +877,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   display: flex;
   align-items: center;
   gap: 14px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+/* Verticale variant: label boven een brede editor (bv. afwezigheidsbericht). */
+.setting-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   padding: 10px 0;
   border-top: 1px solid var(--border);
 }
