@@ -62,7 +62,10 @@ export const HIDEABLE_FOLDERS = [
   { key: "deleted", nl: "Verwijderde items", en: "Deleted Items", re: /^(verwijderde items|deleted items)$/i },
   { key: "junk", nl: "Ongewenste e-mail", en: "Junk Email", re: /^(ongewenste e-?mail|junk e-?mail)$/i },
   { key: "outbox", nl: "Postvak UIT", en: "Outbox", re: /^(postvak uit|outbox)$/i },
-  { key: "history", nl: "Gespreksgeschiedenis", en: "Conversation History", re: /^(conversation history|gespreksgeschiedenis)$/i },
+  { key: "history", nl: "Gespreksgeschiedenis (conversation history)", en: "Conversation History", re: /^(conversation history|gespreksgeschiedenis)$/i },
+  { key: "rss", nl: "RSS-abonnementen", en: "RSS Feeds", re: /^rss[- ]?(abonnementen|feeds|subscriptions)$/i },
+  { key: "snoozed", nl: "Uitgesteld (snoozed)", en: "Snoozed", re: /^(uitgesteld|snoozed)$/i },
+  { key: "syncissues", nl: "Synchronisatieproblemen", en: "Sync Issues", re: /^(synchronisatieproblemen|sync issues)$/i },
 ] as const;
 
 const KEY = "BE-Mail.ui";

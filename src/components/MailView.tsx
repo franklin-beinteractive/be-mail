@@ -760,9 +760,21 @@ export default function MailView() {
       );
     const map = new Map<string, FolderTree>();
     for (const g of accountFolders) {
+      // Ook nakomelingen van een verborgen map weglaten, anders zouden bv. de
+      // submappen van Synchronisatieproblemen als losse hoofdmappen opduiken.
+      const byId = new Map(g.folders.map((f) => [f.id, f]));
+      const hiddenIds = new Set(g.folders.filter(isHidden).map((f) => f.id));
+      const underHidden = (f: MailFolder): boolean => {
+        let cur: MailFolder | undefined = f;
+        for (let i = 0; cur && i < 10; i++) {
+          if (hiddenIds.has(cur.id)) return true;
+          cur = cur.parentFolderId ? byId.get(cur.parentFolderId) : undefined;
+        }
+        return false;
+      };
       map.set(
         g.account.id,
-        buildTree(g.folders.filter((f) => !isHidden(f)), settings.folderOrder ?? {})
+        buildTree(g.folders.filter((f) => !underHidden(f)), settings.folderOrder ?? {})
       );
     }
     return map;
