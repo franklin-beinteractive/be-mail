@@ -11,6 +11,7 @@ import type {
   CalendarEvent,
   ComposeInput,
   EventInput,
+  InlineImage,
   MailFolder,
   Message,
   MessagesPage,
@@ -74,6 +75,9 @@ export const api = {
     invoke<void>("send_draft", { id, input, scheduledUtc: scheduledUtc ?? null }),
   listAttachments: (messageId: string) =>
     invoke<Attachment[]>("list_attachments", { messageId }),
+  // Inline (cid:) afbeeldingen met inhoud, voor weergave in het leesvenster.
+  inlineImages: (messageId: string) =>
+    invoke<InlineImage[]>("inline_images", { messageId }),
   // Downloadt naar de Downloads-map; geeft het opgeslagen pad terug.
   downloadAttachment: (messageId: string, attachmentId: string) =>
     invoke<string>("download_attachment", { messageId, attachmentId }),

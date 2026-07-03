@@ -93,6 +93,13 @@ export interface Attachment {
   isInline?: boolean | null;
 }
 
+// Inline (cid:) afbeelding met inhoud, voor weergave in het leesvenster.
+export interface InlineImage {
+  contentId: string;
+  contentType: string;
+  contentBytes: string;
+}
+
 // Bijlage om mee te sturen (inhoud als base64).
 export interface AttachmentInput {
   name: string;

@@ -281,6 +281,16 @@ pub async fn list_attachments(message_id: String) -> Result<Vec<Attachment>, Str
         .map_err(|e| e.to_string())
 }
 
+/// Inline (cid:) afbeeldingen van een bericht, voor weergave in het leesvenster.
+#[tauri::command]
+pub async fn inline_images(message_id: String) -> Result<Vec<InlineImage>, String> {
+    client()
+        .await?
+        .inline_images(&message_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Downloadt een bijlage naar de Downloads-map; geeft het opgeslagen pad terug.
 #[tauri::command]
 pub async fn download_attachment(

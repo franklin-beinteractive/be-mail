@@ -148,6 +148,15 @@ pub struct Attachment {
     pub is_inline: Option<bool>,
 }
 
+/// Inline (cid:) afbeelding met inhoud, voor weergave in het leesvenster.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InlineImage {
+    pub content_id: String,
+    pub content_type: String,
+    pub content_bytes: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DateTimeTimeZone {

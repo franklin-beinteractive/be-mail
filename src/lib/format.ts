@@ -62,26 +62,50 @@ export function timeOnly(iso?: string | null): string {
 /**
  * Maakt e-mail-HTML veilig voor weergave. Blokkeert scripts en optioneel
  * externe afbeeldingen (tracking-pixels) tot de gebruiker ze wil zien.
+ * `inlineImages` (cid → data-URI) vult ingesloten afbeeldingen in: de browser
+ * kan `src="cid:…"` zelf niet laden, dus zonder deze map blijven ze kapot.
  */
-export function sanitizeEmail(html: string, allowImages: boolean): string {
+export function sanitizeEmail(
+  html: string,
+  allowImages: boolean,
+  inlineImages?: Record<string, string>
+): string {
   const clean = DOMPurify.sanitize(html, {
     FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form"],
     FORBID_ATTR: ["onerror", "onload", "onclick"],
     ALLOW_DATA_ATTR: false,
   });
-  if (allowImages) return clean;
-  // Strip externe (http/https) afbeeldingen; laat ingesloten cid:/data: staan.
+  const hasInline = !!inlineImages && Object.keys(inlineImages).length > 0;
+  if (allowImages && !hasInline) return clean;
   const doc = new DOMParser().parseFromString(clean, "text/html");
-  let blocked = false;
+  let changed = false;
   doc.querySelectorAll("img").forEach((img) => {
     const src = img.getAttribute("src") || "";
-    if (/^https?:/i.test(src)) {
+    const cid = /^cid:(.+)$/i.exec(src)?.[1];
+    if (cid) {
+      const key = decodeSafe(cid).replace(/^<|>$/g, "");
+      const data = inlineImages?.[key];
+      if (data) {
+        img.setAttribute("src", data);
+        changed = true;
+      }
+      return; // ingesloten afbeelding: nooit als "extern" blokkeren
+    }
+    if (!allowImages && /^https?:/i.test(src)) {
       img.removeAttribute("src");
       img.setAttribute("alt", "🔒");
-      blocked = true;
+      changed = true;
     }
   });
-  return blocked ? doc.body.innerHTML : clean;
+  return changed ? doc.body.innerHTML : clean;
+}
+
+function decodeSafe(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
 }
 
 export function hasExternalImages(html: string): boolean {

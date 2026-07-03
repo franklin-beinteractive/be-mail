@@ -1,5 +1,7 @@
 /* ---------- Basis & thema-variabelen ---------- */
 :root {
+  /* Native onderdelen (scrollbars, checkboxes, selects) in lichte stijl. */
+  color-scheme: light;
   --font-scale: 1;
   --accent: #0f6cbd;
   --accent-hover: #115ea3;
@@ -17,6 +19,8 @@
   --radius: 8px;
 }
 :root[data-theme="dark"] {
+  /* Donkere native scrollbars/controls, passend bij het donkere thema. */
+  color-scheme: dark;
   --accent: #4aa3e8;
   --accent-hover: #6cb6ee;
   --bg: #1b1a19;

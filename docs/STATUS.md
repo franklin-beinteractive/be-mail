@@ -6,7 +6,8 @@
 **Laatst bijgewerkt:** 2026-07-03 (login-fix zonder People.Read; mappen
 standaard ingeklapt + status onthouden; scroll-fix mappenlijst; em dash
 overal vervangen door "-"; Help en Instellingen in 2 kolommen zonder
-witruimte-gaten)
+witruimte-gaten; donkere scrollbars in dark mode; inline (cid:)
+afbeeldingen worden nu echt getoond)
 
 ## ✅ Af
 

@@ -148,6 +148,8 @@ export default function MailView() {
   // Bijlagen van het geopende bericht; id van de bijlage die nu downloadt.
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [downloading, setDownloading] = useState<string | null>(null);
+  // Ingesloten (cid:) afbeeldingen van het geopende bericht: cid → data-URI.
+  const [inlineImages, setInlineImages] = useState<Record<string, string>>({});
   // Kolombreedtes (px); tijdens slepen lokaal, bij loslaten opgeslagen.
   const [colW, setColW] = useState({
     folders: settings.foldersWidth,
@@ -297,6 +299,7 @@ export default function MailView() {
   async function openMessage(m: Message) {
     setAllowImages(false);
     setAttachments([]);
+    setInlineImages({});
     try {
       const full = await api.getMessage(m.id);
       if (full.isDraft) {
@@ -317,6 +320,23 @@ export default function MailView() {
         api
           .listAttachments(m.id)
           .then((list) => setAttachments(list.filter((a) => !a.isInline)))
+          .catch(() => {});
+      }
+      // Ingesloten (cid:) afbeeldingen ophalen en als data-URI invullen.
+      // Los van hasAttachments: bij alleen-inline bijlagen staat die soms op false.
+      if ((full.body?.content ?? "").includes("cid:")) {
+        api
+          .inlineImages(m.id)
+          .then((list) =>
+            setInlineImages(
+              Object.fromEntries(
+                list.map((i) => [
+                  i.contentId,
+                  `data:${i.contentType};base64,${i.contentBytes}`,
+                ])
+              )
+            )
+          )
           .catch(() => {});
       }
       if (!m.isRead) {
@@ -715,8 +735,8 @@ export default function MailView() {
       return `<pre class="plain">${selected.body.content
         .replace(/</g, "&lt;")}</pre>`;
     }
-    return sanitizeEmail(selected.body.content, allowImages);
-  }, [selected, allowImages]);
+    return sanitizeEmail(selected.body.content, allowImages, inlineImages);
+  }, [selected, allowImages, inlineImages]);
 
   const externalBlocked =
     selected?.body?.contentType?.toLowerCase() !== "text" &&

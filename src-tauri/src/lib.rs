@@ -48,6 +48,7 @@ pub fn run() {
             commands::update_draft,
             commands::send_draft,
             commands::list_attachments,
+            commands::inline_images,
             commands::download_attachment,
             commands::rsvp_message,
             commands::block_sender,

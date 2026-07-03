@@ -373,6 +373,45 @@ impl GraphClient {
         Ok(path.to_string_lossy().into_owned())
     }
 
+    /// Inline (cid:) afbeeldingen van een bericht, met inhoud als base64.
+    /// De HTML-body verwijst met `src="cid:<contentId>"` naar deze bijlagen;
+    /// de frontend zet ze om naar data-URI's zodat ze echt zichtbaar zijn.
+    pub async fn inline_images(&self, message_id: &str) -> Result<Vec<InlineImage>> {
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Content {
+            #[serde(default)]
+            content_id: Option<String>,
+            #[serde(default)]
+            content_type: Option<String>,
+            #[serde(default)]
+            content_bytes: Option<String>,
+        }
+
+        let mut out = Vec::new();
+        for a in self.list_attachments(message_id).await? {
+            if a.is_inline != Some(true) {
+                continue;
+            }
+            if !a.content_type.as_deref().unwrap_or("").starts_with("image/") {
+                continue;
+            }
+            let url = format!("{BASE}/me/messages/{message_id}/attachments/{}", a.id);
+            let full: Content = self.get_json(&url).await?;
+            if let (Some(cid), Some(bytes)) = (full.content_id, full.content_bytes) {
+                out.push(InlineImage {
+                    // Graph levert de contentId soms met omringende <>.
+                    content_id: cid.trim_matches(|c| c == '<' || c == '>').to_string(),
+                    content_type: full
+                        .content_type
+                        .unwrap_or_else(|| "image/png".to_string()),
+                    content_bytes: bytes,
+                });
+            }
+        }
+        Ok(out)
+    }
+
     /// Berichtvelden voor sendMail/concepten (zonder bijlagen).
     fn message_json(input: &ComposeInput) -> serde_json::Value {
         let importance = match input.importance.as_deref() {
