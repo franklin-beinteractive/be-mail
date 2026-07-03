@@ -655,16 +655,6 @@ export default function MailView() {
     }
   }
 
-  async function moveTo(m: Message, dest: string) {
-    if (!dest) return;
-    try {
-      await api.moveMessage(m.id, dest);
-      dropFromLists(m.id);
-    } catch (e) {
-      notify(String(e), "error");
-    }
-  }
-
   /** Versleepte berichten in een map laten vallen. */
   async function dropMessagesOn(target: MailFolder) {
     const ids = dragMsgIds ?? [];
@@ -1502,21 +1492,7 @@ export default function MailView() {
                   </div>
                 )}
               </span>
-              <select
-                className="move-select"
-                value=""
-                onChange={(e) => moveTo(selected, e.target.value)}
-                title={t("move")}
-              >
-                <option value="">{t("move")}…</option>
-                {folders
-                  .filter((f) => f.id !== folderId)
-                  .map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.displayName}
-                    </option>
-                  ))}
-              </select>
+              {/* Verplaatsen gaat door het bericht naar een map te slepen. */}
               <button className="btn danger" onClick={() => remove(selected)} title={t("delete")}>
                 <TrashIcon size={18} />
               </button>
