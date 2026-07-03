@@ -172,23 +172,20 @@ fn urldecode(s: &str) -> String {
 /// en wisselt de code in voor tokens. Opslaan gebeurt door de aanroeper (pas
 /// nadat bekend is bij welk account de tokens horen).
 ///
-/// Probeert eerst FULL_SCOPES; weigert de tenant de consent (access_denied,
-/// "Beheerdersgoedkeuring vereist" voor People.Read), dan volgt automatisch een
-/// tweede poging met BASE_SCOPES zodat inloggen niet geblokkeerd raakt.
+/// De browser-login vraagt bewust alleen BASE_SCOPES: de optionele scope
+/// People.Read zou in tenants zonder user-consent een blokkerend
+/// "Beheerdersgoedkeuring vereist"-scherm opleveren (dat vaak niet eens naar de
+/// app terug-redirect). Na de login volgt een stille upgrade-poging naar
+/// FULL_SCOPES via het refresh-token: die slaagt alleen als de beheerder
+/// People.Read al heeft goedgekeurd en toont nooit een consent-scherm.
 pub async fn login(config: &AppConfig) -> Result<TokenSet> {
-    match login_with_scopes(config, FULL_SCOPES).await {
-        Ok(tokens) => Ok(tokens),
-        Err(e) => {
-            let msg = e.to_string();
-            if msg.contains("access_denied") || msg.contains("consent_required") {
-                login_with_scopes(config, BASE_SCOPES).await.context(
-                    "Inloggen zonder People.Read is ook mislukt. Vraag de beheerder om \
-                     admin consent (zie docs/Azure-App-Registration.md → Troubleshooting)",
-                )
-            } else {
-                Err(e)
-            }
-        }
+    let base = login_with_scopes(config, BASE_SCOPES).await?;
+    if base.refresh_token.is_empty() {
+        return Ok(base);
+    }
+    match refresh_grant(config, &base.refresh_token, FULL_SCOPES).await {
+        Ok(full) => Ok(full),
+        Err(_) => Ok(base), // geen consent voor People.Read → basisscopes volstaan
     }
 }
 
@@ -280,22 +277,32 @@ pub async fn valid_access_token(config: &AppConfig, account_id: &str) -> Result<
     } else {
         tokens.scope.as_str()
     };
+    let refreshed = refresh_grant(config, &tokens.refresh_token, scopes).await?;
+    token_store::save(account_id, &refreshed)?;
+    Ok(refreshed.access_token)
+}
+
+/// Wisselt een refresh-token in voor nieuwe tokens met de gevraagde scopes.
+/// Niet-interactief: vraagt Azure nooit om een consent-scherm.
+async fn refresh_grant(
+    config: &AppConfig,
+    refresh_token: &str,
+    scopes: &str,
+) -> Result<TokenSet> {
     let client = reqwest::Client::new();
     let resp = client
         .post(format!("{}/oauth2/v2.0/token", config.authority()))
         .form(&[
             ("client_id", config.client_id.as_str()),
             ("grant_type", "refresh_token"),
-            ("refresh_token", tokens.refresh_token.as_str()),
+            ("refresh_token", refresh_token),
             ("scope", scopes),
         ])
         .send()
         .await
         .context("Vernieuwen van sessie mislukt")?;
 
-    let refreshed = parse_token_response(resp, Some(&tokens.refresh_token)).await?;
-    token_store::save(account_id, &refreshed)?;
-    Ok(refreshed.access_token)
+    parse_token_response(resp, Some(refresh_token)).await
 }
 
 pub fn is_logged_in(account_id: &str) -> bool {

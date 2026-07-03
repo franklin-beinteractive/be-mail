@@ -83,13 +83,14 @@ eerste rooktest.
 
 ## 📌 Openstaand / opmerkingen
 
-- **Entra: beheerdersgoedkeuring vereist** — de nieuwe scope `People.Read`
-  (autocomplete genodigden) triggert "Beheerdersgoedkeuring vereist" /
-  `access_denied` bij inloggen. De login valt nu **automatisch terug** op de
-  oude scopes (zonder People.Read), dus inloggen werkt weer; alleen het
-  autoaanvullen van genodigden blijft uit tot een beheerder **Grant admin
-  consent** klikt (stappen in `docs/Azure-App-Registration.md` →
-  Troubleshooting) en er éénmalig opnieuw is ingelogd.
+- **Entra: beheerdersgoedkeuring vereist** — de scope `People.Read`
+  (autocomplete genodigden) mag in deze tenant niet door de gebruiker zelf
+  worden goedgekeurd. De browser-login vraagt daarom alleen nog de
+  basisrechten (nooit meer een blokkerend consent-scherm); daarna probeert
+  de app People.Read **stil** via het refresh-token. Autoaanvullen van
+  genodigden werkt pas nadat een beheerder **Grant admin consent** klikt
+  (stappen in `docs/Azure-App-Registration.md` → Troubleshooting) en er
+  éénmalig opnieuw is ingelogd.
 - **Multi-account-migratie**: tokens staan nu per account opgeslagen —
   iedereen moet éénmalig opnieuw inloggen (koppelt het account).
 - **Bitbucket-push geblokkeerd**: repo `quizmaster/be-mail` bestaat nog niet

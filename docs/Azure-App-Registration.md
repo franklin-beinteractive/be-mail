@@ -102,13 +102,14 @@ De gebruiker vult ze in op het instelscherm van BE-Mail bij het eerste opstarten
   opslaan in de keychain"* — de Windows Credential Manager begrenst één item tot
   2560 bytes en Microsoft-tokens zijn groter. De app slaat tokens daarom in stukken
   op (zie `CLAUDE.md`).
-- **"Beheerdersgoedkeuring vereist" / `access_denied` bij inloggen.** De app
-  vraagt een (nieuwe) Graph-permission waarvoor gebruikers in deze tenant zelf geen
-  toestemming mogen geven (bv. `People.Read`, nodig voor het autoaanvullen van
-  genodigden). De app probeert het dan **automatisch nog een keer zonder
-  `People.Read`** — inloggen lukt dus gewoon, alleen het autoaanvullen van
-  genodigden werkt niet totdat een beheerder consent heeft gegeven (daarna:
-  éénmalig uit- en weer inloggen). De consent-fix (eenmalig, door een beheerder):
+- **"Beheerdersgoedkeuring vereist" / `access_denied` bij inloggen.** Sommige
+  tenants laten gebruikers zelf geen toestemming geven voor bepaalde permissions
+  (bv. `People.Read`, nodig voor het autoaanvullen van genodigden). Daarom vraagt
+  de browser-login **alleen de basisrechten** (mail + agenda) en probeert de app
+  daarna **stil** (zonder consent-scherm) `People.Read` erbij te krijgen — dat
+  lukt automatisch zodra een beheerder consent heeft gegeven. Tot die tijd werkt
+  alles behalve het autoaanvullen van genodigden. Na de consent: éénmalig uit- en
+  weer inloggen. De consent-fix (eenmalig, door een beheerder):
   1. Azure Portal → **App registrations** → *BE-Mail* → **API permissions**.
   2. Voeg onder **Microsoft Graph → Delegated permissions** toe:
      `User.Read`, `Mail.ReadWrite`, `Mail.Send`, `Calendars.ReadWrite`,
