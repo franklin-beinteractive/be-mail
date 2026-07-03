@@ -275,7 +275,7 @@ export default function CalendarView() {
                       {...chipDragProps(e)}
                     >
                       {!e.isAllDay && <span className="chip-time">{timeOnly(e.start.dateTime)}</span>}{" "}
-                      {e.subject || "(—)"}
+                      {e.subject || "(-)"}
                     </button>
                   ))}
                   {dayEvents.length > 4 && (
@@ -327,7 +327,7 @@ export default function CalendarView() {
                         {!e.isAllDay && (
                           <span className="chip-time">{timeOnly(e.start.dateTime)}</span>
                         )}{" "}
-                        {e.subject || "(—)"}
+                        {e.subject || "(-)"}
                       </button>
                     ))}
                   </div>
@@ -354,7 +354,7 @@ export default function CalendarView() {
                 {e.isAllDay ? t("allDay") : timeOnly(e.start.dateTime)}
               </div>
               <div className="agenda-subject">
-                {e.subject || "(—)"}
+                {e.subject || "(-)"}
                 {e.location?.displayName && (
                   <span className="muted"> · {e.location.displayName}</span>
                 )}
@@ -385,7 +385,7 @@ export default function CalendarView() {
         <div className="overlay" role="dialog" aria-modal="true" onClick={() => setDetail(null)}>
           <div className="dialog" onClick={(e) => e.stopPropagation()}>
             <header className="dialog-head">
-              <h2>{detail.subject || "(—)"}</h2>
+              <h2>{detail.subject || "(-)"}</h2>
               <button className="icon-btn" onClick={() => setDetail(null)} aria-label={t("cancel")}>
                 <CloseIcon />
               </button>

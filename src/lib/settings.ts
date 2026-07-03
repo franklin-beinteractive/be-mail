@@ -1,4 +1,4 @@
-// UI-voorkeuren (niet-gevoelig) — lokaal opgeslagen in localStorage en toegepast
+// UI-voorkeuren (niet-gevoelig) - lokaal opgeslagen in localStorage en toegepast
 // op de <html>-tag via data-attributen en CSS-variabelen.
 
 import type { Lang } from "./i18n";

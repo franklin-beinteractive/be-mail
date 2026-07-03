@@ -1,14 +1,14 @@
-# SETUP — Verse dev-machine klaarzetten voor willekeurige projecten
+# SETUP - Verse dev-machine klaarzetten voor willekeurige projecten
 
 Dit bestand zet een **algemene ontwikkelomgeving** op: de standaard build-software zodat je daarna
-**vers kunt beginnen aan verschillende projecten** — bijvoorbeeld een gekloonde **email-client**
-(veelal ook Tauri/Rust/Node) — en die meteen kunt bouwen.
+**vers kunt beginnen aan verschillende projecten** - bijvoorbeeld een gekloonde **email-client**
+(veelal ook Tauri/Rust/Node) - en die meteen kunt bouwen.
 
 Open Claude Code (in een lege map of waar je je projecten wilt zetten) en **plak het hele blok**
 hieronder als één bericht. Claude detecteert het OS, checkt per onderdeel of het al aanwezig is
 (idempotent) en installeert alleen wat ontbreekt.
 
-> **Git wordt niet geïnstalleerd** — het wordt alleen geverifieerd (je hebt het al en gebruikt het
+> **Git wordt niet geïnstalleerd** - het wordt alleen geverifieerd (je hebt het al en gebruikt het
 > om te clonen). Krijg je toch een melding dat het ontbreekt, installeer het dan handmatig.
 > Werkt op **Windows** (winget), **Linux** (apt/dnf/pacman) en **macOS** (Homebrew + Xcode CLT).
 
@@ -21,7 +21,7 @@ Zet deze machine klaar als algemene ontwikkelomgeving voor Node-, Rust- en Tauri
 zodat ik daarna vers kan beginnen aan verschillende projecten (bijv. een gekloonde email-client).
 Werk stap voor stap, controleer per onderdeel eerst of het al aanwezig is (via `--version`) en
 sla dat over als dat zo is. Detecteer eerst het besturingssysteem en volg dan het bijbehorende
-pad. Installeer Git NIET — verifieer alleen dat `git --version` werkt en waarschuw als het
+pad. Installeer Git NIET - verifieer alleen dat `git --version` werkt en waarschuw als het
 ontbreekt. Print aan het eind een overzicht van alle versies.
 
 Standaard software om te installeren:
@@ -43,7 +43,7 @@ Gebruik winget; check telkens eerst `--version`.
 - WebView2:     winget install --id Microsoft.EdgeWebView2Runtime -e --accept-source-agreements --accept-package-agreements   (sla over als aanwezig)
 - GitHub CLI:   winget install --id GitHub.cli        -e --accept-source-agreements --accept-package-agreements
 Na Rustup: `rustup default stable` en verifieer `rustc --version` + `cargo --version`.
-Let op: nieuw geïnstalleerde tools staan pas op PATH na het HERSTARTEN van de shell — herstart de
+Let op: nieuw geïnstalleerde tools staan pas op PATH na het HERSTARTEN van de shell - herstart de
 PowerShell-sessie (of ververs PATH) en meld het als de gebruiker de terminal opnieuw moet openen.
 
 ── LINUX (Ubuntu/Debian) ──────────────────────────────────────────
@@ -108,7 +108,7 @@ en of het startte.
 | **WebView2** | native WebView voor Tauri-apps | `Microsoft.EdgeWebView2Runtime` (meestal aanwezig) |
 | **GitHub CLI `gh`** | clonen + auth van (private) repos | `GitHub.cli` |
 | **Claude CLI `claude`** *(optioneel)* | Claude Code in de terminal | `npm i -g @anthropic-ai/claude-code` |
-| **Git** | *niet geïnstalleerd — alleen geverifieerd* | *(al aanwezig)* |
+| **Git** | *niet geïnstalleerd - alleen geverifieerd* | *(al aanwezig)* |
 
 ## Snelle handmatige route (Windows)
 

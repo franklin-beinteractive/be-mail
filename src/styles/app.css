@@ -702,16 +702,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 
 /* ---------- Instellingen ---------- */
 .settings { padding: 24px 32px; overflow-y: auto; height: 100vh; }
-/* Op brede schermen: instel-blokken in 2 kolommen. */
+/* Op brede schermen: blokken in 2 kolommen. Multi-column i.p.v. grid, zodat
+   blokken strak onder elkaar stapelen (grid laat witruimte onder een kort
+   blok als z'n buurman in dezelfde rij hoger is). */
 @media (min-width: 1100px) {
-  .settings {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0 18px;
-    align-content: start;
-  }
-  .settings h1 { grid-column: 1 / -1; }
-  .settings-block { align-self: start; }
+  .settings { columns: 2; column-gap: 18px; }
+  .settings h1 { column-span: all; }
+  .settings-block { break-inside: avoid; }
 }
 .settings-block {
   border: 1px solid var(--border);
@@ -751,6 +748,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .help { padding: 24px 32px; overflow-y: auto; height: 100vh; max-width: 880px; }
 .help h1 { margin-top: 0; }
 .help li { margin-bottom: 6px; line-height: 1.5; }
+/* Op brede schermen: help-blokken in 2 kolommen (smal = onder elkaar). */
+@media (min-width: 1100px) {
+  .help { columns: 2; column-gap: 18px; max-width: 1500px; }
+  .help h1 { column-span: all; }
+  .help .settings-block { break-inside: avoid; }
+}
 
 /* ---------- Toast ---------- */
 .toast {

@@ -1,16 +1,16 @@
-# Email- & Agenda-client — Feature- en techniek-todo
+# Email- & Agenda-client - Feature- en techniek-todo
 
 > Doel: een Outlook-achtige, maar veel simpelere email + agenda client voor **Office 365** (later evt. Gmail/Google Agenda).
 > Kernwaarden: **simpel, snel, veilig, responsive**. Doelgroep: van doorgewinterde IT'er tot 65-plusser.
 >
 > **Instructie:** vink aan wat je WILT (`[x]`), laat leeg wat je wilt OVERSLAAN, of zet `~` voor "later/misschien".
-> Kolom **Complexiteit**: 🟢 laag · 🟡 middel · 🔴 hoog. Let op de 🔴's — die botsen vaak met "simpel".
+> Kolom **Complexiteit**: 🟢 laag · 🟡 middel · 🔴 hoog. Let op de 🔴's - die botsen vaak met "simpel".
 
 ---
 
 ## 0. Techniek & fundering (geen feature-keuze, maar bepaalt alles)
 
-### Verbindingsmethode — advies: **Microsoft Graph API**
+### Verbindingsmethode - advies: **Microsoft Graph API**
 | Methode | Mail | Agenda | Auth | Toekomstvast? | Oordeel |
 |---|---|---|---|---|---|
 | **Microsoft Graph API** | ✅ | ✅ | OAuth2 | ✅ Actief doorontwikkeld | **Aanbevolen** |
@@ -24,7 +24,7 @@
 ### Architectuur-beslissingen (VASTGELEGD)
 - [x] **App-vorm**: **Desktop met Tauri** (Rust-core + webview). Geen Electron (te traag/zwaar).
 - [x] **Tech-stack**: **Rust (Tauri backend) + React + TypeScript (frontend)**. Onderhoudbaar, veel voorbeelden.
-- [x] **Beveiligingsmodel**: **Rust-core als trusted backend** — alle Graph-calls via Rust (`reqwest`), tokens raken de JS/webview nooit. (BFF-equivalent zonder eigen server.)
+- [x] **Beveiligingsmodel**: **Rust-core als trusted backend** - alle Graph-calls via Rust (`reqwest`), tokens raken de JS/webview nooit. (BFF-equivalent zonder eigen server.)
 - [x] **OAuth2 Authorization Code Flow + PKCE**, public/native client (géén client secret).
 - [x] **Redirect**: loopback `http://localhost:<poort>` (aanbevolen voor native apps).
 - [x] **Token-opslag**: OS-keychain (Windows Credential Manager / macOS Keychain / Linux Secret Service) via `keyring`-crate of Tauri Stronghold. Per account een eigen sleutel.
@@ -37,7 +37,7 @@
 
 ---
 
-## 1. E-mail — lezen & navigeren
+## 1. E-mail - lezen & navigeren
 - [x] Postvak IN (Inbox) met berichtenlijst 🟢
 - [x] Standaardmappen: Verzonden, Concepten, Prullenbak, Ongewenst/Spam, Archief 🟢
 - [x] Eigen mappen aanmaken/hernoemen/verwijderen 🟢
@@ -54,7 +54,7 @@
 - [ ] Afzender-info / contactkaart bij bericht 🟡
 - [x] Paginering / oneindig scrollen bij veel mail 🟢
 
-## 2. E-mail — opstellen & versturen
+## 2. E-mail - opstellen & versturen
 - [x] Nieuwe mail opstellen 🟢
 - [x] Beantwoorden / Allen beantwoorden / Doorsturen 🟢
 - [x] CC / BCC 🟢
@@ -71,7 +71,7 @@
 - [x] Sjablonen / standaardteksten 🟡
 - [x] @-vermeldingen 🔴
 
-## 3. E-mail — beheren & organiseren
+## 3. E-mail - beheren & organiseren
 - [x] Verwijderen (naar prullenbak) + definitief verwijderen 🟢
 - [x] Archiveren (1-klik) 🟢
 - [x] Verplaatsen naar map (drag & drop / menu) 🟢
@@ -85,7 +85,7 @@
 - [ ] Snoozen / "toon later" 🟡
 - [ ] Snelle acties (swipe op mobiel: archiveer/verwijder) 🟡
 
-## 4. E-mail — accounts & instellingen
+## 4. E-mail - accounts & instellingen
 - [x] Inloggen met Office 365 (OAuth2) 🟢
 - [ ] Meerdere accounts naast elkaar 🔴
 - [ ] Gedeelde postvakken / mailbox delegation 🔴
@@ -93,7 +93,7 @@
 - [x] Weergave-instellingen (dichtheid, leesvenster links/onder/uit) 🟡
 - [x] Donkere modus 🟢
 
-## 5. Agenda — weergave
+## 5. Agenda - weergave
 - [x] Dag- / week- / werkweek- / maandweergave 🟡
 - [x] Agenda-/lijstweergave (opsomming komende afspraken) 🟢
 - [x] Vandaag-knop + datumnavigatie 🟢
@@ -101,7 +101,7 @@
 - [x] Weeknummers, weekend tonen/verbergen 🟢
 - [ ] Tijdzone-weergave 🟡
 
-## 6. Agenda — afspraken & beheer
+## 6. Agenda - afspraken & beheer
 - [x] Afspraak aanmaken/bewerken/verwijderen 🟢
 - [x] Terugkerende afspraken (dagelijks/wekelijks/…) 🔴
 - [x] Herinneringen / notificaties (bv. 15 min vooraf) 🟡
@@ -111,7 +111,7 @@
 - [ ] Categorieën/kleuren voor afspraken 🟢
 - [ ] Bijlagen/notities bij afspraak 🟡
 
-## 7. Agenda — vergaderingen & mensen
+## 7. Agenda - vergaderingen & mensen
 - [x] Genodigden uitnodigen 🟡
 - [x] Uitnodiging accepteren/afwijzen/voorlopig (RSVP) 🟡
 - [ ] Beschikbaarheid van collega's zien (scheduling assistant) 🔴
@@ -125,7 +125,7 @@
 - [ ] Contactgroepen / distributielijsten 🔴
 - [ ] Integratie met adresboek van de organisatie (GAL) 🟡
 
-## 9. Overkoepelend — kwaliteit voor de doelgroep
+## 9. Overkoepelend - kwaliteit voor de doelgroep
 - [x] **Toegankelijkheid (65+)**: grote knoppen, groot lettertype-optie, hoog contrast, duidelijke labels 🟡
 - [x] Volledige toetsenbordbediening + sneltoetsen (IT'er) 🟡
 - [x] Responsive: telefoon / tablet / desktop 🟡
@@ -135,7 +135,7 @@
 - [x] Meertaligheid (NL/EN) 🟡
 - [x] Foutafhandeling in mensentaal (geen technische stacktraces) 🟢
 
-## 10. Overkoepelend — veiligheid ("veilig"-tag)
+## 10. Overkoepelend - veiligheid ("veilig"-tag)
 - [x] OAuth2 + PKCE, geen wachtwoorden opslaan 🟢
 - [x] Tokens veilig opslaan (server-side/keychain, niet in browser-localStorage) 🟡
 - [x] Minimale Graph-permissions (least privilege) 🟢
@@ -143,7 +143,7 @@
 - [x] Phishing-/spoofing-waarschuwingen (externe afzender, verdachte links) 🔴
 - [ ] Automatische sessie-timeout / opnieuw inloggen 🟡
 - [x] HTTPS/HSTS, CSP, veilige HTML-sanitizing van mailinhoud 🟡
-- [ ] Audit/logging (wie deed wat) — vooral bij gedeelde postvakken 🔴
+- [ ] Audit/logging (wie deed wat) - vooral bij gedeelde postvakken 🔴
 - [ ] AVG/GDPR: dataminimalisatie, waar staat de cache, verwijderbeleid 🟡
 
 ---
@@ -159,7 +159,7 @@
 - [x] Knop "Nieuw bericht" **links naast Beantwoorden** (zelfde stijl als reply-knoppen, maar blauw) 🟢
 - [x] **Kolombreedtes instelbaar** door te slepen (mappen | lijst | preview) 🟡
 - [x] Mappen bij het opstarten **standaard ingeklapt**; in-/uitklapstatus wordt **onthouden** (toegevoegd 2026-07-03) 🟢
-- [x] **Scrollbar bij de mappenlijst** — onderste mappen waren niet bereikbaar (toegevoegd 2026-07-03) 🟢
+- [x] **Scrollbar bij de mappenlijst** - onderste mappen waren niet bereikbaar (toegevoegd 2026-07-03) 🟢
 
 ### Agenda
 - [x] Genodigden **autoaanvullen** met personen uit de organisatie 🟡
@@ -171,12 +171,15 @@
 - [x] **Desktop-notificaties aan/uit** in Instellingen 🟢
 - [x] Instellingen-blokken in **2 kolommen** (grid) op brede schermen 🟢
 - [x] **Help-knop** met complete gebruiksaanwijzing (accounts, instellingen, mail, agenda) in NL én EN 🟡
+- [x] Help-blokken in **2 kolommen** op brede schermen; smal = onder elkaar (toegevoegd 2026-07-03) 🟢
+- [x] Instellingen-blokken **zonder witruimte-gaten** strak onder elkaar (toegevoegd 2026-07-03) 🟢
+- [x] Em dash ("—") overal vervangen door "-" (toegevoegd 2026-07-03) 🟢
 - [x] Actiebalk bovenin **uitlijnen** met de berichtenlijst-kolom 🟢
 - [x] **Lettertype instelbaar** in Instellingen (gangbare fonts + Calibri; Calibri = standaard) 🟢
 
 ---
 
-## Voorstel MVP (mijn advies voor "simpel & snel" — versie 1)
+## Voorstel MVP (mijn advies voor "simpel & snel" - versie 1)
 Alleen 🟢/🟡 die samen een bruikbare client vormen:
 1. Login Office 365 (Graph API, OAuth2)
 2. Inbox + standaardmappen, mail lezen (HTML + platte tekst)

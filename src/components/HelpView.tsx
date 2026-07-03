@@ -15,12 +15,12 @@ function HelpNl() {
         <h2>Aan de slag</h2>
         <ol>
           <li>
-            <strong>Verbinding instellen</strong> — bij de eerste start vul je de
+            <strong>Verbinding instellen</strong> - bij de eerste start vul je de
             Client-ID (en eventueel Tenant-ID) in die je van je beheerder hebt
             gekregen. Later aanpassen kan via <em>Instellingen → Verbinding</em>.
           </li>
           <li>
-            <strong>Inloggen</strong> — klik op <em>Inloggen met Office 365</em>.
+            <strong>Inloggen</strong> - klik op <em>Inloggen met Office 365</em>.
             Je browser opent de officiële Microsoft-inlogpagina; je wachtwoord
             komt nooit in deze app terecht.
           </li>
@@ -36,7 +36,7 @@ function HelpNl() {
             verschijnt als eigen groep in de mappenlijst.
           </li>
           <li>
-            <strong>Wisselen</strong>: klik op een map van het andere account —
+            <strong>Wisselen</strong>: klik op een map van het andere account -
             de app schakelt automatisch. De accountnaam boven elke groep is
             in- en uitklapbaar (pijltje).
           </li>
@@ -48,7 +48,7 @@ function HelpNl() {
       </section>
 
       <section className="settings-block">
-        <h2>E-mail — lezen &amp; ordenen</h2>
+        <h2>E-mail - lezen &amp; ordenen</h2>
         <ul>
           <li><strong>Lezen</strong>: klik op een bericht; externe afbeeldingen zijn geblokkeerd tot je ze toont (veiligheid).</li>
           <li><strong>Zoeken</strong>: het zoekvak doorzoekt je héle mailbox (alle mappen); leegmaken = terug naar de map.</li>
@@ -61,7 +61,7 @@ function HelpNl() {
       </section>
 
       <section className="settings-block">
-        <h2>E-mail — opstellen</h2>
+        <h2>E-mail - opstellen</h2>
         <ul>
           <li><strong>Nieuw bericht</strong>: blauwe knop bovenin het leesvenster; het opstelvenster opent in dezelfde kolom en sluit via het kruisje (je tekst wordt als concept bewaard).</li>
           <li><strong>Opmaak</strong>: vet, cursief, onderstrepen, lijsten en links via de werkbalk boven het tekstvak.</li>
@@ -77,7 +77,7 @@ function HelpNl() {
         <ul>
           <li><strong>Weergaven</strong>: dag, werkweek, week, maand of lijst (knoppen rechtsboven).</li>
           <li><strong>Afspraak maken</strong>: knop Nieuwe afspraak, of dubbelklik op een dag.</li>
-          <li><strong>Genodigden</strong>: typ een naam — suggesties uit je organisatie verschijnen vanzelf; kies met een klik of typ een los e-mailadres en druk op Enter.</li>
+          <li><strong>Genodigden</strong>: typ een naam - suggesties uit je organisatie verschijnen vanzelf; kies met een klik of typ een los e-mailadres en druk op Enter.</li>
           <li><strong>Herhalen</strong>: dagelijks/wekelijks/maandelijks/jaarlijks met interval en einddatum (bij het aanmaken).</li>
           <li><strong>Verplaatsen</strong>: sleep een afspraak naar een andere dag; genodigden krijgen automatisch een bijgewerkte uitnodiging.</li>
           <li><strong>Uitnodigingen</strong>: een vergaderverzoek in je mail toont knoppen Accepteren / Voorlopig / Afwijzen.</li>
@@ -105,12 +105,12 @@ function HelpEn() {
         <h2>Getting started</h2>
         <ol>
           <li>
-            <strong>Set up the connection</strong> — on first start, enter the
+            <strong>Set up the connection</strong> - on first start, enter the
             Client ID (and optionally Tenant ID) provided by your administrator.
             You can change this later via <em>Settings → Connection</em>.
           </li>
           <li>
-            <strong>Sign in</strong> — click <em>Sign in with Office 365</em>.
+            <strong>Sign in</strong> - click <em>Sign in with Office 365</em>.
             Your browser opens the official Microsoft sign-in page; your
             password never touches this app.
           </li>
@@ -126,7 +126,7 @@ function HelpEn() {
             own group in the folder list.
           </li>
           <li>
-            <strong>Switching</strong>: click any folder of the other account —
+            <strong>Switching</strong>: click any folder of the other account -
             the app switches automatically. Each account group can be collapsed
             with the arrow next to its name.
           </li>
@@ -138,7 +138,7 @@ function HelpEn() {
       </section>
 
       <section className="settings-block">
-        <h2>Mail — reading &amp; organising</h2>
+        <h2>Mail - reading &amp; organising</h2>
         <ul>
           <li><strong>Reading</strong>: click a message; external images stay blocked until you show them (safety).</li>
           <li><strong>Search</strong>: the search box searches your entire mailbox (all folders); clear it to return to the folder.</li>
@@ -151,7 +151,7 @@ function HelpEn() {
       </section>
 
       <section className="settings-block">
-        <h2>Mail — composing</h2>
+        <h2>Mail - composing</h2>
         <ul>
           <li><strong>New message</strong>: blue button at the top of the reading pane; the composer opens in the same column and closes via the ✕ (your text is kept as a draft).</li>
           <li><strong>Formatting</strong>: bold, italic, underline, lists and links via the toolbar above the text area.</li>
@@ -167,7 +167,7 @@ function HelpEn() {
         <ul>
           <li><strong>Views</strong>: day, work week, week, month or list (buttons top right).</li>
           <li><strong>Create an event</strong>: New event button, or double-click a day.</li>
-          <li><strong>Attendees</strong>: type a name — suggestions from your organisation appear; pick one or type an email address and press Enter.</li>
+          <li><strong>Attendees</strong>: type a name - suggestions from your organisation appear; pick one or type an email address and press Enter.</li>
           <li><strong>Repeat</strong>: daily/weekly/monthly/yearly with interval and end date (when creating).</li>
           <li><strong>Moving</strong>: drag an event to another day; attendees automatically receive an updated invitation.</li>
           <li><strong>Invitations</strong>: a meeting request in your mail shows Accept / Tentative / Decline buttons.</li>

@@ -110,7 +110,7 @@ export default function SettingsView({
               <br />
               <span className="muted small">
                 {a.mail}
-                {accInfo.active === a.id ? ` — ${t("activeAccount")}` : ""}
+                {accInfo.active === a.id ? ` - ${t("activeAccount")}` : ""}
               </span>
             </span>
             <button className="btn" onClick={() => removeAccount(a.id)}>

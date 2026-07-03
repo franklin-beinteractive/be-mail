@@ -1,4 +1,4 @@
-//! BE-Mail — Rust-kern.
+//! BE-Mail - Rust-kern.
 //! De kern fungeert als "trusted backend": alle Graph-calls en tokens leven hier,
 //! nooit in de webview.
 

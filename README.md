@@ -2,7 +2,7 @@
 
 Een **simpele, snelle en veilige** e-mail- en agenda-client voor **Office 365**,
 gebouwd met **Tauri (Rust) + React/TypeScript**. Outlook-achtig, maar veel
-eenvoudiger — bedoeld voor zowel doorgewinterde IT'ers als 65-plussers.
+eenvoudiger - bedoeld voor zowel doorgewinterde IT'ers als 65-plussers.
 
 - **Veilig:** moderne login (OAuth2 + PKCE), tokens in de Windows-keychain, nooit
   wachtwoorden in de app. Alle communicatie met Office 365 loopt via de Rust-kern.
@@ -39,7 +39,7 @@ Daarna vind je de resultaten hier:
 | **MSI-installer** | `BE-Mail_0.1.0_x64_en-US.msi` | `src-tauri/target/release/bundle/msi/` |
 | **Losse .exe** (portable) | `be-mail.exe` | `src-tauri/target/release/` |
 
-> Geef de gebruiker de **setup.exe** of **.msi** — die installeert de app netjes met
+> Geef de gebruiker de **setup.exe** of **.msi** - die installeert de app netjes met
 > snelkoppeling. De losse `be-mail.exe` werkt ook direct (dubbelklikken), maar
 > installeert niets.
 
@@ -57,7 +57,7 @@ npm run tauri dev      # start de app met hot-reload
    Plak hier de **Client-ID** en **Tenant-ID** van je beheerder en klik *Opslaan*.
    (Deze gegevens worden lokaal opgeslagen; je hoeft dit maar één keer te doen.)
 2. **Inloggen.** Klik op *Inloggen met Office 365*. Je browser opent de **echte
-   Microsoft-inlogpagina** — vul daar je e-mailadres, wachtwoord en 2FA in. Je
+   Microsoft-inlogpagina** - vul daar je e-mailadres, wachtwoord en 2FA in. Je
    wachtwoord komt nooit in BE-Mail zelf.
 3. Klaar. De app onthoudt je sessie en vernieuwt die stil op de achtergrond.
 
@@ -100,7 +100,7 @@ Links staat een smalle navigatiebalk met drie onderdelen:
   (de OS-keychain), versleuteld per gebruiker.
 - **Instellingen** (Client-/Tenant-ID): een `config.json` in je gebruikers-configmap.
 - **Weergavevoorkeuren** (thema, taal): lokaal in de app.
-- **E-mail en afspraken** blijven op Office 365 — BE-Mail is een client, geen
+- **E-mail en afspraken** blijven op Office 365 - BE-Mail is een client, geen
   eigen server. Er wordt niets naar derden gestuurd.
 
 ---

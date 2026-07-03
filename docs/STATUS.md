@@ -1,10 +1,12 @@
-# BE-Mail — voortgang
+# BE-Mail - voortgang
 
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
 **Laatst bijgewerkt:** 2026-07-03 (login-fix zonder People.Read; mappen
-standaard ingeklapt + status onthouden; scroll-fix mappenlijst)
+standaard ingeklapt + status onthouden; scroll-fix mappenlijst; em dash
+overal vervangen door "-"; Help en Instellingen in 2 kolommen zonder
+witruimte-gaten)
 
 ## ✅ Af
 
@@ -42,7 +44,7 @@ standaard ingeklapt + status onthouden; scroll-fix mappenlijst)
   PidTagDeferredSendTime). Bericht wacht in Concepten/Postvak UIT.
 - **Dag- en werkweekweergave** in de agenda (naast week/maand/lijst).
 - **Spam melden** (→ Ongewenste e-mail) en **afzender blokkeren**
-  (inbox-regel "BE-Mail: … geblokkeerd" — beheerbaar via Outlook-regels).
+  (inbox-regel "BE-Mail: … geblokkeerd" - beheerbaar via Outlook-regels).
 - **Uitschrijven-knop** bij nieuwsbrieven (List-Unsubscribe-header;
   https → browser, mailto → opstelvenster).
 - **Desktop-notificaties**: Rust-poller (60 s) op Postvak IN; Windows-
@@ -77,7 +79,7 @@ standaard ingeklapt + status onthouden; scroll-fix mappenlijst)
 4. ~~Mappenbeheer + bulkacties~~ ✅
 5. ~~RSVP + terugkerende afspraken~~ ✅
 
-6. ~~"Hoog & middel"-pakket~~ ✅ — rich-text editor, undo send / later
+6. ~~"Hoog & middel"-pakket~~ ✅ - rich-text editor, undo send / later
    verzenden, dag-/werkweekweergave, spam/blokkeren/uitschrijven,
    desktop-notificaties.
 
@@ -89,7 +91,7 @@ eerste rooktest.
 
 ## 📌 Openstaand / opmerkingen
 
-- **Entra: beheerdersgoedkeuring vereist** — de scope `People.Read`
+- **Entra: beheerdersgoedkeuring vereist** - de scope `People.Read`
   (autocomplete genodigden) mag in deze tenant niet door de gebruiker zelf
   worden goedgekeurd. De browser-login vraagt daarom alleen nog de
   basisrechten (nooit meer een blokkerend consent-scherm); daarna probeert
@@ -97,13 +99,13 @@ eerste rooktest.
   genodigden werkt pas nadat een beheerder **Grant admin consent** klikt
   (stappen in `docs/Azure-App-Registration.md` → Troubleshooting) en er
   éénmalig opnieuw is ingelogd.
-- **Multi-account-migratie**: tokens staan nu per account opgeslagen —
+- **Multi-account-migratie**: tokens staan nu per account opgeslagen -
   iedereen moet éénmalig opnieuw inloggen (koppelt het account).
 - **Bitbucket-push geblokkeerd**: repo `quizmaster/be-mail` bestaat nog niet
   (workspace bevat alleen `dim.beren`); gebruiker maakt hem aan, daarna
   `git push -u origin main`. API-token van de MCP heeft geen
   `admin:repository`-scope, dus aanmaken via API kon niet.
-- Gebruiker heeft nog opmerkingen over de eerste rooktest van de app —
+- Gebruiker heeft nog opmerkingen over de eerste rooktest van de app -
   **nog niet besproken**, komt later.
-- Grote bijlagen (>3 MB) vereisen Graph upload-sessions — bewust uitgesteld.
+- Grote bijlagen (>3 MB) vereisen Graph upload-sessions - bewust uitgesteld.
 - `$search` werkt in deze tenant zonder `ConsistencyLevel`-header (getest).

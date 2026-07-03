@@ -1,4 +1,4 @@
-# BE-Mail — projectinstructies voor Claude
+# BE-Mail - projectinstructies voor Claude
 
 Desktop-client voor Office 365 (mail + agenda) via Microsoft Graph.
 **Stack:** Tauri v2 (Rust-kern) + React/TypeScript (webview). Auth = OAuth2
@@ -8,13 +8,13 @@ Authorization Code Flow met PKCE, public/native client (geen client secret).
 
 ## Architectuur (kort)
 
-- `src-tauri/src/auth.rs` — OAuth2/PKCE-login: opent systeembrowser, vangt de
+- `src-tauri/src/auth.rs` - OAuth2/PKCE-login: opent systeembrowser, vangt de
   redirect af op een tijdelijke loopback-poort, wisselt de code in voor tokens.
-- `src-tauri/src/token_store.rs` — tokens in de OS-keychain (Windows Credential
+- `src-tauri/src/token_store.rs` - tokens in de OS-keychain (Windows Credential
   Manager). Raken de webview/JS nooit; alleen de Rust-kern leest ze.
-- `src-tauri/src/config.rs` — niet-geheime Client-ID + Tenant-ID als JSON in de
+- `src-tauri/src/config.rs` - niet-geheime Client-ID + Tenant-ID als JSON in de
   configmap van de gebruiker (`%APPDATA%\BE-Mail\config.json`).
-- `src/` — React-frontend; roept de Rust-kern aan via `src/lib/api.ts`.
+- `src/` - React-frontend; roept de Rust-kern aan via `src/lib/api.ts`.
 
 ## Bekende valkuilen / gotchas
 
@@ -23,7 +23,7 @@ Authorization Code Flow met PKCE, public/native client (geen client secret).
 Eén credential-blob mag op Windows max **2560 bytes** (UTF-16, ~1280 tekens) zijn.
 Microsoft-tokens (access + refresh + `groups`-claims) zijn samen vaak 3–4 KB, dus
 één `keyring::Entry::set_password(hele_json)` faalt met *"Kon tokens niet opslaan in
-de keychain"* — afhankelijk van de tenant/gebruiker (grotere `groups`-claim = groter
+de keychain"* - afhankelijk van de tenant/gebruiker (grotere `groups`-claim = groter
 token). `token_store.rs` splitst de JSON daarom in stukken van 1000 tekens over
 meerdere credential-items (`office365-tokens-0`, `-1`, …; `office365-tokens` bevat
 het aantal). **Sla nooit het hele token-blok in één keychain-item op.**
@@ -55,3 +55,5 @@ mapnaam). **Fix:** `cargo clean` in `src-tauri/`, daarna opnieuw bouwen.
 - **Voortgang bijhouden in `docs/STATUS.md`**: wat af is, waar we mee bezig zijn
   en de afgesproken volgorde van volgende stappen. Werk dit bij na elke
   afgeronde feature. (`docs/FEATURES.md` is de wensenlijst, geen status.)
+- **Geen em dash ("—") in teksten**: gebruik een gewone "-". Geldt voor
+  UI-teksten, docs, comments en commit-berichten.

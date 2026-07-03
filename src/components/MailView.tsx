@@ -1,4 +1,4 @@
-// E-mailweergave: 3 kolommen — mappen | berichtenlijst | leesvenster.
+// E-mailweergave: 3 kolommen - mappen | berichtenlijst | leesvenster.
 import { useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -214,7 +214,7 @@ export default function MailView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /** Map kiezen — zo nodig eerst van account wisselen. */
+  /** Map kiezen - zo nodig eerst van account wisselen. */
   async function selectFolder(accountId: string, fId: string) {
     try {
       if (accountId !== activeId) {
@@ -680,7 +680,7 @@ export default function MailView() {
     const cc = all
       ? (m.ccRecipients ?? []).map((r) => r.emailAddress.address ?? "").filter(Boolean)
       : [];
-    const header = `<p>— ${senderName(m.from?.emailAddress)} (${longDateTime(
+    const header = `<p>- ${senderName(m.from?.emailAddress)} (${longDateTime(
       m.receivedDateTime,
       settings.lang
     )})</p>`;
@@ -694,7 +694,7 @@ export default function MailView() {
   }
 
   function buildForward(m: Message): ComposeInitial {
-    const header = `<p>— ${senderName(m.from?.emailAddress)} (${longDateTime(
+    const header = `<p>- ${senderName(m.from?.emailAddress)} (${longDateTime(
       m.receivedDateTime,
       settings.lang
     )})</p>`;

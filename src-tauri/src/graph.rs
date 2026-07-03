@@ -1,5 +1,5 @@
 //! Microsoft Graph API-client (v1.0). Alle netwerkverkeer naar Office 365 loopt
-//! hier, in de Rust-kern — nooit vanuit de webview.
+//! hier, in de Rust-kern - nooit vanuit de webview.
 
 use crate::auth;
 use crate::config::AppConfig;
@@ -226,7 +226,7 @@ impl GraphClient {
     }
 
     /// Doorzoekt de héle mailbox (alle mappen) via Graph `$search`.
-    /// Let op: `$search` mag niet met `$orderby` gecombineerd worden — Graph
+    /// Let op: `$search` mag niet met `$orderby` gecombineerd worden - Graph
     /// sorteert zelf op relevantie.
     pub async fn search_messages(&self, query: &str, top: u32) -> Result<MessagesPage> {
         // Dubbele quotes in de zoekterm breken de `$search="…"`-syntax; strip ze.
@@ -334,7 +334,7 @@ impl GraphClient {
 
     // ---- Bijlagen ----
 
-    /// Bijlage-metadata van een bericht (zonder inhoud — die kan groot zijn).
+    /// Bijlage-metadata van een bericht (zonder inhoud - die kan groot zijn).
     pub async fn list_attachments(&self, message_id: &str) -> Result<Vec<Attachment>> {
         let url = format!(
             "{BASE}/me/messages/{message_id}/attachments?$select=id,name,contentType,size,isInline"

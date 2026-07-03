@@ -12,7 +12,7 @@ const MAX_SINGLE: usize = 3;
 
 pub fn start(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
-        // Laatst geziene receivedDateTime per account (UTC, ISO — lexicografisch
+        // Laatst geziene receivedDateTime per account (UTC, ISO - lexicografisch
         // vergelijkbaar). De eerste geslaagde ronde per account registreert
         // alleen; geen notificatie-regen bij start.
         let mut last_seen: std::collections::HashMap<String, String> =
@@ -68,7 +68,7 @@ pub fn start(app: AppHandle) {
                     .collect();
 
                 let suffix = if multi {
-                    format!(" — {}", acc.mail.clone().unwrap_or_default())
+                    format!(" - {}", acc.mail.clone().unwrap_or_default())
                 } else {
                     String::new()
                 };
