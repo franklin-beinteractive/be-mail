@@ -1289,13 +1289,15 @@ export default function MailView() {
             >
               {t("selectAll")}
             </button>
-            <button
-              className="btn"
-              onClick={() => setChecked(new Set())}
-              title={tip("tipDeselectAll")}
-            >
-              {t("deselectAll")}
-            </button>
+            {checked.size > 1 && (
+              <button
+                className="btn"
+                onClick={() => setChecked(new Set())}
+                title={tip("tipDeselectAll")}
+              >
+                {t("deselectAll")}
+              </button>
+            )}
             <button className="btn" onClick={() => bulk("read")} title={tip("tipBulkRead")}>
               {t("markRead")}
             </button>
