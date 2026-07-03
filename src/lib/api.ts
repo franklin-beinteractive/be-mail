@@ -81,6 +81,9 @@ export const api = {
   // Inline (cid:) afbeeldingen met inhoud, voor weergave in het leesvenster.
   inlineImages: (messageId: string) =>
     invoke<InlineImage[]>("inline_images", { messageId }),
+  // Verplaatst en geeft het verplaatste bericht terug (nieuw id; voor snoozen).
+  moveMessageReturning: (messageId: string, destinationId: string) =>
+    invoke<Message>("move_message_returning", { messageId, destinationId }),
   // Inbox-regels (regels-beheer in Instellingen).
   listRules: () => invoke<MessageRule[]>("list_rules"),
   setRuleEnabled: (ruleId: string, enabled: boolean) =>

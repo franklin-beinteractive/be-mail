@@ -50,6 +50,7 @@ pub fn run() {
             commands::list_attachments,
             commands::inline_images,
             commands::download_attachment,
+            commands::move_message_returning,
             commands::list_rules,
             commands::set_rule_enabled,
             commands::delete_rule,

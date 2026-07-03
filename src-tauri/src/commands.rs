@@ -281,6 +281,19 @@ pub async fn list_attachments(message_id: String) -> Result<Vec<Attachment>, Str
         .map_err(|e| e.to_string())
 }
 
+/// Verplaatst een bericht en geeft het verplaatste bericht (nieuw id) terug.
+#[tauri::command]
+pub async fn move_message_returning(
+    message_id: String,
+    destination_id: String,
+) -> Result<Message, String> {
+    client()
+        .await?
+        .move_message_returning(&message_id, &destination_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Inbox-regels (voor het regels-beheer in Instellingen).
 #[tauri::command]
 pub async fn list_rules() -> Result<Vec<MessageRule>, String> {

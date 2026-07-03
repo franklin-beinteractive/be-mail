@@ -535,6 +535,25 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .editor [data-sig] { color: inherit; }
 .editor img { max-width: 100%; }
 
+/* Snoozen ("toon later") */
+.snooze-wrap { position: relative; display: inline-flex; }
+.snooze-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 30;
+  min-width: 230px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  padding: 4px;
+}
+.snooze-custom { display: flex; gap: 4px; padding: 6px; border-top: 1px solid var(--border); }
+.snooze-custom input { flex: 1; min-width: 0; }
+
 /* Categorieën (kleurlabels) */
 .msg-cats { display: inline-flex; gap: 3px; margin: 0 6px; }
 .cat-dot {

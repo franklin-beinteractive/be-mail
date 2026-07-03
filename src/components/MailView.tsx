@@ -1,5 +1,5 @@
 // E-mailweergave: 3 kolommen - mappen | berichtenlijst | leesvenster.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api } from "../lib/api";
@@ -27,6 +27,7 @@ import {
   ArchiveIcon,
   BanIcon,
   ChevronDown,
+  ClockIcon,
   ChevronRight,
   CloseIcon,
   ComposeIcon,
@@ -42,6 +43,44 @@ import {
 } from "./Icons";
 
 const PAGE = 25;
+
+// ---- Snoozen ("toon later") ----
+// Registratie lokaal (localStorage); de app zet het bericht op het gekozen
+// moment terug in Postvak IN (controle bij start en elke minuut; werkt dus
+// alleen terwijl de app draait).
+interface SnoozeEntry {
+  id: string; // bericht-id ná verplaatsing naar de Uitgesteld-map
+  accountId: string;
+  due: string; // ISO-tijdstip
+}
+const SNOOZE_KEY = "BE-Mail.snoozes";
+function loadSnoozes(): SnoozeEntry[] {
+  try {
+    return JSON.parse(localStorage.getItem(SNOOZE_KEY) ?? "[]") as SnoozeEntry[];
+  } catch {
+    return [];
+  }
+}
+function saveSnoozes(list: SnoozeEntry[]): void {
+  localStorage.setItem(SNOOZE_KEY, JSON.stringify(list));
+}
+function laterToday(): Date {
+  const d = new Date();
+  d.setHours(d.getHours() + 3, 0, 0, 0);
+  return d;
+}
+function tomorrowMorning(): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(9, 0, 0, 0);
+  return d;
+}
+function nextMondayMorning(): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
+  d.setHours(9, 0, 0, 0);
+  return d;
+}
 
 // Outlook-presetkleuren voor categorieën (preset0 t/m preset24).
 const CATEGORY_COLORS: Record<string, string> = {
@@ -464,6 +503,77 @@ export default function MailView() {
       )
     );
   }
+
+  // ---- Snoozen ----
+
+  const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const [snoozeAt, setSnoozeAt] = useState("");
+  // Verse verwijzing naar "huidige lijst verversen" voor de snooze-wekker
+  // (de interval-closure zou anders een verouderde folderId zien).
+  const reloadListRef = useRef<() => void>(() => {});
+  reloadListRef.current = () => {
+    if (!searchResult) void loadPage(0, true);
+  };
+
+  async function ensureSnoozeFolder(): Promise<string> {
+    const name = t("snoozed");
+    const existing = folders.find(
+      (f) => (f.displayName ?? "").toLowerCase() === name.toLowerCase()
+    );
+    if (existing) return existing.id;
+    const f = await api.createFolder(name);
+    patchActiveFolders((prev) => [...prev, f]);
+    return f.id;
+  }
+
+  async function snooze(m: Message, due: Date) {
+    setSnoozeOpen(false);
+    try {
+      const dest = await ensureSnoozeFolder();
+      const moved = await api.moveMessageReturning(m.id, dest);
+      saveSnoozes([
+        ...loadSnoozes(),
+        { id: moved.id, accountId: activeId, due: due.toISOString() },
+      ]);
+      dropFromLists(m.id);
+      notify(`${t("snoozed")} ✓`, "info");
+      void reloadAllFolders();
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  // Wekker: uitgestelde berichten van het actieve account terugzetten in
+  // Postvak IN (ongelezen) zodra hun tijd voorbij is.
+  useEffect(() => {
+    if (!activeId) return;
+    async function wake() {
+      const all = loadSnoozes();
+      const due = all.filter(
+        (s) => s.accountId === activeId && new Date(s.due).getTime() <= Date.now()
+      );
+      if (!due.length) return;
+      saveSnoozes(all.filter((s) => !due.includes(s)));
+      let any = false;
+      for (const s of due) {
+        try {
+          const moved = await api.moveMessageReturning(s.id, "inbox");
+          await api.setRead(moved.id, false).catch(() => {});
+          any = true;
+        } catch {
+          // Bericht is intussen handmatig verplaatst/verwijderd: vergeten.
+        }
+      }
+      if (any) {
+        void reloadAllFolders();
+        reloadListRef.current();
+      }
+    }
+    void wake();
+    const h = window.setInterval(() => void wake(), 60_000);
+    return () => window.clearInterval(h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
 
   // ---- Categorieën ----
 
@@ -1197,6 +1307,57 @@ export default function MailView() {
               <button className="btn" onClick={() => archive(selected)} title={t("archive")}>
                 <ArchiveIcon size={18} />
               </button>
+              <span className="snooze-wrap">
+                <button
+                  className="btn"
+                  onClick={() => setSnoozeOpen((v) => !v)}
+                  title={t("snooze")}
+                >
+                  <ClockIcon size={18} />
+                </button>
+                {snoozeOpen && (
+                  <div className="snooze-menu">
+                    <button
+                      className="suggest-item"
+                      onClick={() => void snooze(selected, laterToday())}
+                    >
+                      {t("laterToday")}
+                    </button>
+                    <button
+                      className="suggest-item"
+                      onClick={() => void snooze(selected, tomorrowMorning())}
+                    >
+                      {t("tomorrowMorning")}
+                    </button>
+                    <button
+                      className="suggest-item"
+                      onClick={() => void snooze(selected, nextMondayMorning())}
+                    >
+                      {t("nextWeekMorning")}
+                    </button>
+                    <div className="snooze-custom">
+                      <input
+                        type="datetime-local"
+                        value={snoozeAt}
+                        onChange={(e) => setSnoozeAt(e.target.value)}
+                      />
+                      <button
+                        className="btn"
+                        onClick={() => {
+                          const d = new Date(snoozeAt);
+                          if (!Number.isNaN(d.getTime()) && d.getTime() > Date.now()) {
+                            void snooze(selected, d);
+                          } else {
+                            notify(t("laterInvalid"), "error");
+                          }
+                        }}
+                      >
+                        {t("ok")}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </span>
               <select
                 className="move-select"
                 value=""

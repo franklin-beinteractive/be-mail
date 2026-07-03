@@ -371,6 +371,24 @@ impl GraphClient {
         self.expect_ok(resp).await
     }
 
+    /// Als move_message, maar geeft het verplaatste bericht terug. Het id
+    /// verandert bij verplaatsen; snoozen heeft het nieuwe id nodig om het
+    /// bericht later terug te kunnen zetten.
+    pub async fn move_message_returning(
+        &self,
+        id: &str,
+        destination_id: &str,
+    ) -> Result<Message> {
+        let resp = self
+            .http
+            .post(format!("{BASE}/me/messages/{id}/move"))
+            .bearer_auth(&self.token)
+            .json(&json!({ "destinationId": destination_id }))
+            .send()
+            .await?;
+        self.parse(resp).await
+    }
+
     /// Beantwoordt een vergaderuitnodiging (eventMessageRequest) namens de
     /// gebruiker: zoekt het bijbehorende event op en accepteert/weigert dat.
     pub async fn rsvp(&self, message_id: &str, response: &str) -> Result<()> {
