@@ -12,7 +12,7 @@ const BASE: &str = "https://graph.microsoft.com/v1.0";
 /// Standaard tijdzone (Windows-notatie zoals Graph die verwacht).
 const DEFAULT_TZ: &str = "W. Europe Standard Time";
 
-const MSG_SELECT: &str = "id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,isRead,hasAttachments,bodyPreview,importance,flag,webLink,isDraft";
+const MSG_SELECT: &str = "id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,isRead,hasAttachments,bodyPreview,importance,flag,webLink,isDraft,categories,conversationId";
 
 pub struct GraphClient {
     token: String,
@@ -220,6 +220,82 @@ impl GraphClient {
             .post(format!("{BASE}/me/mailFolders/inbox/messageRules"))
             .bearer_auth(&self.token)
             .json(&rule)
+            .send()
+            .await?;
+        self.expect_ok(resp).await
+    }
+
+    /// Inbox-regels (messageRules) van het actieve account.
+    pub async fn list_rules(&self) -> Result<Vec<MessageRule>> {
+        let list: GraphList<MessageRule> = self
+            .get_json(&format!("{BASE}/me/mailFolders/inbox/messageRules"))
+            .await?;
+        Ok(list.value)
+    }
+
+    /// Zet een inbox-regel aan of uit.
+    pub async fn set_rule_enabled(&self, rule_id: &str, enabled: bool) -> Result<()> {
+        let resp = self
+            .http
+            .patch(format!("{BASE}/me/mailFolders/inbox/messageRules/{rule_id}"))
+            .bearer_auth(&self.token)
+            .json(&json!({ "isEnabled": enabled }))
+            .send()
+            .await?;
+        self.expect_ok(resp).await
+    }
+
+    /// Verwijdert een inbox-regel.
+    pub async fn delete_rule(&self, rule_id: &str) -> Result<()> {
+        let resp = self
+            .http
+            .delete(format!("{BASE}/me/mailFolders/inbox/messageRules/{rule_id}"))
+            .bearer_auth(&self.token)
+            .send()
+            .await?;
+        self.expect_ok(resp).await
+    }
+
+    // ---- Afwezigheid (automatisch antwoord) ----
+    // Vereist de optionele scope MailboxSettings.ReadWrite (zie auth.rs).
+
+    pub async fn get_auto_reply(&self) -> Result<AutoReplySettings> {
+        self.get_json(&format!("{BASE}/me/mailboxSettings/automaticRepliesSetting"))
+            .await
+    }
+
+    pub async fn set_auto_reply(&self, s: &AutoReplySettings) -> Result<()> {
+        let resp = self
+            .http
+            .patch(format!("{BASE}/me/mailboxSettings"))
+            .bearer_auth(&self.token)
+            .json(&json!({ "automaticRepliesSetting": s }))
+            .send()
+            .await?;
+        self.expect_ok(resp).await
+    }
+
+    // ---- Categorieën (kleurlabels) ----
+
+    /// Master-categorieën van het postvak (vereist MailboxSettings-scope).
+    pub async fn list_categories(&self) -> Result<Vec<OutlookCategory>> {
+        let list: GraphList<OutlookCategory> = self
+            .get_json(&format!("{BASE}/me/outlook/masterCategories"))
+            .await?;
+        Ok(list.value)
+    }
+
+    /// Zet de categorieën van een bericht (hele lijst; leeg = geen).
+    pub async fn set_message_categories(
+        &self,
+        message_id: &str,
+        categories: &[String],
+    ) -> Result<()> {
+        let resp = self
+            .http
+            .patch(format!("{BASE}/me/messages/{message_id}"))
+            .bearer_auth(&self.token)
+            .json(&json!({ "categories": categories }))
             .send()
             .await?;
         self.expect_ok(resp).await

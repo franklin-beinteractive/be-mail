@@ -281,6 +281,63 @@ pub async fn list_attachments(message_id: String) -> Result<Vec<Attachment>, Str
         .map_err(|e| e.to_string())
 }
 
+/// Inbox-regels (voor het regels-beheer in Instellingen).
+#[tauri::command]
+pub async fn list_rules() -> Result<Vec<MessageRule>, String> {
+    client().await?.list_rules().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn set_rule_enabled(rule_id: String, enabled: bool) -> Result<(), String> {
+    client()
+        .await?
+        .set_rule_enabled(&rule_id, enabled)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn delete_rule(rule_id: String) -> Result<(), String> {
+    client()
+        .await?
+        .delete_rule(&rule_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Afwezigheid / automatisch antwoord (vereist MailboxSettings-consent).
+#[tauri::command]
+pub async fn get_auto_reply() -> Result<AutoReplySettings, String> {
+    client().await?.get_auto_reply().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn set_auto_reply(settings: AutoReplySettings) -> Result<(), String> {
+    client()
+        .await?
+        .set_auto_reply(&settings)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Master-categorieën (kleurlabels) van het postvak.
+#[tauri::command]
+pub async fn list_categories() -> Result<Vec<OutlookCategory>, String> {
+    client().await?.list_categories().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn set_message_categories(
+    message_id: String,
+    categories: Vec<String>,
+) -> Result<(), String> {
+    client()
+        .await?
+        .set_message_categories(&message_id, &categories)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Inline (cid:) afbeeldingen van een bericht, voor weergave in het leesvenster.
 #[tauri::command]
 pub async fn inline_images(message_id: String) -> Result<Vec<InlineImage>, String> {

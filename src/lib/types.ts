@@ -78,6 +78,9 @@ export interface Message {
   isDraft?: boolean | null;
   /** Alleen gevuld bij het openen van één bericht (o.a. List-Unsubscribe). */
   internetMessageHeaders?: { name?: string | null; value?: string | null }[] | null;
+  categories?: string[] | null;
+  /** Gespreks-id voor threading. */
+  conversationId?: string | null;
 }
 
 export interface MessagesPage {
@@ -91,6 +94,31 @@ export interface Attachment {
   contentType?: string | null;
   size?: number | null;
   isInline?: boolean | null;
+}
+
+// Inbox-regel (messageRule) voor het regels-beheer in Instellingen.
+export interface MessageRule {
+  id: string;
+  displayName?: string | null;
+  isEnabled?: boolean | null;
+  isReadOnly?: boolean | null;
+}
+
+// Afwezigheid / automatisch antwoord.
+export interface AutoReplySettings {
+  status: string; // "disabled" | "alwaysEnabled" | "scheduled"
+  externalAudience?: string | null; // "none" | "contactsOnly" | "all"
+  scheduledStartDateTime?: DateTimeTimeZone | null;
+  scheduledEndDateTime?: DateTimeTimeZone | null;
+  internalReplyMessage?: string | null;
+  externalReplyMessage?: string | null;
+}
+
+// Outlook-categorie (kleurlabel).
+export interface OutlookCategory {
+  id: string;
+  displayName?: string | null;
+  color?: string | null; // "preset0" t/m "preset24"
 }
 
 // Inline (cid:) afbeelding met inhoud, voor weergave in het leesvenster.

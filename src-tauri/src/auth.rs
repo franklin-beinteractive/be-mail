@@ -20,8 +20,16 @@ use tokio::net::TcpListener;
 /// app bruikbaar blijft. Na admin consent pakt een nieuwe login People.Read alsnog op.
 const BASE_SCOPES: &str =
     "openid profile offline_access User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite";
-const FULL_SCOPES: &str =
+/// Basis + People.Read (genodigden-/ontvanger-autocomplete).
+const PEOPLE_SCOPES: &str =
     "openid profile offline_access User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite People.Read";
+/// Alles, incl. MailboxSettings.ReadWrite (afwezigheid + categorieën).
+const FULL_SCOPES: &str =
+    "openid profile offline_access User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite People.Read MailboxSettings.ReadWrite";
+/// Upgrade-varianten van meest naar minst compleet; de eerste die de tenant
+/// toestaat wint. Zo blokkeert een ontbrekende consent voor de ene optionele
+/// scope niet de upgrade naar de andere.
+const SCOPE_TIERS: [&str; 2] = [FULL_SCOPES, PEOPLE_SCOPES];
 
 fn b64url(bytes: &[u8]) -> String {
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
@@ -183,10 +191,31 @@ pub async fn login(config: &AppConfig) -> Result<TokenSet> {
     if base.refresh_token.is_empty() {
         return Ok(base);
     }
-    match refresh_grant(config, &base.refresh_token, FULL_SCOPES).await {
-        Ok(full) => Ok(full),
-        Err(_) => Ok(base), // geen consent voor People.Read → basisscopes volstaan
+    Ok(upgrade_scopes(config, &base.refresh_token, &base.scope)
+        .await
+        .unwrap_or(base)) // geen consent voor optionele scopes → basis volstaat
+}
+
+/// Probeert de sessie stil (zonder consent-scherm) naar een ruimere
+/// scope-variant te tillen. Geeft None terug als er niets te winnen valt of
+/// als de tenant elke ruimere variant weigert.
+async fn upgrade_scopes(
+    config: &AppConfig,
+    refresh_token: &str,
+    current_scope: &str,
+) -> Option<TokenSet> {
+    for tier in SCOPE_TIERS {
+        let adds_something = tier
+            .split(' ')
+            .any(|s| !current_scope.contains(s) && !BASE_SCOPES.contains(s));
+        if !adds_something {
+            return None; // alles hierboven zit al in de sessie
+        }
+        if let Ok(tokens) = refresh_grant(config, refresh_token, tier).await {
+            return Some(tokens);
+        }
     }
+    None
 }
 
 async fn login_with_scopes(config: &AppConfig, scopes: &str) -> Result<TokenSet> {
@@ -270,14 +299,12 @@ pub async fn valid_access_token(config: &AppConfig, account_id: &str) -> Result<
         bail!("Sessie verlopen, log opnieuw in");
     }
 
-    // Mist de sessie optionele scopes (People.Read)? Probeer dan eerst stil te
-    // upgraden - dat lukt vanzelf zodra de beheerder consent heeft gegeven,
-    // zonder opnieuw in te loggen. Anders vernieuwen met de toegekende scopes.
-    if !tokens.scope.contains("People.Read") {
-        if let Ok(full) = refresh_grant(config, &tokens.refresh_token, FULL_SCOPES).await {
-            token_store::save(account_id, &full)?;
-            return Ok(full.access_token);
-        }
+    // Mist de sessie optionele scopes? Probeer dan eerst stil te upgraden -
+    // dat lukt vanzelf zodra de beheerder consent heeft gegeven, zonder
+    // opnieuw in te loggen. Anders vernieuwen met de toegekende scopes.
+    if let Some(upgraded) = upgrade_scopes(config, &tokens.refresh_token, &tokens.scope).await {
+        token_store::save(account_id, &upgraded)?;
+        return Ok(upgraded.access_token);
     }
     let scopes = if tokens.scope.trim().is_empty() {
         BASE_SCOPES

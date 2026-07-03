@@ -8,13 +8,16 @@ import type {
   AccountsInfo,
   AppConfig,
   Attachment,
+  AutoReplySettings,
   CalendarEvent,
   ComposeInput,
   EventInput,
   InlineImage,
   MailFolder,
   Message,
+  MessageRule,
   MessagesPage,
+  OutlookCategory,
   Person,
 } from "./types";
 
@@ -78,6 +81,19 @@ export const api = {
   // Inline (cid:) afbeeldingen met inhoud, voor weergave in het leesvenster.
   inlineImages: (messageId: string) =>
     invoke<InlineImage[]>("inline_images", { messageId }),
+  // Inbox-regels (regels-beheer in Instellingen).
+  listRules: () => invoke<MessageRule[]>("list_rules"),
+  setRuleEnabled: (ruleId: string, enabled: boolean) =>
+    invoke<void>("set_rule_enabled", { ruleId, enabled }),
+  deleteRule: (ruleId: string) => invoke<void>("delete_rule", { ruleId }),
+  // Afwezigheid / automatisch antwoord (vereist MailboxSettings-consent).
+  getAutoReply: () => invoke<AutoReplySettings>("get_auto_reply"),
+  setAutoReply: (settings: AutoReplySettings) =>
+    invoke<void>("set_auto_reply", { settings }),
+  // Categorieën (kleurlabels).
+  listCategories: () => invoke<OutlookCategory[]>("list_categories"),
+  setMessageCategories: (messageId: string, categories: string[]) =>
+    invoke<void>("set_message_categories", { messageId, categories }),
   // Downloadt naar de Downloads-map; geeft het opgeslagen pad terug.
   downloadAttachment: (messageId: string, attachmentId: string) =>
     invoke<string>("download_attachment", { messageId, attachmentId }),

@@ -113,6 +113,11 @@ pub struct Message {
     /// Alleen gevuld bij het openen van één bericht (o.a. List-Unsubscribe).
     #[serde(default)]
     pub internet_message_headers: Option<Vec<MessageHeader>>,
+    #[serde(default)]
+    pub categories: Option<Vec<String>>,
+    /// Gespreks-id voor threading (berichten groeperen).
+    #[serde(default)]
+    pub conversation_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -146,6 +151,50 @@ pub struct Attachment {
     pub size: Option<i64>,
     #[serde(default)]
     pub is_inline: Option<bool>,
+}
+
+/// Afwezigheid / automatisch antwoord (mailboxSettings.automaticRepliesSetting).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoReplySettings {
+    /// "disabled" | "alwaysEnabled" | "scheduled"
+    pub status: String,
+    /// "none" | "contactsOnly" | "all"
+    #[serde(default)]
+    pub external_audience: Option<String>,
+    #[serde(default)]
+    pub scheduled_start_date_time: Option<DateTimeTimeZone>,
+    #[serde(default)]
+    pub scheduled_end_date_time: Option<DateTimeTimeZone>,
+    #[serde(default)]
+    pub internal_reply_message: Option<String>,
+    #[serde(default)]
+    pub external_reply_message: Option<String>,
+}
+
+/// Outlook-categorie (kleurlabel) uit de master-lijst.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutlookCategory {
+    pub id: String,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    /// "preset0" t/m "preset24" of "none".
+    #[serde(default)]
+    pub color: Option<String>,
+}
+
+/// Inbox-regel (messageRule); alleen de velden die de beheer-UI nodig heeft.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageRule {
+    pub id: String,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    #[serde(default)]
+    pub is_enabled: Option<bool>,
+    #[serde(default)]
+    pub is_read_only: Option<bool>,
 }
 
 /// Inline (cid:) afbeelding met inhoud, voor weergave in het leesvenster.
