@@ -174,6 +174,9 @@
 - [x] Help-blokken in **2 kolommen** op brede schermen; smal = onder elkaar (toegevoegd 2026-07-03) 🟢
 - [x] Instellingen-blokken **zonder witruimte-gaten** strak onder elkaar (toegevoegd 2026-07-03) 🟢
 - [x] Em dash ("—") overal vervangen door "-" (toegevoegd 2026-07-03) 🟢
+- [x] Donkere scrollbars in dark mode (toegevoegd 2026-07-03) 🟢
+- [x] Inline (cid:) afbeeldingen in mails echt tonen (toegevoegd 2026-07-03) 🟡
+- [x] Handtekeningen als **HTML met wysiwyg-editor** (zelfde editor als opstellen, incl. afbeeldingen; bij verzenden als inline cid-bijlage) (toegevoegd 2026-07-03) 🟡
 - [x] Actiebalk bovenin **uitlijnen** met de berichtenlijst-kolom 🟢
 - [x] **Lettertype instelbaar** in Instellingen (gangbare fonts + Calibri; Calibri = standaard) 🟢
 

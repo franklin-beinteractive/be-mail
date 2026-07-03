@@ -226,7 +226,8 @@ pub struct ScoredEmail {
 
 // ---- Invoer vanuit de frontend ----
 
-/// Bijlage vanuit de frontend (inhoud als base64).
+/// Bijlage vanuit de frontend (inhoud als base64). content_id + is_inline
+/// maken er een ingesloten (cid:) afbeelding van waar de body naar verwijst.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AttachmentInput {
@@ -234,6 +235,10 @@ pub struct AttachmentInput {
     #[serde(default)]
     pub content_type: Option<String>,
     pub content_base64: String,
+    #[serde(default)]
+    pub content_id: Option<String>,
+    #[serde(default)]
+    pub is_inline: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]

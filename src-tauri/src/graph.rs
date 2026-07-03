@@ -430,12 +430,18 @@ impl GraphClient {
     }
 
     fn attachment_json(a: &AttachmentInput) -> serde_json::Value {
-        json!({
+        let mut v = json!({
             "@odata.type": "#microsoft.graph.fileAttachment",
             "name": a.name,
             "contentType": a.content_type.clone().unwrap_or_else(|| "application/octet-stream".into()),
             "contentBytes": a.content_base64,
-        })
+        });
+        // Ingesloten (cid:) afbeelding: de body-HTML verwijst met src="cid:...".
+        if let Some(cid) = &a.content_id {
+            v["contentId"] = json!(cid);
+            v["isInline"] = json!(a.is_inline.unwrap_or(true));
+        }
+        v
     }
 
     pub async fn send_mail(&self, input: &ComposeInput) -> Result<()> {

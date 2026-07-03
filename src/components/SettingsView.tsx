@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
-import { FONT_CHOICES, type Signature } from "../lib/settings";
+import { FONT_CHOICES, signatureHtml, type Signature } from "../lib/settings";
 import type { Account, AccountsInfo } from "../lib/types";
+import RichTextEditor from "./RichTextEditor";
 import { PlusIcon, TrashIcon } from "./Icons";
 
 export default function SettingsView({
@@ -77,6 +78,7 @@ export default function SettingsView({
       id: crypto.randomUUID(),
       name: `${t("signature")} ${settings.signatures.length + 1}`,
       text: "",
+      html: "",
     };
     setSettings({ signatures: [...settings.signatures, sig] });
   }
@@ -249,11 +251,10 @@ export default function SettingsView({
                 <TrashIcon size={18} />
               </button>
             </div>
-            <textarea
-              rows={4}
-              value={sig.text}
-              onChange={(e) => patchSignature(sig.id, { text: e.target.value })}
-              placeholder="Met vriendelijke groet,&#10;…"
+            <RichTextEditor
+              initialHtml={signatureHtml(sig)}
+              onChange={(html) => patchSignature(sig.id, { html })}
+              minHeight={90}
             />
           </div>
         ))}

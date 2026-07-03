@@ -4,8 +4,10 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
-import type { ComposeInput } from "../lib/types";
+import { signatureHtml } from "../lib/settings";
+import type { AttachmentInput, ComposeInput } from "../lib/types";
 import { fileSize } from "../lib/format";
+import RichTextEditor from "./RichTextEditor";
 import { ClockIcon, CloseIcon, PaperclipIcon, SendIcon } from "./Icons";
 
 // Graph sendMail accepteert max ~3 MB aan inline bijlagen per bericht.
@@ -34,16 +36,35 @@ export interface ComposeInitial {
   kind?: "new" | "reply" | "forward";
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
-/** Platte handtekeningtekst → veilige HTML. */
-function textToHtml(s: string): string {
-  return escapeHtml(s).replace(/\n/g, "<br>");
+/**
+ * Zet data:-afbeeldingen (uit de editor/handtekening) om naar cid:-verwijzingen
+ * met bijbehorende inline bijlagen. Nodig bij verzenden: mailclients van
+ * ontvangers (Outlook, Gmail) blokkeren data-URI's in mail-HTML.
+ */
+function extractInlineImages(html: string): {
+  html: string;
+  attachments: AttachmentInput[];
+} {
+  if (!html.includes("data:")) return { html, attachments: [] };
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const attachments: AttachmentInput[] = [];
+  let i = 0;
+  doc.querySelectorAll("img").forEach((img) => {
+    const m = /^data:([^;,]+);base64,(.+)$/.exec(img.getAttribute("src") ?? "");
+    if (!m) return;
+    i += 1;
+    const cid = `img${i}@be-mail`;
+    const ext = (m[1].split("/")[1] ?? "png").split("+")[0];
+    attachments.push({
+      name: `afbeelding-${i}.${ext}`,
+      contentType: m[1],
+      contentBase64: m[2],
+      contentId: cid,
+      isInline: true,
+    });
+    img.setAttribute("src", `cid:${cid}`);
+  });
+  return { html: doc.body.innerHTML, attachments };
 }
 
 /** Leest een bestand in als base64 (zonder data:-prefix). */
@@ -86,7 +107,7 @@ export default function ComposeDialog({
   const [initialHtml] = useState(() => {
     if (initial.html) return initial.html;
     return defaultSig
-      ? `<div><br></div><div data-sig="1">${textToHtml(defaultSig.text)}</div>`
+      ? `<div><br></div><div data-sig="1">${signatureHtml(defaultSig)}</div>`
       : "";
   });
 
@@ -105,10 +126,6 @@ export default function ComposeDialog({
   // "Later verzenden": inline kiezer open + gekozen tijdstip (datetime-local).
   const [laterOpen, setLaterOpen] = useState(false);
   const [laterAt, setLaterAt] = useState("");
-  // Link invoegen: inline invoer + bewaarde selectie.
-  const [linkOpen, setLinkOpen] = useState(false);
-  const [linkUrl, setLinkUrl] = useState("");
-  const savedRange = useRef<Range | null>(null);
 
   const fileInput = useRef<HTMLInputElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -138,8 +155,16 @@ export default function ComposeDialog({
     setHtml(editorRef.current?.innerHTML ?? "");
   }
 
-  function buildInput(): ComposeInput {
-    const bodyHtml = `<div>${editorHtml()}</div>` + (quoted ? `<hr>${quoted}` : "");
+  /**
+   * `forSend`: data:-afbeeldingen worden dan omgezet naar cid: + inline
+   * bijlagen. Bij concept-opslag juist niet, zodat een heropend concept de
+   * afbeeldingen nog gewoon in de editor toont.
+   */
+  function buildInput(forSend = false): ComposeInput {
+    const body = forSend
+      ? extractInlineImages(editorHtml())
+      : { html: editorHtml(), attachments: [] as AttachmentInput[] };
+    const bodyHtml = `<div>${body.html}</div>` + (quoted ? `<hr>${quoted}` : "");
     return {
       to: split(to),
       cc: split(cc),
@@ -147,52 +172,20 @@ export default function ComposeDialog({
       subject,
       bodyHtml,
       importance,
-      attachments: attachments.map(({ name, contentType, contentBase64 }) => ({
-        name,
-        contentType,
-        contentBase64,
-      })),
+      attachments: [
+        ...attachments.map(({ name, contentType, contentBase64 }) => ({
+          name,
+          contentType,
+          contentBase64,
+        })),
+        ...body.attachments,
+      ],
     };
   }
 
   function hasContent(): boolean {
     const bodyText = editorRef.current?.textContent ?? "";
     return !!(to.trim() || cc.trim() || bcc.trim() || subject.trim() || bodyText.trim());
-  }
-
-  // ---- Editor-werkbalk ----
-
-  function exec(cmd: string, value?: string) {
-    editorRef.current?.focus();
-    document.execCommand(cmd, false, value);
-    syncHtml();
-  }
-
-  function openLink() {
-    const sel = window.getSelection();
-    savedRange.current =
-      sel && sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : null;
-    setLinkUrl("");
-    setLinkOpen(true);
-  }
-
-  function applyLink() {
-    const raw = linkUrl.trim();
-    setLinkOpen(false);
-    if (!raw) return;
-    const url = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-    editorRef.current?.focus();
-    const sel = window.getSelection();
-    if (savedRange.current) {
-      sel?.removeAllRanges();
-      sel?.addRange(savedRange.current);
-    }
-    if (!sel || sel.isCollapsed) {
-      document.execCommand("insertHTML", false, `<a href="${url}">${url}</a>`);
-    } else {
-      document.execCommand("createLink", false, url);
-    }
-    syncHtml();
   }
 
   // ---- Concepten ----
@@ -254,7 +247,7 @@ export default function ComposeDialog({
         ed.insertAdjacentHTML("beforeend", `<div><br></div><div data-sig="1"></div>`);
         block = ed.querySelector("[data-sig]");
       }
-      if (block) block.innerHTML = textToHtml(nextSig.text);
+      if (block) block.innerHTML = signatureHtml(nextSig);
     } else if (block) {
       block.remove();
     }
@@ -323,7 +316,7 @@ export default function ComposeDialog({
   async function reallySend() {
     setBusy(true);
     try {
-      const input = buildInput();
+      const input = buildInput(true);
       if (draftIdRef.current) {
         // Bestaand concept versturen: geen duplicaat, concept → Verzonden items.
         await api.sendDraft(draftIdRef.current, input);
@@ -350,7 +343,7 @@ export default function ComposeDialog({
     }
     setBusy(true);
     try {
-      const input = buildInput();
+      const input = buildInput(true);
       if (!draftIdRef.current) {
         const m = await api.createDraft(input);
         draftIdRef.current = m.id;
@@ -409,64 +402,10 @@ export default function ComposeDialog({
             </select>
           </label>
 
-          <div className="editor-toolbar">
-            <button className="tool-btn" onClick={() => exec("bold")} title={t("bold")}>
-              <strong>B</strong>
-            </button>
-            <button className="tool-btn" onClick={() => exec("italic")} title={t("italic")}>
-              <em>I</em>
-            </button>
-            <button
-              className="tool-btn"
-              onClick={() => exec("underline")}
-              title={t("underline")}
-            >
-              <span style={{ textDecoration: "underline" }}>U</span>
-            </button>
-            <span className="tool-sep" />
-            <button
-              className="tool-btn"
-              onClick={() => exec("insertUnorderedList")}
-              title={t("bullets")}
-            >
-              ••
-            </button>
-            <button
-              className="tool-btn"
-              onClick={() => exec("insertOrderedList")}
-              title={t("numbering")}
-            >
-              1.
-            </button>
-            <span className="tool-sep" />
-            <button className="tool-btn" onClick={openLink} title={t("insertLink")}>
-              🔗
-            </button>
-            {linkOpen && (
-              <span className="link-input">
-                <input
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  placeholder={t("linkUrl")}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") applyLink();
-                    if (e.key === "Escape") setLinkOpen(false);
-                  }}
-                  autoFocus
-                />
-                <button className="btn" onClick={applyLink}>
-                  {t("ok")}
-                </button>
-              </span>
-            )}
-          </div>
-          <div
-            ref={editorRef}
-            className="editor"
-            contentEditable
-            suppressContentEditableWarning
-            onInput={syncHtml}
-            dangerouslySetInnerHTML={{ __html: initialHtml }}
+          <RichTextEditor
+            editorRef={editorRef}
+            initialHtml={initialHtml}
+            onChange={setHtml}
           />
 
           {attachments.length > 0 && (

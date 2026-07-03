@@ -100,11 +100,14 @@ export interface InlineImage {
   contentBytes: string;
 }
 
-// Bijlage om mee te sturen (inhoud als base64).
+// Bijlage om mee te sturen (inhoud als base64). contentId + isInline maken er
+// een ingesloten (cid:) afbeelding van waar de body-HTML naar verwijst.
 export interface AttachmentInput {
   name: string;
   contentType?: string;
   contentBase64: string;
+  contentId?: string;
+  isInline?: boolean;
 }
 
 export interface DateTimeTimeZone {

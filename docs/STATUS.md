@@ -7,7 +7,8 @@
 standaard ingeklapt + status onthouden; scroll-fix mappenlijst; em dash
 overal vervangen door "-"; Help en Instellingen in 2 kolommen zonder
 witruimte-gaten; donkere scrollbars in dark mode; inline (cid:)
-afbeeldingen worden nu echt getoond)
+afbeeldingen worden nu echt getoond; handtekeningen als HTML met
+wysiwyg-editor incl. afbeeldingen)
 
 ## ✅ Af
 
@@ -26,7 +27,9 @@ afbeeldingen worden nu echt getoond)
   heropenen (simpele editor); bijlagen gaan pas mee bij verzenden.
 - **Handtekeningen**: meerdere beheren in Instellingen; aparte standaard voor
   nieuw bericht en beantwoorden/doorsturen; wisselen in het opstelvenster.
-  Opslag lokaal (localStorage), platte tekst.
+  Opslag lokaal (localStorage). HTML met wysiwyg-editor (zelfde editor als
+  opstellen), incl. afbeeldingen (max 1 MB; bij verzenden omgezet naar
+  inline cid-bijlagen zodat ontvangers ze echt zien).
 - **Mappenbeheer**: eigen mappen aanmaken/hernoemen/verwijderen vanuit de
   mappenlijst (systeemmappen op naam uitgesloten; Graph is de backstop).
 - **Bulkacties**: checkbox per bericht; balk met gelezen/ongelezen,

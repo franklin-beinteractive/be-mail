@@ -531,6 +531,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 .editor:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 .editor [data-sig] { color: inherit; }
+.editor img { max-width: 100%; }
 
 /* Undo-send en later-verzenden */
 .undo-bar,

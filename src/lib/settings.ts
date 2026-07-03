@@ -5,11 +5,23 @@ import type { Lang } from "./i18n";
 
 export type Theme = "light" | "dark";
 
-/** Handtekening in platte tekst (past bij de eenvoudige editor). */
+/** Handtekening. Nieuwe bewerkingen vullen `html` (wysiwyg, incl. afbeeldingen
+ *  als data-URI); `text` is de oude platte-tekst-opslag en blijft de fallback. */
 export interface Signature {
   id: string;
   name: string;
   text: string;
+  html?: string;
+}
+
+/** HTML van een handtekening; oude platte-tekst-handtekeningen worden omgezet. */
+export function signatureHtml(s: Signature): string {
+  if (s.html != null) return s.html;
+  return s.text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\n/g, "<br>");
 }
 
 export interface UiSettings {
