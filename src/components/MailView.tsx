@@ -770,10 +770,16 @@ export default function MailView() {
     return reloadAllFolders();
   }
 
-  /** Drop-positie direct uit het event: boven = ervoor, onder = erna, midden = erin. */
-  function dropPos(e: React.DragEvent): "before" | "after" | "into" {
+  /** Drop-positie direct uit het event: boven = ervoor, onder = erna, midden =
+   *  erin. Systeemmappen (Postvak IN e.d.) kunnen alleen gesorteerd worden,
+   *  dus dan telt alleen boven/onder. */
+  function dropPos(e: React.DragEvent, dragId: string | null): "before" | "after" | "into" {
     const r = e.currentTarget.getBoundingClientRect();
     const y = e.clientY - r.top;
+    const dragged = dragId ? folders.find((x) => x.id === dragId) : null;
+    if (dragged && isSystemFolder(dragged)) {
+      return y < r.height / 2 ? "before" : "after";
+    }
     return y < r.height * 0.35 ? "before" : y > r.height * 0.65 ? "after" : "into";
   }
 
@@ -790,7 +796,7 @@ export default function MailView() {
     if (!dragId || dragId === target.id) return;
     const hint = { pos };
     const dragged = folders.find((x) => x.id === dragId);
-    if (!dragged || isSystemFolder(dragged)) return;
+    if (!dragged) return;
     if (isDescendant(target.id, dragId)) return;
 
     const idSet = new Set(folders.map((f) => f.id));
@@ -802,6 +808,12 @@ export default function MailView() {
       dragged.parentFolderId && idSet.has(dragged.parentFolderId)
         ? dragged.parentFolderId
         : "root";
+
+    // Systeemmappen (Postvak IN e.d.): alleen sorteren op hun eigen niveau;
+    // nooit in een andere map nesten of naar een ander niveau verplaatsen.
+    if (isSystemFolder(dragged) && (hint.pos === "into" || parentKey !== dragParentKey)) {
+      return;
+    }
 
     try {
       if (hint.pos === "into") {
@@ -1045,7 +1057,7 @@ export default function MailView() {
             (hintHere ? ` drop-${hintHere}` : "")
           }
           style={{ paddingLeft: depth * 14 }}
-          draggable={isActiveGroup && !isSystemFolder(f)}
+          draggable={isActiveGroup}
           onDragStart={(e) => {
             setDragFolderId(f.id);
             // Zonder data start WebView2/Chromium de sleep niet altijd.
@@ -1066,7 +1078,7 @@ export default function MailView() {
             if (!dragFolderId || dragFolderId === f.id) return;
             e.preventDefault();
             e.dataTransfer.dropEffect = "move";
-            const pos = dropPos(e);
+            const pos = dropPos(e, dragFolderId);
             setDropHint((h) => (h?.id === f.id && h.pos === pos ? h : { id: f.id, pos }));
           }}
           onDragLeave={() => setDropHint((h) => (h?.id === f.id ? null : h))}
@@ -1076,10 +1088,11 @@ export default function MailView() {
               void dropMessagesOn(f);
               return;
             }
+            const dataId = e.dataTransfer.getData("text/plain") || undefined;
             void handleFolderDrop(
               f,
-              dropPos(e),
-              e.dataTransfer.getData("text/plain") || undefined
+              dropPos(e, dragFolderId ?? dataId ?? null),
+              dataId
             );
           }}
           onDragEnd={() => {
