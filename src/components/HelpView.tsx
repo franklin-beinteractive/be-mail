@@ -11,6 +11,7 @@ function HelpNl() {
     <div className="help">
       <h1>Gebruiksaanwijzing BE-Mail</h1>
 
+      <div className="settings-cols">
       <section className="settings-block">
         <h2>Aan de slag</h2>
         <ol>
@@ -107,6 +108,7 @@ function HelpNl() {
           <li><strong>/</strong>: naar het zoekvak</li>
         </ul>
       </section>
+      </div>
     </div>
   );
 }
@@ -116,6 +118,7 @@ function HelpEn() {
     <div className="help">
       <h1>BE-Mail User Guide</h1>
 
+      <div className="settings-cols">
       <section className="settings-block">
         <h2>Getting started</h2>
         <ol>
@@ -212,6 +215,7 @@ function HelpEn() {
           <li><strong>/</strong>: focus the search box</li>
         </ul>
       </section>
+      </div>
     </div>
   );
 }

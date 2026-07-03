@@ -162,6 +162,7 @@ export default function SettingsView({
     <div className="settings">
       <h1>{t("settings")}</h1>
 
+      <div className="settings-cols">
       <section className="settings-block">
         <h2>{t("accounts")}</h2>
         {accInfo.accounts.length === 0 && account && (
@@ -536,6 +537,7 @@ export default function SettingsView({
           {t("setupTitle")}
         </button>
       </section>
+      </div>
     </div>
   );
 }
