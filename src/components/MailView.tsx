@@ -500,6 +500,57 @@ export default function MailView() {
     }
   }
 
+  // ---- Sneltoetsen ----
+  // Alleen actief als de focus niet in een invoerveld/editor staat en er geen
+  // opstelvenster open is. Bewust zonder deps: goedkoop, altijd verse closures.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (compose || e.ctrlKey || e.metaKey || e.altKey) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (
+        el &&
+        (el.tagName === "INPUT" ||
+          el.tagName === "TEXTAREA" ||
+          el.tagName === "SELECT" ||
+          el.isContentEditable)
+      ) {
+        return;
+      }
+      const k = e.key;
+      if (k === "n") {
+        e.preventDefault();
+        setCompose({ kind: "new" });
+        return;
+      }
+      if (k === "/") {
+        e.preventDefault();
+        document.querySelector<HTMLInputElement>(".list-search input")?.focus();
+        return;
+      }
+      const list = searchResult ?? messages;
+      if (k === "ArrowDown" || k === "j" || k === "ArrowUp" || k === "k") {
+        e.preventDefault();
+        const idx = selected ? list.findIndex((x) => x.id === selected.id) : -1;
+        const next =
+          k === "ArrowDown" || k === "j"
+            ? list[Math.min(idx + 1, list.length - 1)]
+            : list[Math.max(idx - 1, 0)];
+        if (next && next.id !== selected?.id) void openMessage(next);
+        return;
+      }
+      if (!selected) return;
+      if (k === "r") setCompose(buildReply(selected, false));
+      else if (k === "a") setCompose(buildReply(selected, true));
+      else if (k === "f") setCompose(buildForward(selected));
+      else if (k === "e") void archive(selected);
+      else if (k === "Delete") void remove(selected);
+      else if (k === "u") void toggleRead(selected);
+      else if (k === "m") void toggleFlag(selected);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   // ---- Mappenboom ----
 
   const folderTree = useMemo(

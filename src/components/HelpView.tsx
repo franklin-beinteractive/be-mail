@@ -92,6 +92,18 @@ function HelpNl() {
           <li><strong>Kolommen</strong>: versleep de randen tussen mappen, lijst en leesvenster om de breedte aan te passen.</li>
         </ul>
       </section>
+
+      <section className="settings-block">
+        <h2>Sneltoetsen</h2>
+        <ul>
+          <li><strong>↓ / j</strong> en <strong>↑ / k</strong>: volgend/vorig bericht openen</li>
+          <li><strong>n</strong>: nieuw bericht</li>
+          <li><strong>r</strong> / <strong>a</strong> / <strong>f</strong>: beantwoorden / allen beantwoorden / doorsturen</li>
+          <li><strong>e</strong>: archiveren · <strong>Delete</strong>: verwijderen</li>
+          <li><strong>u</strong>: gelezen/ongelezen · <strong>m</strong>: vlag aan/uit</li>
+          <li><strong>/</strong>: naar het zoekvak</li>
+        </ul>
+      </section>
     </div>
   );
 }
@@ -180,6 +192,18 @@ function HelpEn() {
           <li><strong>Appearance</strong>: light/dark theme, font (default Calibri), text size, high contrast and language (NL/EN).</li>
           <li><strong>Behaviour</strong>: send delay in seconds (0 = immediately) and desktop notifications on/off.</li>
           <li><strong>Columns</strong>: drag the dividers between folders, list and reading pane to resize.</li>
+        </ul>
+      </section>
+
+      <section className="settings-block">
+        <h2>Keyboard shortcuts</h2>
+        <ul>
+          <li><strong>↓ / j</strong> and <strong>↑ / k</strong>: open next/previous message</li>
+          <li><strong>n</strong>: new message</li>
+          <li><strong>r</strong> / <strong>a</strong> / <strong>f</strong>: reply / reply all / forward</li>
+          <li><strong>e</strong>: archive · <strong>Delete</strong>: delete</li>
+          <li><strong>u</strong>: read/unread · <strong>m</strong>: toggle flag</li>
+          <li><strong>/</strong>: focus the search box</li>
         </ul>
       </section>
     </div>
