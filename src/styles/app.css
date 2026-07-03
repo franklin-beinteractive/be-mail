@@ -535,6 +535,24 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .editor [data-sig] { color: inherit; }
 .editor img { max-width: 100%; }
 
+/* Threading (gesprekken) */
+.msg-sub { margin-left: 20px; border-left: 2px solid var(--border); }
+.thread-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  border: 1px solid var(--border);
+  background: var(--bg-sunken);
+  color: var(--text-muted);
+  border-radius: 9px;
+  font-size: 0.78em;
+  padding: 0 6px 0 2px;
+  margin-left: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.thread-chip:hover { background: var(--bg-raised); color: var(--text); }
+
 /* Snoozen ("toon later") */
 .snooze-wrap { position: relative; display: inline-flex; }
 .snooze-menu {

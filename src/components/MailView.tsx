@@ -943,6 +943,34 @@ export default function MailView() {
   // Toon zoekresultaten (hele mailbox) als er gezocht wordt, anders de mapinhoud.
   const shown = searchResult ?? messages;
 
+  // Threading: geladen berichten groeperen op conversationId. Het nieuwste
+  // bericht is de kop; oudere berichten klappen eronder uit.
+  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
+  const threads = useMemo(() => {
+    const byConv = new Map<string, Message[]>();
+    const order: { key: string; items: Message[] }[] = [];
+    for (const m of shown) {
+      const key = m.conversationId || m.id;
+      let arr = byConv.get(key);
+      if (!arr) {
+        arr = [];
+        byConv.set(key, arr);
+        order.push({ key, items: arr });
+      }
+      arr.push(m);
+    }
+    return order;
+  }, [shown]);
+
+  function toggleThread(key: string) {
+    setExpandedThreads((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
   const bodyHtml = useMemo(() => {
     if (!selected?.body) return "";
     if (selected.body.contentType?.toLowerCase() === "text") {
@@ -1185,57 +1213,84 @@ export default function MailView() {
           {shown.length === 0 && !loading && (
             <p className="empty">{t("noMessages")}</p>
           )}
-          {shown.map((m) => (
-            <div
-              key={m.id}
-              role="button"
-              tabIndex={0}
-              className={
-                "msg" +
-                (m.isRead ? "" : " unread") +
-                (selected?.id === m.id ? " active" : "") +
-                (checked.has(m.id) ? " checked" : "")
-              }
-              onClick={() => openMessage(m)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") openMessage(m);
-              }}
-            >
-              <input
-                type="checkbox"
-                className="msg-check"
-                checked={checked.has(m.id)}
-                onClick={(e) => e.stopPropagation()}
-                onChange={(e) => toggleCheck(m.id, e.target.checked)}
-                aria-label={m.subject ?? ""}
-              />
-              <div className="msg-main">
-                <div className="msg-top">
-                  <span className="msg-from">{senderName(m.from?.emailAddress)}</span>
-                  {(m.categories ?? []).length > 0 && (
-                    <span className="msg-cats">
-                      {(m.categories ?? []).slice(0, 3).map((c) => (
-                        <span
-                          key={c}
-                          className="cat-dot"
-                          style={{ background: catColor(c) }}
-                          title={c}
-                        />
-                      ))}
-                    </span>
-                  )}
-                  <span className="msg-date">{shortDate(m.receivedDateTime, settings.lang)}</span>
+          {threads.map(({ key, items }) => {
+            const isOpen = expandedThreads.has(key);
+            const renderMsg = (m: Message, sub: boolean) => (
+              <div
+                key={m.id}
+                role="button"
+                tabIndex={0}
+                className={
+                  "msg" +
+                  (sub ? " msg-sub" : "") +
+                  (m.isRead ? "" : " unread") +
+                  (selected?.id === m.id ? " active" : "") +
+                  (checked.has(m.id) ? " checked" : "")
+                }
+                onClick={() => openMessage(m)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") openMessage(m);
+                }}
+              >
+                <input
+                  type="checkbox"
+                  className="msg-check"
+                  checked={checked.has(m.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => toggleCheck(m.id, e.target.checked)}
+                  aria-label={m.subject ?? ""}
+                />
+                <div className="msg-main">
+                  <div className="msg-top">
+                    <span className="msg-from">{senderName(m.from?.emailAddress)}</span>
+                    {!sub && items.length > 1 && (
+                      <button
+                        className="thread-chip"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleThread(key);
+                        }}
+                        title={`${items.length}`}
+                      >
+                        {isOpen ? (
+                          <ChevronDown size={12} />
+                        ) : (
+                          <ChevronRight size={12} />
+                        )}
+                        {items.length}
+                      </button>
+                    )}
+                    {(m.categories ?? []).length > 0 && (
+                      <span className="msg-cats">
+                        {(m.categories ?? []).slice(0, 3).map((c) => (
+                          <span
+                            key={c}
+                            className="cat-dot"
+                            style={{ background: catColor(c) }}
+                            title={c}
+                          />
+                        ))}
+                      </span>
+                    )}
+                    <span className="msg-date">{shortDate(m.receivedDateTime, settings.lang)}</span>
+                  </div>
+                  <div className="msg-subject">
+                    {m.flag?.flagStatus === "flagged" && <span className="flagdot">⚑</span>}
+                    {m.importance === "high" && <span className="hi">!</span>}
+                    {m.subject || "(geen onderwerp)"}
+                    {m.hasAttachments && <PaperclipIcon size={14} style={{ marginLeft: 4 }} />}
+                  </div>
+                  <div className="msg-preview">{m.bodyPreview}</div>
                 </div>
-                <div className="msg-subject">
-                  {m.flag?.flagStatus === "flagged" && <span className="flagdot">⚑</span>}
-                  {m.importance === "high" && <span className="hi">!</span>}
-                  {m.subject || "(geen onderwerp)"}
-                  {m.hasAttachments && <PaperclipIcon size={14} style={{ marginLeft: 4 }} />}
-                </div>
-                <div className="msg-preview">{m.bodyPreview}</div>
               </div>
-            </div>
-          ))}
+            );
+            return (
+              <div key={key}>
+                {renderMsg(items[0], false)}
+                {isOpen && items.slice(1).map((m) => renderMsg(m, true))}
+              </div>
+            );
+          })}
           {loading && <p className="empty">{t("loading")}</p>}
           {!searchResult && hasMore && !loading && (
             <button className="btn ghost load-more" onClick={() => loadPage(skip, false)}>
