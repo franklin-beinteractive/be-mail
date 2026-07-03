@@ -196,6 +196,19 @@ pub async fn login(config: &AppConfig) -> Result<TokenSet> {
         .unwrap_or(base)) // geen consent voor optionele scopes → basis volstaat
 }
 
+/// Probeert direct (los van token-verloop) ontbrekende optionele scopes op te
+/// halen voor een account. Stil: fouten worden genegeerd.
+pub async fn upgrade_scopes_now(config: &AppConfig, account_id: &str) {
+    if let Ok(Some(tokens)) = token_store::load(account_id) {
+        if tokens.refresh_token.is_empty() {
+            return;
+        }
+        if let Some(up) = upgrade_scopes(config, &tokens.refresh_token, &tokens.scope).await {
+            let _ = token_store::save(account_id, &up);
+        }
+    }
+}
+
 /// Probeert de sessie stil (zonder consent-scherm) naar een ruimere
 /// scope-variant te tillen. Geeft None terug als er niets te winnen valt of
 /// als de tenant elke ruimere variant weigert.

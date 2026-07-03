@@ -73,6 +73,20 @@ afwezigheid, categorieën, snoozen, threading, grote bijlagen,
 - **Overig**: donkere modus, tekstgrootte, hoog contrast, NL/EN,
   foutmeldingen in mensentaal.
 
+- **Drag & drop-fix + feedbackronde (2026-07-03, laat)**:
+  - **Oorzaak gevonden waarom slepen nooit werkte**: Tauri onderschept op
+    Windows alle sleep-events (dragDropEnabled); nu uit → mappen sorteren,
+    mails slepen en afspraken slepen werken echt (zie CLAUDE.md gotcha #3).
+  - **Mail naar map slepen** (aangevinkte selectie sleept mee); de
+    verplaats-select is uit de bulkbalk verdwenen.
+  - **Uitklap-icoontje** gecentreerd; hover nu doorschijnend grijs (bleef
+    onzichtbaar wit in light mode).
+  - **Optionele scopes worden bij het opstarten** stil opgehaald (niet
+    meer wachten op token-verloop) → @-vermeldingen/autocomplete werken
+    direct zodra de consent er is.
+  - **Standaardmappen verbergen** via Instellingen → Mappen (Archief,
+    Concepten, Verzonden, Verwijderd, Ongewenst, Postvak UIT,
+    Gespreksgeschiedenis).
 - **Backlog-batch (2026-07-03 avond)**:
   - **Mappen sorteren gefixt**: slepen startte niet doordat de rij door een
     button werd bedekt; drop-positie nu direct uit het event, ruimere zones.

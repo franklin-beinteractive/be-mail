@@ -22,6 +22,7 @@ import {
   senderName,
   shortDate,
 } from "../lib/format";
+import { HIDEABLE_FOLDERS } from "../lib/settings";
 import ComposeDialog, { type ComposeInitial } from "./ComposeDialog";
 import {
   ArchiveIcon,
@@ -241,6 +242,8 @@ export default function MailView() {
     [settings.expandedFolders]
   );
   const [dragFolderId, setDragFolderId] = useState<string | null>(null);
+  // Berichten die versleept worden (de aangeklikte, of de hele selectie).
+  const [dragMsgIds, setDragMsgIds] = useState<string[] | null>(null);
   const [dropHint, setDropHint] = useState<{
     id: string;
     pos: "before" | "after" | "into";
@@ -650,6 +653,25 @@ export default function MailView() {
     }
   }
 
+  /** Versleepte berichten in een map laten vallen. */
+  async function dropMessagesOn(target: MailFolder) {
+    const ids = dragMsgIds ?? [];
+    setDragMsgIds(null);
+    setDropHint(null);
+    if (!ids.length || target.id === folderId) return;
+    try {
+      for (const id of ids) {
+        await api.moveMessage(id, target.id);
+        dropFromLists(id);
+      }
+      setChecked(new Set());
+      notify(`${t("move")} ✓`, "info");
+      void reloadAllFolders();
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
   // ---- Sneltoetsen ----
   // Alleen actief als de focus niet in een invoerveld/editor staat en er geen
   // opstelvenster open is. Bewust zonder deps: goedkoop, altijd verse closures.
@@ -708,14 +730,24 @@ export default function MailView() {
     [folders, settings.folderOrder]
   );
 
-  // Boom per account (voor de zijbalk met accountgroepen).
+  // Boom per account (voor de zijbalk met accountgroepen). Verborgen
+  // standaardmappen (Instellingen → Mappen) worden hier weggefilterd; alle
+  // acties (archiveren, concepten, snoozen) blijven gewoon werken.
   const treeByAccount = useMemo(() => {
+    const hidden = settings.hiddenFolders ?? [];
+    const isHidden = (f: MailFolder) =>
+      HIDEABLE_FOLDERS.some(
+        (c) => hidden.includes(c.key) && c.re.test((f.displayName ?? "").trim())
+      );
     const map = new Map<string, FolderTree>();
     for (const g of accountFolders) {
-      map.set(g.account.id, buildTree(g.folders, settings.folderOrder ?? {}));
+      map.set(
+        g.account.id,
+        buildTree(g.folders.filter((f) => !isHidden(f)), settings.folderOrder ?? {})
+      );
     }
     return map;
-  }, [accountFolders, settings.folderOrder]);
+  }, [accountFolders, settings.folderOrder, settings.hiddenFolders]);
 
   function toggleAccountCollapse(id: string) {
     const next = new Set(settings.collapsedAccounts ?? []);
@@ -1021,7 +1053,17 @@ export default function MailView() {
             e.dataTransfer.effectAllowed = "move";
           }}
           onDragOver={(e) => {
-            if (!isActiveGroup || !dragFolderId || dragFolderId === f.id) return;
+            if (!isActiveGroup) return;
+            // Berichten slepen: hele map is doel ("into").
+            if (dragMsgIds) {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+              setDropHint((h) =>
+                h?.id === f.id && h.pos === "into" ? h : { id: f.id, pos: "into" }
+              );
+              return;
+            }
+            if (!dragFolderId || dragFolderId === f.id) return;
             e.preventDefault();
             e.dataTransfer.dropEffect = "move";
             const pos = dropPos(e);
@@ -1030,6 +1072,10 @@ export default function MailView() {
           onDragLeave={() => setDropHint((h) => (h?.id === f.id ? null : h))}
           onDrop={(e) => {
             e.preventDefault();
+            if (dragMsgIds) {
+              void dropMessagesOn(f);
+              return;
+            }
             void handleFolderDrop(
               f,
               dropPos(e),
@@ -1181,21 +1227,7 @@ export default function MailView() {
             <button className="btn" onClick={() => bulk("archive")} title={t("archive")}>
               <ArchiveIcon size={16} />
             </button>
-            <select
-              className="move-select"
-              value=""
-              onChange={(e) => bulk("move", e.target.value)}
-              title={t("move")}
-            >
-              <option value="">{t("move")}…</option>
-              {folders
-                .filter((f) => f.id !== folderId)
-                .map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.displayName}
-                  </option>
-                ))}
-            </select>
+            {/* Verplaatsen gaat door de selectie naar een map te slepen. */}
             <button className="btn danger" onClick={() => bulk("delete")} title={t("delete")}>
               <TrashIcon size={16} />
             </button>
@@ -1230,6 +1262,18 @@ export default function MailView() {
                 onClick={() => openMessage(m)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") openMessage(m);
+                }}
+                draggable
+                onDragStart={(e) => {
+                  // Aangevinkte selectie sleept mee als het bericht erin zit.
+                  const ids = checked.has(m.id) ? [...checked] : [m.id];
+                  setDragMsgIds(ids);
+                  e.dataTransfer.setData("application/x-bemail-message", ids.join("\n"));
+                  e.dataTransfer.effectAllowed = "move";
+                }}
+                onDragEnd={() => {
+                  setDragMsgIds(null);
+                  setDropHint(null);
                 }}
               >
                 <input

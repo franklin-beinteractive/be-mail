@@ -116,6 +116,17 @@ pub fn logout(account_id: Option<String>) -> Result<(), String> {
 #[tauri::command]
 pub fn list_accounts() -> Result<AccountsInfo, String> {
     let cfg = require_config()?;
+    // Op de achtergrond: ontbrekende optionele scopes (People.Read,
+    // MailboxSettings) stil ophalen zodra de beheerder consent heeft gegeven -
+    // ook als het access-token nog geldig is. Zo werkt autocomplete direct
+    // na het opstarten, zonder wachten op token-verloop of herinloggen.
+    for a in &cfg.accounts {
+        let cfg2 = cfg.clone();
+        let id = a.id.clone();
+        tauri::async_runtime::spawn(async move {
+            auth::upgrade_scopes_now(&cfg2, &id).await;
+        });
+    }
     Ok(AccountsInfo {
         accounts: cfg.accounts,
         active: cfg.active_account,

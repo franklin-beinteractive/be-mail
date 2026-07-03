@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
-import { FONT_CHOICES, signatureHtml, type Signature } from "../lib/settings";
+import {
+  FONT_CHOICES,
+  HIDEABLE_FOLDERS,
+  signatureHtml,
+  type Signature,
+} from "../lib/settings";
 import type {
   Account,
   AccountsInfo,
@@ -288,6 +293,31 @@ export default function SettingsView({
             onChange={(e) => toggleNotifications(e.target.checked)}
           />
         </div>
+      </section>
+
+      <section className="settings-block">
+        <h2>{t("folders")}</h2>
+        <p className="muted small">{t("hideFoldersHint")}</p>
+        {HIDEABLE_FOLDERS.map((c) => {
+          const hidden = settings.hiddenFolders ?? [];
+          const visible = !hidden.includes(c.key);
+          return (
+            <div key={c.key} className="setting-row">
+              <input
+                type="checkbox"
+                checked={visible}
+                onChange={(e) =>
+                  setSettings({
+                    hiddenFolders: e.target.checked
+                      ? hidden.filter((k) => k !== c.key)
+                      : [...hidden, c.key],
+                  })
+                }
+              />
+              <span>{settings.lang === "nl" ? c.nl : c.en}</span>
+            </div>
+          );
+        })}
       </section>
 
       <section className="settings-block">

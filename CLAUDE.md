@@ -40,7 +40,16 @@ De app gebruikt een **wisselende** loopback-poort: `http://localhost:<poort>`
 
 Zie `docs/Azure-App-Registration.md` voor de volledige registratie + troubleshooting.
 
-### 3. Projectmap hernoemen → altijd `cargo clean`
+### 3. HTML5 drag & drop vereist `dragDropEnabled: false`
+
+Tauri onderschept op Windows standaard alle sleep-events in de webview (voor
+bestand-drops op het venster). Daardoor vuurt `dragstart` in de pagina **nooit**
+en lijkt alle HTML5 drag & drop (mappen sorteren, mails/afspraken slepen)
+kapot, hoe correct de JS ook is. Fix: in `src-tauri/tauri.conf.json` bij het
+venster `"dragDropEnabled": false` zetten. Keerzijde: bestanden op het venster
+droppen werkt dan niet (bijlagen gaan via de bestandskiezer).
+
+### 4. Projectmap hernoemen → altijd `cargo clean`
 
 Cargo/Tauri bakken **absolute paden** in `src-tauri/target/`. Hernoem je de
 projectmap (bv. `microrestart` → `BE-Mail`), dan wijzen die gecachte paden nog naar

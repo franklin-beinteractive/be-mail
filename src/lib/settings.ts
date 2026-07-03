@@ -49,7 +49,21 @@ export interface UiSettings {
   expandedFolders: string[];
   /** Account-id's waarvan de mappengroep is ingeklapt (standaard uitgeklapt). */
   collapsedAccounts: string[];
+  /** Sleutels (uit HIDEABLE_FOLDERS) van standaardmappen die verborgen zijn. */
+  hiddenFolders: string[];
 }
+
+/** Standaardmappen die de gebruiker kan verbergen (Postvak IN nooit).
+ *  Herkenning op naam, NL en EN. */
+export const HIDEABLE_FOLDERS = [
+  { key: "archive", nl: "Archief", en: "Archive", re: /^(archief|archive)$/i },
+  { key: "drafts", nl: "Concepten", en: "Drafts", re: /^(concepten|drafts)$/i },
+  { key: "sent", nl: "Verzonden items", en: "Sent Items", re: /^(verzonden items|sent items)$/i },
+  { key: "deleted", nl: "Verwijderde items", en: "Deleted Items", re: /^(verwijderde items|deleted items)$/i },
+  { key: "junk", nl: "Ongewenste e-mail", en: "Junk Email", re: /^(ongewenste e-?mail|junk e-?mail)$/i },
+  { key: "outbox", nl: "Postvak UIT", en: "Outbox", re: /^(postvak uit|outbox)$/i },
+  { key: "history", nl: "Gespreksgeschiedenis", en: "Conversation History", re: /^(conversation history|gespreksgeschiedenis)$/i },
+] as const;
 
 const KEY = "BE-Mail.ui";
 
@@ -80,6 +94,7 @@ export const defaultSettings: UiSettings = {
   folderOrder: {},
   expandedFolders: [],
   collapsedAccounts: [],
+  hiddenFolders: [],
 };
 
 export function loadSettings(): UiSettings {
