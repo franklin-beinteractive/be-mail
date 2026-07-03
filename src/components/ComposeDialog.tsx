@@ -10,8 +10,10 @@ import { fileSize } from "../lib/format";
 import RichTextEditor from "./RichTextEditor";
 import { ClockIcon, CloseIcon, PaperclipIcon, SendIcon } from "./Icons";
 
-// Graph sendMail accepteert max ~3 MB aan inline bijlagen per bericht.
-const MAX_ATTACH_BYTES = 3 * 1024 * 1024;
+// Totale bijlagelimiet per bericht. Boven ~2,5 MB per bijlage schakelt de
+// Rust-kern automatisch over op Graph upload-sessions; 25 MB is de gangbare
+// Exchange-berichtlimiet.
+const MAX_ATTACH_BYTES = 25 * 1024 * 1024;
 // Autosave-vertraging na de laatste wijziging.
 const AUTOSAVE_MS = 3000;
 

@@ -539,6 +539,12 @@ impl GraphClient {
     }
 
     pub async fn send_mail(&self, input: &ComposeInput) -> Result<()> {
+        // Grote bijlagen kunnen niet inline mee met sendMail; ga dan via een
+        // concept (send_draft regelt upload-sessions per grote bijlage).
+        if input.attachments.iter().any(Self::attachment_is_large) {
+            let draft = self.create_draft(input).await?;
+            return self.send_draft(&draft.id, input, None).await;
+        }
         let mut message = Self::message_json(input);
         let attachments: Vec<_> = input.attachments.iter().map(Self::attachment_json).collect();
         message["attachments"] = json!(attachments);
@@ -551,6 +557,73 @@ impl GraphClient {
             .send()
             .await?;
         self.expect_ok(resp).await
+    }
+
+    /// Te groot om inline mee te sturen? (Graph-limiet ~3 MB; marge houden.)
+    fn attachment_is_large(a: &AttachmentInput) -> bool {
+        // base64 → bytes: 3/4 van de tekstlengte.
+        a.content_base64.len() / 4 * 3 > 2_500_000
+    }
+
+    /// Grote bijlage uploaden via een upload-session (stukken van 3,2 MB;
+    /// de stukgrootte moet een veelvoud van 320 KiB zijn).
+    async fn upload_large_attachment(
+        &self,
+        message_id: &str,
+        a: &AttachmentInput,
+    ) -> Result<()> {
+        use base64::Engine as _;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(a.content_base64.as_bytes())
+            .context("Kon de bijlage-inhoud niet decoderen")?;
+
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Session {
+            upload_url: String,
+        }
+        let mut item = json!({
+            "attachmentType": "file",
+            "name": a.name,
+            "size": bytes.len(),
+        });
+        if let Some(cid) = &a.content_id {
+            item["contentId"] = json!(cid);
+            item["isInline"] = json!(a.is_inline.unwrap_or(true));
+        }
+        let resp = self
+            .http
+            .post(format!(
+                "{BASE}/me/messages/{message_id}/attachments/createUploadSession"
+            ))
+            .bearer_auth(&self.token)
+            .json(&json!({ "AttachmentItem": item }))
+            .send()
+            .await?;
+        let session: Session = self.parse(resp).await?;
+
+        const CHUNK: usize = 10 * 327_680;
+        let total = bytes.len();
+        let mut offset = 0;
+        while offset < total {
+            let end = (offset + CHUNK).min(total);
+            let resp = self
+                .http
+                .put(&session.upload_url)
+                .bearer_auth(&self.token)
+                .header("Content-Range", format!("bytes {}-{}/{}", offset, end - 1, total))
+                .header("Content-Length", (end - offset).to_string())
+                .body(bytes[offset..end].to_vec())
+                .send()
+                .await?;
+            if !resp.status().is_success() {
+                let status = resp.status();
+                let text = resp.text().await.unwrap_or_default();
+                bail!("Upload van grote bijlage mislukt (HTTP {status}): {text}");
+            }
+            offset = end;
+        }
+        Ok(())
     }
 
     // ---- Concepten ----
@@ -611,6 +684,11 @@ impl GraphClient {
             self.expect_ok(resp).await?;
         }
         for a in &input.attachments {
+            if Self::attachment_is_large(a) {
+                // Boven de inline-limiet: via een upload-session in stukken.
+                self.upload_large_attachment(id, a).await?;
+                continue;
+            }
             let resp = self
                 .http
                 .post(format!("{BASE}/me/messages/{id}/attachments"))
