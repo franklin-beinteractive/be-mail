@@ -129,6 +129,7 @@ const dict = {
     imageTooLarge: "Afbeelding te groot (max 1 MB)",
     hideFoldersHint:
       "Vink uit welke standaardmappen je niet in de mappenlijst wilt zien.",
+    offlineCache: "Offline - opgeslagen berichten worden getoond",
     rules: "Regels (Postvak IN)",
     noRules: "Geen regels gevonden.",
     autoReply: "Afwezigheid (automatisch antwoord)",
@@ -296,6 +297,7 @@ const dict = {
     imageTooLarge: "Image too large (max 1 MB)",
     hideFoldersHint:
       "Untick the default folders you don't want to see in the folder list.",
+    offlineCache: "Offline - showing cached messages",
     rules: "Rules (Inbox)",
     noRules: "No rules found.",
     autoReply: "Out of office (automatic replies)",

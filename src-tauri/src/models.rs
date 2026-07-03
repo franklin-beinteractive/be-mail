@@ -76,8 +76,13 @@ pub struct MailFolder {
 #[serde(rename_all = "camelCase")]
 pub struct Message {
     /// Graph zet hier het subtype in (bv. "#microsoft.graph.eventMessageRequest"
-    /// bij een vergaderuitnodiging). Naar de frontend gaat dit als `odataType`.
-    #[serde(rename(deserialize = "@odata.type", serialize = "odataType"), default)]
+    /// bij een vergaderuitnodiging). Naar de frontend gaat dit als `odataType`;
+    /// het alias laat onze eigen serialisatie (offline cache) ook weer inlezen.
+    #[serde(
+        rename(deserialize = "@odata.type", serialize = "odataType"),
+        alias = "odataType",
+        default
+    )]
     pub odata_type: Option<String>,
     pub id: String,
     #[serde(default)]
@@ -136,6 +141,9 @@ pub struct MessagesPage {
     pub messages: Vec<Message>,
     /// Zijn er meer berichten? (voor "meer laden")
     pub has_more: bool,
+    /// True als dit uit de offline cache komt (geen netwerk).
+    #[serde(default)]
+    pub from_cache: bool,
 }
 
 /// Bijlage-metadata (zonder inhoud; die halen we pas op bij downloaden).

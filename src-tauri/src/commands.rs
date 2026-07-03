@@ -3,10 +3,18 @@
 //! belanden (in mensentaal, geen stacktraces).
 
 use crate::auth;
+use crate::cache;
 use crate::config::{self, AppConfig, StoredAccount};
 use crate::graph::GraphClient;
 use crate::models::*;
 use crate::token_store;
+
+/// Id van het actieve account (voor de offline cache).
+fn active_account() -> Result<String, String> {
+    require_config()?
+        .active_account
+        .ok_or_else(|| "Niet ingelogd.".to_string())
+}
 
 /// Kleine helper: laad een volledige config of geef een nette fout.
 fn require_config() -> Result<AppConfig, String> {
@@ -106,6 +114,7 @@ pub fn logout(account_id: Option<String>) -> Result<(), String> {
         return Ok(());
     };
     auth::logout(&id).map_err(|e| e.to_string())?;
+    let _ = cache::clear_account(&id); // geen mail achterlaten van een ontkoppeld account
     cfg.accounts.retain(|a| a.id != id);
     if cfg.active_account.as_deref() == Some(id.as_str()) {
         cfg.active_account = cfg.accounts.first().map(|a| a.id.clone());
@@ -151,9 +160,16 @@ pub async fn list_all_folders() -> Result<Vec<AccountFolders>, String> {
     let cfg = require_config()?;
     let mut out = Vec::new();
     for acc in &cfg.accounts {
+        // Online: verse mappen + cache verversen; offline: uit de cache.
         let folders = match GraphClient::new(&cfg, &acc.id).await {
-            Ok(gc) => gc.list_folders().await.unwrap_or_default(),
-            Err(_) => Vec::new(),
+            Ok(gc) => match gc.list_folders().await {
+                Ok(f) => {
+                    let _ = cache::save_folders(&acc.id, &f);
+                    f
+                }
+                Err(_) => cache::load_folders(&acc.id).unwrap_or_default(),
+            },
+            Err(_) => cache::load_folders(&acc.id).unwrap_or_default(),
         };
         out.push(AccountFolders {
             account: acc.clone(),
@@ -205,16 +221,66 @@ pub async fn list_messages(
     top: Option<u32>,
     skip: Option<u32>,
 ) -> Result<MessagesPage, String> {
-    client()
-        .await?
-        .list_messages(&folder_id, top.unwrap_or(25), skip.unwrap_or(0))
-        .await
-        .map_err(|e| e.to_string())
+    let account = active_account()?;
+    let (top, skip) = (top.unwrap_or(25), skip.unwrap_or(0));
+    match client().await {
+        Ok(gc) => match gc.list_messages(&folder_id, top, skip).await {
+            Ok(page) => {
+                // Cache-through + achtergrond-delta (throttled) zodat de
+                // cache ook buiten deze pagina compleet raakt.
+                let _ = cache::save_messages(&account, &folder_id, &page.messages);
+                if cache::delta_due(&account, &folder_id).unwrap_or(false) {
+                    if let Ok(cfg) = require_config() {
+                        let (acc, fid) = (account.clone(), folder_id.clone());
+                        tauri::async_runtime::spawn(async move {
+                            if let Ok(gc) = GraphClient::new(&cfg, &acc).await {
+                                let _ = gc.sync_folder_to_cache(&acc, &fid).await;
+                            }
+                        });
+                    }
+                }
+                Ok(page)
+            }
+            Err(e) => cached_messages(&account, &folder_id, top, skip, e.to_string()),
+        },
+        Err(e) => cached_messages(&account, &folder_id, top, skip, e),
+    }
+}
+
+/// Fallback op de offline cache; alleen als daar iets in zit.
+fn cached_messages(
+    account: &str,
+    folder_id: &str,
+    top: u32,
+    skip: u32,
+    err: String,
+) -> Result<MessagesPage, String> {
+    match cache::load_messages(account, folder_id, top, skip) {
+        Ok((messages, has_more)) if !messages.is_empty() || skip > 0 => Ok(MessagesPage {
+            messages,
+            has_more,
+            from_cache: true,
+        }),
+        _ => Err(err),
+    }
 }
 
 #[tauri::command]
 pub async fn get_message(id: String) -> Result<Message, String> {
-    client().await?.get_message(&id).await.map_err(|e| e.to_string())
+    let account = active_account()?;
+    match client().await {
+        Ok(gc) => match gc.get_message(&id).await {
+            Ok(m) => {
+                let _ = cache::save_full_message(&account, &m);
+                Ok(m)
+            }
+            Err(e) => cache::load_message(&account, &id)
+                .ok()
+                .flatten()
+                .ok_or_else(|| e.to_string()),
+        },
+        Err(e) => cache::load_message(&account, &id).ok().flatten().ok_or(e),
+    }
 }
 
 #[tauri::command]

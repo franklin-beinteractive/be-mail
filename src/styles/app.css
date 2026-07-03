@@ -548,6 +548,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .editor-wrap { position: relative; display: block; }
 .mention-list { top: 8px; left: 12px; right: auto; min-width: 280px; }
 
+/* Offline cache-indicator boven de berichtenlijst */
+.offline-bar {
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  font-size: 0.82rem;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
 /* Threading (gesprekken) */
 .msg-sub { margin-left: 20px; border-left: 2px solid var(--border); }
 .thread-chip {

@@ -57,9 +57,14 @@ impl AppConfig {
     }
 }
 
-fn config_dir() -> Result<PathBuf> {
+/// De app-map van de gebruiker (%APPDATA%\BE-Mail); ook voor de offline cache.
+pub fn data_dir() -> Result<PathBuf> {
     let base = dirs::config_dir().context("Kon de configmap van de gebruiker niet vinden")?;
     Ok(base.join("BE-Mail"))
+}
+
+fn config_dir() -> Result<PathBuf> {
+    data_dir()
 }
 
 fn config_path() -> Result<PathBuf> {

@@ -180,7 +180,60 @@ impl GraphClient {
         Ok(MessagesPage {
             has_more: list.next_link.is_some(),
             messages: list.value,
+            from_cache: false,
         })
+    }
+
+    /// Delta-sync van één map naar de offline cache. Hervat bij de opgeslagen
+    /// delta-/nextLink en volgt max 10 pagina's per run (grote mailboxen raken
+    /// zo stap voor stap gevuld; de link is hervatbaar over runs heen).
+    pub async fn sync_folder_to_cache(&self, account_id: &str, folder_id: &str) -> Result<()> {
+        #[derive(serde::Deserialize)]
+        struct DeltaPage {
+            #[serde(default)]
+            value: Vec<serde_json::Value>,
+            #[serde(rename = "@odata.nextLink", default)]
+            next: Option<String>,
+            #[serde(rename = "@odata.deltaLink", default)]
+            delta: Option<String>,
+        }
+
+        let mut url = crate::cache::get_delta_link(account_id, folder_id)?
+            .unwrap_or_else(|| {
+                format!(
+                    "{BASE}/me/mailFolders/{folder_id}/messages/delta?$select={MSG_SELECT}&$top=50"
+                )
+            });
+        for _ in 0..10 {
+            let resp = self.http.get(&url).bearer_auth(&self.token).send().await?;
+            let page: DeltaPage = self.parse(resp).await?;
+            let mut upserts = Vec::new();
+            for v in page.value {
+                if v.get("@removed").is_some() {
+                    if let Some(id) = v.get("id").and_then(|x| x.as_str()) {
+                        let _ = crate::cache::delete_message(account_id, id);
+                    }
+                    continue;
+                }
+                if let Ok(msg) = serde_json::from_value::<Message>(v) {
+                    upserts.push(msg);
+                }
+            }
+            let _ = crate::cache::save_messages(account_id, folder_id, &upserts);
+            match (page.next, page.delta) {
+                (Some(next), _) => {
+                    // Halverwege: nextLink opslaan zodat een volgende run verdergaat.
+                    crate::cache::set_delta_link(account_id, folder_id, &next)?;
+                    url = next;
+                }
+                (None, Some(delta)) => {
+                    crate::cache::set_delta_link(account_id, folder_id, &delta)?;
+                    break;
+                }
+                (None, None) => break,
+            }
+        }
+        Ok(())
     }
 
     pub async fn get_message(&self, id: &str) -> Result<Message> {
@@ -323,6 +376,7 @@ impl GraphClient {
         Ok(MessagesPage {
             has_more: list.next_link.is_some(),
             messages: list.value,
+            from_cache: false,
         })
     }
 

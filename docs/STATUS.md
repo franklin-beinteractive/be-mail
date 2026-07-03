@@ -73,6 +73,15 @@ afwezigheid, categorieën, snoozen, threading, grote bijlagen,
 - **Overig**: donkere modus, tekstgrootte, hoog contrast, NL/EN,
   foutmeldingen in mensentaal.
 
+- **Offline caching (2026-07-03, laat)**: SQLite-cache (`cache.db` naast
+  config.json, rusqlite bundled) met mappen, berichtenlijsten en gelezen
+  berichten (mét body) per account. Cache-through: elke geslaagde
+  Graph-call ververst de cache; zonder netwerk worden mappen, lijsten en
+  gelezen berichten uit de cache geserveerd (gele "Offline"-balk boven de
+  lijst; acties zoals verzenden/verplaatsen vereisen netwerk). Delta-sync
+  per map (Graph `/delta`, hervatbare link, max 10 pagina's per run,
+  throttle 60 s) vult de cache buiten de zichtbare pagina en verwerkt
+  verwijderingen. Cache wordt gewist bij uitloggen van een account.
 - **Drag & drop-fix + feedbackronde (2026-07-03, laat)**:
   - **Oorzaak gevonden waarom slepen nooit werkte**: Tauri onderschept op
     Windows alle sleep-events (dragDropEnabled); nu uit → mappen sorteren,
@@ -116,11 +125,10 @@ afwezigheid, categorieën, snoozen, threading, grote bijlagen,
    verzenden, dag-/werkweekweergave, spam/blokkeren/uitschrijven,
    desktop-notificaties.
 
-**Resterende achterhoede** (nog niet gepland): **offline caching**
-(SQLite + delta-sync) - bewust apart gehouden; dit is een eigen sessie
-waard (rusqlite-schema, delta-tokens per map, leesroute met fallback).
-Kleiner: reeks-patroon bewerken bij terugkerende afspraken, gedeelde
-postvakken, contactenlijst-UI.
+**Resterende achterhoede** (nog niet gepland): reeks-patroon bewerken bij
+terugkerende afspraken, gedeelde postvakken, contactenlijst-UI, agenda
+offline cachen, en "stale-while-revalidate" (cache direct tonen terwijl
+vers laadt) als snelheidsverbetering bovenop de offline cache.
 
 ## 📌 Openstaand / opmerkingen
 

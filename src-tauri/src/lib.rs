@@ -3,6 +3,7 @@
 //! nooit in de webview.
 
 mod auth;
+mod cache;
 mod commands;
 mod config;
 mod graph;

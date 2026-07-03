@@ -61,6 +61,7 @@ function HelpNl() {
           <li><strong>Gesprekken</strong>: berichten uit dezelfde conversatie krijgen een teller-chip; klik erop om het gesprek uit te klappen.</li>
           <li><strong>Uitstellen (snooze)</strong>: klok-knop in het leesvenster; het bericht verhuist naar Uitgesteld en komt op het gekozen moment ongelezen terug in Postvak IN (zolang de app draait).</li>
           <li><strong>Categorieën</strong>: kleurlabels toewijzen in het leesvenster; stippen in de lijst. Vereist eenmalige extra beheerder-toestemming (MailboxSettings).</li>
+          <li><strong>Offline</strong>: eerder geladen mappen, lijsten en gelezen berichten blijven leesbaar zonder netwerk (gele balk geeft dit aan); verzenden en verplaatsen vereisen verbinding.</li>
         </ul>
       </section>
 
@@ -168,6 +169,7 @@ function HelpEn() {
           <li><strong>Conversations</strong>: messages from the same thread get a counter chip; click it to expand the conversation.</li>
           <li><strong>Snooze</strong>: clock button in the reading pane; the message moves to Snoozed and returns to the Inbox unread at the chosen time (while the app is running).</li>
           <li><strong>Categories</strong>: assign colour labels in the reading pane; dots in the list. Needs one-time extra admin consent (MailboxSettings).</li>
+          <li><strong>Offline</strong>: previously loaded folders, lists and read messages stay readable without a network (yellow bar indicates this); sending and moving require a connection.</li>
         </ul>
       </section>
 

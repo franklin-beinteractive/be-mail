@@ -86,6 +86,8 @@ export interface Message {
 export interface MessagesPage {
   messages: Message[];
   hasMore: boolean;
+  /** True als dit uit de offline cache komt (geen netwerk). */
+  fromCache?: boolean;
 }
 
 export interface Attachment {

@@ -188,6 +188,8 @@ export default function MailView() {
       .catch((e) => notify(String(e), "error"));
   }
   const [messages, setMessages] = useState<Message[]>([]);
+  // Lijst komt uit de offline cache (geen netwerk): toon een hint-balk.
+  const [offline, setOffline] = useState(false);
   const [selected, setSelected] = useState<Message | null>(null);
   const [skip, setSkip] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -346,6 +348,7 @@ export default function MailView() {
       setMessages((prev) => (replace ? page.messages : [...prev, ...page.messages]));
       setHasMore(page.hasMore);
       setSkip(from + PAGE);
+      setOffline(!!page.fromCache);
     } catch (e) {
       notify(String(e), "error");
     } finally {
@@ -1226,6 +1229,7 @@ export default function MailView() {
             placeholder={t("search")}
           />
         </div>
+        {offline && <div className="offline-bar">{t("offlineCache")}</div>}
         {checked.size > 0 && (
           <div className="bulk-bar">
             <span className="bulk-count">
