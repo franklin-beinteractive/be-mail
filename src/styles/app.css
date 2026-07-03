@@ -478,10 +478,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .reader-body .plain { white-space: pre-wrap; font-family: inherit; }
 /* Dark mode: mail-HTML (meestal zwart-op-wit met inline stijlen) omkeren
    zoals Dark Reader: invert + hue-rotate houdt de tinten herkenbaar.
+   Cruciaal: de container krijgt vóór het omkeren lichte-thema-kleuren
+   (donkere tekst op wit). Mail zonder eigen kleuren zou anders de lichte
+   thematekst erven en na inversie onleesbaar donker-op-donker worden.
    Afbeeldingen worden dubbel omgekeerd en zien er dus weer normaal uit. */
 :root[data-theme="dark"] .reader-body {
   background: #fbfbfa; /* keert om naar bijna-zwart */
+  color: #201f1e; /* keert om naar licht */
   filter: invert(1) hue-rotate(180deg);
+}
+:root[data-theme="dark"] .reader-body a {
+  color: #0f6cbd; /* keert om naar lichtblauw */
 }
 :root[data-theme="dark"] .reader-body img {
   filter: invert(1) hue-rotate(180deg);
