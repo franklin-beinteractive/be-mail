@@ -270,8 +270,15 @@ pub async fn valid_access_token(config: &AppConfig, account_id: &str) -> Result<
         bail!("Sessie verlopen, log opnieuw in");
     }
 
-    // Vernieuw met de scopes die bij de login daadwerkelijk zijn toegekend;
-    // People.Read opnieuw eisen zou falen als de tenant die nooit heeft goedgekeurd.
+    // Mist de sessie optionele scopes (People.Read)? Probeer dan eerst stil te
+    // upgraden - dat lukt vanzelf zodra de beheerder consent heeft gegeven,
+    // zonder opnieuw in te loggen. Anders vernieuwen met de toegekende scopes.
+    if !tokens.scope.contains("People.Read") {
+        if let Ok(full) = refresh_grant(config, &tokens.refresh_token, FULL_SCOPES).await {
+            token_store::save(account_id, &full)?;
+            return Ok(full.access_token);
+        }
+    }
     let scopes = if tokens.scope.trim().is_empty() {
         BASE_SCOPES
     } else {

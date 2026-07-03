@@ -247,7 +247,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   text-align: left;
   font-size: inherit;
   border-radius: 6px;
+  user-select: none;
 }
+.folder-main:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .folder-actions {
   display: none;
   align-items: center;

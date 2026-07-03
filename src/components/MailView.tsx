@@ -537,12 +537,25 @@ export default function MailView() {
     return reloadAllFolders();
   }
 
-  async function handleFolderDrop(target: MailFolder) {
-    const hint = dropHint;
-    const dragId = dragFolderId;
+  /** Drop-positie direct uit het event: boven = ervoor, onder = erna, midden = erin. */
+  function dropPos(e: React.DragEvent): "before" | "after" | "into" {
+    const r = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - r.top;
+    return y < r.height * 0.35 ? "before" : y > r.height * 0.65 ? "after" : "into";
+  }
+
+  async function handleFolderDrop(
+    target: MailFolder,
+    pos: "before" | "after" | "into",
+    dataId?: string
+  ) {
+    // Positie en gesleepte map komen uit het dropevent zelf (dataTransfer als
+    // fallback), niet uit React-state: die kan bij een snelle drop achterlopen.
+    const dragId = dragFolderId ?? (dataId || null);
     setDropHint(null);
     setDragFolderId(null);
-    if (!hint || !dragId || dragId === target.id) return;
+    if (!dragId || dragId === target.id) return;
+    const hint = { pos };
     const dragged = folders.find((x) => x.id === dragId);
     if (!dragged || isSystemFolder(dragged)) return;
     if (isDescendant(target.id, dragId)) return;
@@ -774,20 +787,25 @@ export default function MailView() {
           draggable={isActiveGroup && !isSystemFolder(f)}
           onDragStart={(e) => {
             setDragFolderId(f.id);
+            // Zonder data start WebView2/Chromium de sleep niet altijd.
+            e.dataTransfer.setData("text/plain", f.id);
             e.dataTransfer.effectAllowed = "move";
           }}
           onDragOver={(e) => {
             if (!isActiveGroup || !dragFolderId || dragFolderId === f.id) return;
             e.preventDefault();
-            const r = e.currentTarget.getBoundingClientRect();
-            const y = e.clientY - r.top;
-            const pos = y < r.height * 0.3 ? "before" : y > r.height * 0.7 ? "after" : "into";
+            e.dataTransfer.dropEffect = "move";
+            const pos = dropPos(e);
             setDropHint((h) => (h?.id === f.id && h.pos === pos ? h : { id: f.id, pos }));
           }}
           onDragLeave={() => setDropHint((h) => (h?.id === f.id ? null : h))}
           onDrop={(e) => {
             e.preventDefault();
-            void handleFolderDrop(f);
+            void handleFolderDrop(
+              f,
+              dropPos(e),
+              e.dataTransfer.getData("text/plain") || undefined
+            );
           }}
           onDragEnd={() => {
             setDragFolderId(null);
@@ -805,10 +823,23 @@ export default function MailView() {
           ) : (
             <span className="fold-spacer" />
           )}
-          <button className="folder-main" onClick={() => void selectFolder(accountId, f.id)}>
+          {/* Bewust geen <button>: vanaf een button start de browser de sleep
+              van de (draggable) ouder-rij niet, en dan valt er niets te sorteren. */}
+          <div
+            className="folder-main"
+            role="button"
+            tabIndex={0}
+            onClick={() => void selectFolder(accountId, f.id)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                void selectFolder(accountId, f.id);
+              }
+            }}
+          >
             <span className="folder-name">{f.displayName}</span>
             {!!f.unreadItemCount && <span className="badge">{f.unreadItemCount}</span>}
-          </button>
+          </div>
           {isActiveGroup && !isSystemFolder(f) && (
             <span className="folder-actions">
               <button
