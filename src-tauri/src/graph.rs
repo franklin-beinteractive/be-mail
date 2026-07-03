@@ -170,12 +170,20 @@ impl GraphClient {
         folder_id: &str,
         top: u32,
         skip: u32,
+        ascending: bool,
+        filter: Option<&str>, // "unread" | "flagged"
     ) -> Result<MessagesPage> {
-        let url = format!(
-            "{BASE}/me/mailFolders/{folder}/messages?$select={sel}&$top={top}&$skip={skip}&$orderby=receivedDateTime%20desc",
+        let order = if ascending { "asc" } else { "desc" };
+        let mut url = format!(
+            "{BASE}/me/mailFolders/{folder}/messages?$select={sel}&$top={top}&$skip={skip}&$orderby=receivedDateTime%20{order}",
             folder = folder_id,
             sel = MSG_SELECT,
         );
+        match filter {
+            Some("unread") => url.push_str("&$filter=isRead%20eq%20false"),
+            Some("flagged") => url.push_str("&$filter=flag/flagStatus%20eq%20'flagged'"),
+            _ => {}
+        }
         let list: GraphList<Message> = self.get_json(&url).await?;
         Ok(MessagesPage {
             has_more: list.next_link.is_some(),

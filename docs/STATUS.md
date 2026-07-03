@@ -73,6 +73,14 @@ afwezigheid, categorieën, snoozen, threading, grote bijlagen,
 - **Overig**: donkere modus, tekstgrootte, hoog contrast, NL/EN,
   foutmeldingen in mensentaal.
 
+- **Lijst-verfijning (2026-07-03, laat)**: sorteren op datum (nieuwste/
+  oudste eerst) en filteren (alle / ongelezen / met vlag) boven de
+  berichtenlijst - server-side via Graph én in de offline cache;
+  preview-kolom op witte achtergrond; dark mode keert mail-HTML om
+  (Dark Reader-stijl: invert + hue-rotate, afbeeldingen dubbel omgekeerd
+  dus normaal); offline werkt nu ook direct na een koude start
+  (get_account viel op het loginscherm terug omdat /me netwerk vereist -
+  nu fallback op het opgeslagen account).
 - **Offline caching (2026-07-03, laat)**: SQLite-cache (`cache.db` naast
   config.json, rusqlite bundled) met mappen, berichtenlijsten en gelezen
   berichten (mét body) per account. Cache-through: elke geslaagde

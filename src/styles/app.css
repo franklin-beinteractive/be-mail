@@ -299,6 +299,18 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 .list-search input { border: none; background: transparent; flex: 1; padding: 6px 0; }
 .list-search input:focus-visible { outline: none; }
+.list-controls {
+  display: flex;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.list-controls select {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85em;
+  padding: 5px 8px;
+}
 .list-scroll { overflow-y: auto; flex: 1; }
 .empty { padding: 24px; color: var(--text-muted); text-align: center; }
 .load-more { margin: 10px auto; display: block; }
@@ -366,7 +378,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .hi { color: var(--danger); font-weight: 800; }
 
 /* ---------- Leesvenster ---------- */
-.reader { display: flex; flex-direction: column; overflow: hidden; }
+/* Preview-kolom op de "verhoogde" achtergrond (wit in het lichte thema). */
+.reader { display: flex; flex-direction: column; overflow: hidden; background: var(--bg-raised); }
 .reader-empty {
   flex: 1;
   display: flex;
@@ -457,6 +470,16 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .reader-body img { max-width: 100%; height: auto; }
 .reader-body a { color: var(--accent); }
 .reader-body .plain { white-space: pre-wrap; font-family: inherit; }
+/* Dark mode: mail-HTML (meestal zwart-op-wit met inline stijlen) omkeren
+   zoals Dark Reader: invert + hue-rotate houdt de tinten herkenbaar.
+   Afbeeldingen worden dubbel omgekeerd en zien er dus weer normaal uit. */
+:root[data-theme="dark"] .reader-body {
+  background: #fbfbfa; /* keert om naar bijna-zwart */
+  filter: invert(1) hue-rotate(180deg);
+}
+:root[data-theme="dark"] .reader-body img {
+  filter: invert(1) hue-rotate(180deg);
+}
 
 /* ---------- Overlays / dialogen ---------- */
 .overlay {

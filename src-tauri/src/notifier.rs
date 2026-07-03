@@ -39,7 +39,7 @@ pub fn start(app: AppHandle) {
                 }
                 let Ok(client) = GraphClient::new(&cfg, &acc.id).await else { continue };
                 // Well-known map "inbox"; 10 nieuwste is ruim genoeg per minuut.
-                let Ok(page) = client.list_messages("inbox", 10, 0).await else { continue };
+                let Ok(page) = client.list_messages("inbox", 10, 0, false, None).await else { continue };
                 let Some(newest) = page
                     .messages
                     .first()

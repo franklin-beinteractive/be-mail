@@ -190,6 +190,9 @@ export default function MailView() {
   const [messages, setMessages] = useState<Message[]>([]);
   // Lijst komt uit de offline cache (geen netwerk): toon een hint-balk.
   const [offline, setOffline] = useState(false);
+  // Sortering (false = nieuwste eerst) en filter voor de berichtenlijst.
+  const [sortAsc, setSortAsc] = useState(false);
+  const [filterMode, setFilterMode] = useState<"all" | "unread" | "flagged">("all");
   const [selected, setSelected] = useState<Message | null>(null);
   const [skip, setSkip] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -290,7 +293,7 @@ export default function MailView() {
     }
   }
 
-  // Berichten laden bij mapwissel.
+  // Berichten laden bij mapwissel of gewijzigde sortering/filter.
   useEffect(() => {
     if (!folderId) return;
     setMessages([]);
@@ -299,7 +302,7 @@ export default function MailView() {
     setChecked(new Set());
     loadPage(0, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [folderId]);
+  }, [folderId, sortAsc, filterMode]);
 
   // Nieuwe-mail-event vanuit de Rust-poller: tellers verversen en, als
   // Postvak IN open staat (zonder zoekopdracht), de lijst opnieuw laden.
@@ -344,7 +347,13 @@ export default function MailView() {
     if (!folderId) return;
     setLoading(true);
     try {
-      const page = await api.listMessages(folderId, PAGE, from);
+      const page = await api.listMessages(
+        folderId,
+        PAGE,
+        from,
+        sortAsc,
+        filterMode === "all" ? undefined : filterMode
+      );
       setMessages((prev) => (replace ? page.messages : [...prev, ...page.messages]));
       setHasMore(page.hasMore);
       setSkip(from + PAGE);
@@ -1228,6 +1237,25 @@ export default function MailView() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("search")}
           />
+        </div>
+        <div className="list-controls">
+          <select
+            value={filterMode}
+            onChange={(e) => setFilterMode(e.target.value as typeof filterMode)}
+            title={t("filter")}
+          >
+            <option value="all">{t("filterAll")}</option>
+            <option value="unread">{t("filterUnread")}</option>
+            <option value="flagged">{t("filterFlagged")}</option>
+          </select>
+          <select
+            value={sortAsc ? "asc" : "desc"}
+            onChange={(e) => setSortAsc(e.target.value === "asc")}
+            title={t("sort")}
+          >
+            <option value="desc">{t("sortNewest")}</option>
+            <option value="asc">{t("sortOldest")}</option>
+          </select>
         </div>
         {offline && <div className="offline-bar">{t("offlineCache")}</div>}
         {checked.size > 0 && (

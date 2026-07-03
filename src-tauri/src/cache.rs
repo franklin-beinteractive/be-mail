@@ -147,21 +147,30 @@ pub fn save_full_message(account_id: &str, msg: &Message) -> Result<()> {
     Ok(())
 }
 
-/// Berichtenlijst uit de cache (nieuwste eerst). Geeft ook terug of er nog
-/// meer is (voor "meer laden").
+/// Berichtenlijst uit de cache. Geeft ook terug of er nog meer is (voor
+/// "meer laden"). Sortering en filter volgen de lijstweergave.
 pub fn load_messages(
     account_id: &str,
     folder_id: &str,
     top: u32,
     skip: u32,
+    ascending: bool,
+    filter: Option<&str>, // "unread" | "flagged"
 ) -> Result<(Vec<Message>, bool)> {
     let m = db()?;
     let conn = m.lock().unwrap();
-    let mut stmt = conn.prepare(
+    let order = if ascending { "ASC" } else { "DESC" };
+    let extra = match filter {
+        Some("unread") => " AND json_extract(json, '$.isRead') = 0",
+        Some("flagged") => " AND json_extract(json, '$.flag.flagStatus') = 'flagged'",
+        _ => "",
+    };
+    let sql = format!(
         "SELECT json FROM messages
-         WHERE account_id = ?1 AND folder_id = ?2
-         ORDER BY received DESC LIMIT ?3 OFFSET ?4",
-    )?;
+         WHERE account_id = ?1 AND folder_id = ?2{extra}
+         ORDER BY received {order} LIMIT ?3 OFFSET ?4"
+    );
+    let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map(
         params![account_id, folder_id, top + 1, skip],
         |r| r.get::<_, String>(0),

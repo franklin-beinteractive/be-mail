@@ -50,8 +50,21 @@ export const api = {
   // Map in een andere map slepen; "msgfolderroot" = terug naar hoofdniveau.
   moveFolder: (id: string, destinationId: string) =>
     invoke<void>("move_folder", { id, destinationId }),
-  listMessages: (folderId: string, top = 25, skip = 0) =>
-    invoke<MessagesPage>("list_messages", { folderId, top, skip }),
+  // ascending: oudste eerst; filter: "unread" | "flagged" (anders alles).
+  listMessages: (
+    folderId: string,
+    top = 25,
+    skip = 0,
+    ascending = false,
+    filter?: string
+  ) =>
+    invoke<MessagesPage>("list_messages", {
+      folderId,
+      top,
+      skip,
+      ascending,
+      filter: filter ?? null,
+    }),
   getMessage: (id: string) => invoke<Message>("get_message", { id }),
   setRead: (id: string, isRead: boolean) =>
     invoke<void>("set_read", { id, isRead }),

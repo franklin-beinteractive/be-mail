@@ -181,7 +181,31 @@ pub async fn list_all_folders() -> Result<Vec<AccountFolders>, String> {
 
 #[tauri::command]
 pub async fn get_account() -> Result<Account, String> {
-    client().await?.me().await.map_err(|e| e.to_string())
+    // Offline: val terug op het opgeslagen account, anders blijft de app op
+    // het loginscherm hangen terwijl de cache prima kan serveren.
+    match client().await {
+        Ok(gc) => match gc.me().await {
+            Ok(a) => Ok(a),
+            Err(e) => stored_account(e.to_string()),
+        },
+        Err(e) => stored_account(e),
+    }
+}
+
+/// Accountgegevens uit config.json (voor offline gebruik).
+fn stored_account(err: String) -> Result<Account, String> {
+    let cfg = require_config()?;
+    let id = cfg.active_account.clone().ok_or_else(|| err.clone())?;
+    cfg.accounts
+        .iter()
+        .find(|a| a.id == id)
+        .map(|a| Account {
+            id: a.id.clone(),
+            display_name: a.display_name.clone(),
+            mail: a.mail.clone(),
+            user_principal_name: a.mail.clone(),
+        })
+        .ok_or(err)
 }
 
 // ---- Mail ----
@@ -220,11 +244,15 @@ pub async fn list_messages(
     folder_id: String,
     top: Option<u32>,
     skip: Option<u32>,
+    ascending: Option<bool>,
+    filter: Option<String>,
 ) -> Result<MessagesPage, String> {
     let account = active_account()?;
     let (top, skip) = (top.unwrap_or(25), skip.unwrap_or(0));
+    let asc = ascending.unwrap_or(false);
+    let filt = filter.as_deref().filter(|f| !f.is_empty() && *f != "all");
     match client().await {
-        Ok(gc) => match gc.list_messages(&folder_id, top, skip).await {
+        Ok(gc) => match gc.list_messages(&folder_id, top, skip, asc, filt).await {
             Ok(page) => {
                 // Cache-through + achtergrond-delta (throttled) zodat de
                 // cache ook buiten deze pagina compleet raakt.
@@ -241,21 +269,24 @@ pub async fn list_messages(
                 }
                 Ok(page)
             }
-            Err(e) => cached_messages(&account, &folder_id, top, skip, e.to_string()),
+            Err(e) => cached_messages(&account, &folder_id, top, skip, asc, filt, e.to_string()),
         },
-        Err(e) => cached_messages(&account, &folder_id, top, skip, e),
+        Err(e) => cached_messages(&account, &folder_id, top, skip, asc, filt, e),
     }
 }
 
 /// Fallback op de offline cache; alleen als daar iets in zit.
+#[allow(clippy::too_many_arguments)]
 fn cached_messages(
     account: &str,
     folder_id: &str,
     top: u32,
     skip: u32,
+    ascending: bool,
+    filter: Option<&str>,
     err: String,
 ) -> Result<MessagesPage, String> {
-    match cache::load_messages(account, folder_id, top, skip) {
+    match cache::load_messages(account, folder_id, top, skip, ascending, filter) {
         Ok((messages, has_more)) if !messages.is_empty() || skip > 0 => Ok(MessagesPage {
             messages,
             has_more,
