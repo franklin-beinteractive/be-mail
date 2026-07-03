@@ -10,6 +10,7 @@ import type {
   Attachment,
   MailFolder,
   Message,
+  OutlookCategory,
   Recipient,
   StoredAccount,
 } from "../lib/types";
@@ -41,6 +42,17 @@ import {
 } from "./Icons";
 
 const PAGE = 25;
+
+// Outlook-presetkleuren voor categorieën (preset0 t/m preset24).
+const CATEGORY_COLORS: Record<string, string> = {
+  preset0: "#e74856", preset1: "#ff8c00", preset2: "#ffab45", preset3: "#fff100",
+  preset4: "#47d041", preset5: "#30c6cc", preset6: "#73aa24", preset7: "#00bcf2",
+  preset8: "#8764b8", preset9: "#f495bf", preset10: "#a0aeb2", preset11: "#004b60",
+  preset12: "#b1adab", preset13: "#5d5a58", preset14: "#444444", preset15: "#750b1c",
+  preset16: "#ca5010", preset17: "#ab620d", preset18: "#c19c00", preset19: "#004b1c",
+  preset20: "#004b50", preset21: "#0b6a0b", preset22: "#002050", preset23: "#32145a",
+  preset24: "#5a005a",
+};
 
 // Systeemmappen (NL/EN) krijgen geen hernoem-/verwijderknoppen; Graph weigert
 // het toch en dit voorkomt verwarring. Eigen mappen matchen hier nooit op.
@@ -150,6 +162,9 @@ export default function MailView() {
   const [downloading, setDownloading] = useState<string | null>(null);
   // Ingesloten (cid:) afbeeldingen van het geopende bericht: cid → data-URI.
   const [inlineImages, setInlineImages] = useState<Record<string, string>>({});
+  // Categorieën (kleurlabels): masterlijst van het postvak; leeg zonder
+  // MailboxSettings-consent (de UI verschijnt dan gewoon niet).
+  const [masterCats, setMasterCats] = useState<OutlookCategory[]>([]);
   // Kolombreedtes (px); tijdens slepen lokaal, bij loslaten opgeslagen.
   const [colW, setColW] = useState({
     folders: settings.foldersWidth,
@@ -448,6 +463,31 @@ export default function MailView() {
           : f
       )
     );
+  }
+
+  // ---- Categorieën ----
+
+  useEffect(() => {
+    api.listCategories().then(setMasterCats).catch(() => setMasterCats([]));
+  }, [activeId]);
+
+  function catColor(name: string): string {
+    const c = masterCats.find((x) => x.displayName === name)?.color;
+    return (c && CATEGORY_COLORS[c]) || "#a0aeb2";
+  }
+
+  async function toggleCategory(m: Message, name: string) {
+    const cur = m.categories ?? [];
+    const next = cur.includes(name)
+      ? cur.filter((x) => x !== name)
+      : [...cur, name];
+    try {
+      await api.setMessageCategories(m.id, next);
+      patch(m.id, { categories: next });
+      setSelected((s) => (s && s.id === m.id ? { ...s, categories: next } : s));
+    } catch (e) {
+      notify(String(e), "error");
+    }
   }
 
   async function toggleFlag(m: Message) {
@@ -1062,6 +1102,18 @@ export default function MailView() {
               <div className="msg-main">
                 <div className="msg-top">
                   <span className="msg-from">{senderName(m.from?.emailAddress)}</span>
+                  {(m.categories ?? []).length > 0 && (
+                    <span className="msg-cats">
+                      {(m.categories ?? []).slice(0, 3).map((c) => (
+                        <span
+                          key={c}
+                          className="cat-dot"
+                          style={{ background: catColor(c) }}
+                          title={c}
+                        />
+                      ))}
+                    </span>
+                  )}
                   <span className="msg-date">{shortDate(m.receivedDateTime, settings.lang)}</span>
                 </div>
                 <div className="msg-subject">
@@ -1180,6 +1232,52 @@ export default function MailView() {
                 <div className="muted small">
                   {longDateTime(selected.receivedDateTime, settings.lang)}
                 </div>
+                {(masterCats.length > 0 ||
+                  (selected.categories ?? []).length > 0) && (
+                  <div className="cat-row">
+                    {(selected.categories ?? []).map((c) => (
+                      <span
+                        key={c}
+                        className="cat-chip"
+                        style={{ background: catColor(c) }}
+                      >
+                        {c}
+                        <button
+                          className="cat-x"
+                          onClick={() => void toggleCategory(selected, c)}
+                          aria-label={t("delete")}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    {masterCats.length > 0 && (
+                      <select
+                        className="cat-add"
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value)
+                            void toggleCategory(selected, e.target.value);
+                        }}
+                        title={t("category")}
+                      >
+                        <option value="">{t("category")}…</option>
+                        {masterCats
+                          .filter(
+                            (c) =>
+                              !(selected.categories ?? []).includes(
+                                c.displayName ?? ""
+                              )
+                          )
+                          .map((c) => (
+                            <option key={c.id} value={c.displayName ?? ""}>
+                              {c.displayName}
+                            </option>
+                          ))}
+                      </select>
+                    )}
+                  </div>
+                )}
                 {isExternal(selected, account) && (
                   <div className="warn">{t("externalSender")}</div>
                 )}
