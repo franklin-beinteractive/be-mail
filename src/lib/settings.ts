@@ -51,6 +51,8 @@ export interface UiSettings {
   collapsedAccounts: string[];
   /** Sleutels (uit HIDEABLE_FOLDERS) van standaardmappen die verborgen zijn. */
   hiddenFolders: string[];
+  /** Tooltips (uitleg bij knoppen) tonen; standaard aan. */
+  showTooltips: boolean;
 }
 
 /** Standaardmappen die de gebruiker kan verbergen (Postvak IN nooit).
@@ -98,6 +100,7 @@ export const defaultSettings: UiSettings = {
   expandedFolders: [],
   collapsedAccounts: [],
   hiddenFolders: [],
+  showTooltips: true,
 };
 
 export function loadSettings(): UiSettings {

@@ -171,7 +171,7 @@ export default function ComposeDialog({
   /** In de leesvenster-kolom (geen modal-overlay); kruisje sluit. */
   inline?: boolean;
 }) {
-  const { t, notify, settings } = useApp();
+  const { t, tip, notify, settings } = useApp();
 
   // Standaard-handtekening: per soort bericht; niet bij een heropend concept
   // (daar zit de handtekening al in de inhoud).
@@ -570,7 +570,7 @@ export default function ComposeDialog({
             <select
               value={sigId}
               onChange={(e) => switchSignature(e.target.value)}
-              title={t("signature")}
+              title={tip("signature")}
             >
               <option value="">{t("signature")}: {t("none").toLowerCase()}</option>
               {settings.signatures.map((s) => (
@@ -583,7 +583,7 @@ export default function ComposeDialog({
           <button
             className="btn"
             onClick={() => setLaterOpen((v) => !v)}
-            title={t("sendLater")}
+            title={tip("sendLater")}
           >
             <ClockIcon size={18} />
           </button>

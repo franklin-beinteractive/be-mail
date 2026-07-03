@@ -29,6 +29,9 @@ export default function App() {
   const [toast, setToast] = useState<{ msg: string; kind: "info" | "error" } | null>(null);
 
   const t = translator(settings.lang);
+  // Voor title-attributen: geen tooltip als de gebruiker ze uitzet.
+  const tip = (k: Parameters<typeof t>[0]) =>
+    settings.showTooltips ? t(k) : undefined;
 
   useEffect(() => applySettings(settings), [settings]);
 
@@ -104,7 +107,7 @@ export default function App() {
     setPhase("login");
   }
 
-  const ctx: AppContextValue = { t, settings, setSettings, notify, confirm };
+  const ctx: AppContextValue = { t, tip, settings, setSettings, notify, confirm };
 
   return (
     <AppContext.Provider value={ctx}>
@@ -115,6 +118,9 @@ export default function App() {
           <SetupScreen
             initial={config}
             onSaved={bootstrap}
+            // Terugknop alleen als er al een werkende verbinding is (vanuit
+            // Instellingen); bij de allereerste start valt er niets terug.
+            onCancel={config?.clientId ? () => setPhase("app") : undefined}
           />
         )}
 
@@ -126,7 +132,7 @@ export default function App() {
               <button
                 className={"rail-btn" + (section === "mail" ? " active" : "")}
                 onClick={() => setSection("mail")}
-                title={t("mail")}
+                title={tip("mail")}
               >
                 <MailIcon size={24} />
                 <span>{t("mail")}</span>
@@ -134,7 +140,7 @@ export default function App() {
               <button
                 className={"rail-btn" + (section === "calendar" ? " active" : "")}
                 onClick={() => setSection("calendar")}
-                title={t("calendar")}
+                title={tip("calendar")}
               >
                 <CalendarIcon size={24} />
                 <span>{t("calendar")}</span>
@@ -143,7 +149,7 @@ export default function App() {
               <button
                 className={"rail-btn" + (section === "help" ? " active" : "")}
                 onClick={() => setSection("help")}
-                title={t("help")}
+                title={tip("help")}
               >
                 <HelpIcon size={24} />
                 <span>{t("help")}</span>
@@ -151,7 +157,7 @@ export default function App() {
               <button
                 className={"rail-btn" + (section === "settings" ? " active" : "")}
                 onClick={() => setSection("settings")}
-                title={t("settings")}
+                title={tip("settings")}
               >
                 <SettingsIcon size={24} />
                 <span>{t("settings")}</span>

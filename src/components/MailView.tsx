@@ -140,7 +140,7 @@ function buildTree(list: MailFolder[], order: Record<string, string[]>): FolderT
 }
 
 export default function MailView() {
-  const { t, settings, setSettings, notify, confirm } = useApp();
+  const { t, tip, settings, setSettings, notify, confirm } = useApp();
   // Multi-account: mappen per account; acties werken op het actieve account.
   const [accounts, setAccounts] = useState<StoredAccount[]>([]);
   const [activeId, setActiveId] = useState<string>("");
@@ -1168,7 +1168,7 @@ export default function MailView() {
                   setFolderDialog({ mode: "rename", folder: f });
                 }}
                 aria-label={t("renameFolder")}
-                title={t("renameFolder")}
+                title={tip("renameFolder")}
               >
                 <EditIcon size={14} />
               </button>
@@ -1176,7 +1176,7 @@ export default function MailView() {
                 className="icon-btn"
                 onClick={() => removeFolder(f)}
                 aria-label={t("deleteFolder")}
-                title={t("deleteFolder")}
+                title={tip("deleteFolder")}
               >
                 <TrashIcon size={14} />
               </button>
@@ -1211,7 +1211,7 @@ export default function MailView() {
               setFolderDialog({ mode: "create" });
             }}
             aria-label={t("newFolder")}
-            title={t("newFolder")}
+            title={tip("newFolder")}
           >
             <PlusIcon size={16} />
           </button>
@@ -1261,7 +1261,7 @@ export default function MailView() {
           <select
             value={filterMode}
             onChange={(e) => setFilterMode(e.target.value as typeof filterMode)}
-            title={t("filter")}
+            title={tip("filter")}
           >
             <option value="all">{t("filterAll")}</option>
             <option value="unread">{t("filterUnread")}</option>
@@ -1270,7 +1270,7 @@ export default function MailView() {
           <select
             value={sortAsc ? "asc" : "desc"}
             onChange={(e) => setSortAsc(e.target.value === "asc")}
-            title={t("sort")}
+            title={tip("sort")}
           >
             <option value="desc">{t("sortNewest")}</option>
             <option value="asc">{t("sortOldest")}</option>
@@ -1282,24 +1282,31 @@ export default function MailView() {
             <span className="bulk-count">
               {checked.size} {t("selected")}
             </span>
-            <button className="btn" onClick={() => bulk("read")} title={t("markRead")}>
+            <button
+              className="btn"
+              onClick={() => setChecked(new Set(shown.map((m) => m.id)))}
+              title={tip("tipSelectAll")}
+            >
+              {t("selectAll")}
+            </button>
+            <button className="btn" onClick={() => bulk("read")} title={tip("tipBulkRead")}>
               {t("markRead")}
             </button>
-            <button className="btn" onClick={() => bulk("unread")} title={t("markUnread")}>
+            <button className="btn" onClick={() => bulk("unread")} title={tip("tipBulkUnread")}>
               {t("markUnread")}
             </button>
-            <button className="btn" onClick={() => bulk("archive")} title={t("archive")}>
+            <button className="btn" onClick={() => bulk("archive")} title={tip("tipBulkArchive")}>
               <ArchiveIcon size={16} />
             </button>
             {/* Verplaatsen gaat door de selectie naar een map te slepen. */}
-            <button className="btn danger" onClick={() => bulk("delete")} title={t("delete")}>
+            <button className="btn danger" onClick={() => bulk("delete")} title={tip("tipBulkDelete")}>
               <TrashIcon size={16} />
             </button>
             <button
               className="icon-btn"
               onClick={() => setChecked(new Set())}
               aria-label={t("clearSelection")}
-              title={t("clearSelection")}
+              title={tip("tipClearSelection")}
             >
               <CloseIcon size={16} />
             </button>
@@ -1438,7 +1445,7 @@ export default function MailView() {
           <button
             className="btn primary"
             onClick={() => setCompose({})}
-            title={t("tipCompose")}
+            title={tip("tipCompose")}
           >
             <ComposeIcon size={18} /> {t("compose")}
           </button>
@@ -1447,21 +1454,21 @@ export default function MailView() {
               <button
                 className="btn"
                 onClick={() => setCompose(buildReply(selected, false))}
-                title={t("tipReply")}
+                title={tip("tipReply")}
               >
                 <ReplyIcon size={18} /> {t("reply")}
               </button>
               <button
                 className="btn"
                 onClick={() => setCompose(buildReply(selected, true))}
-                title={t("tipReplyAll")}
+                title={tip("tipReplyAll")}
               >
                 <ReplyAllIcon size={18} /> {t("replyAll")}
               </button>
               <button
                 className="btn"
                 onClick={() => setCompose(buildForward(selected))}
-                title={t("tipForward")}
+                title={tip("tipForward")}
               >
                 <ForwardIcon size={18} /> {t("forward")}
               </button>
@@ -1470,7 +1477,7 @@ export default function MailView() {
                 <button
                   className="btn"
                   onClick={() => unsubscribe(selected)}
-                  title={t("tipUnsubscribe")}
+                  title={tip("tipUnsubscribe")}
                 >
                   {t("unsubscribe")}
                 </button>
@@ -1478,35 +1485,35 @@ export default function MailView() {
               <button
                 className="btn"
                 onClick={() => reportJunk(selected)}
-                title={t("tipSpam")}
+                title={tip("tipSpam")}
               >
                 Spam
               </button>
               <button
                 className="btn"
                 onClick={() => blockSender(selected)}
-                title={t("tipBlock")}
+                title={tip("tipBlock")}
               >
                 <BanIcon size={18} />
               </button>
-              <button className="btn" onClick={() => toggleFlag(selected)} title={t("tipFlag")}>
+              <button className="btn" onClick={() => toggleFlag(selected)} title={tip("tipFlag")}>
                 <FlagIcon size={18} />
               </button>
               <button
                 className="btn"
                 onClick={() => toggleRead(selected)}
-                title={t("tipRead")}
+                title={tip("tipRead")}
               >
                 {selected.isRead ? t("markUnread") : t("markRead")}
               </button>
-              <button className="btn" onClick={() => archive(selected)} title={t("tipArchive")}>
+              <button className="btn" onClick={() => archive(selected)} title={tip("tipArchive")}>
                 <ArchiveIcon size={18} />
               </button>
               <span className="snooze-wrap">
                 <button
                   className="btn"
                   onClick={() => setSnoozeOpen((v) => !v)}
-                  title={t("tipSnooze")}
+                  title={tip("tipSnooze")}
                 >
                   <ClockIcon size={18} />
                 </button>
@@ -1554,7 +1561,7 @@ export default function MailView() {
                 )}
               </span>
               {/* Verplaatsen gaat door het bericht naar een map te slepen. */}
-              <button className="btn danger" onClick={() => remove(selected)} title={t("tipDelete")}>
+              <button className="btn danger" onClick={() => remove(selected)} title={tip("tipDelete")}>
                 <TrashIcon size={18} />
               </button>
             </>
@@ -1608,7 +1615,7 @@ export default function MailView() {
                       if (e.target.value)
                         void toggleCategory(selected, e.target.value);
                     }}
-                    title={t("category")}
+                    title={tip("category")}
                   >
                     <option value="">{t("category")}…</option>
                     {masterCats

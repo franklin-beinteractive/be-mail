@@ -35,7 +35,7 @@ export default function SettingsView({
   onLogout: () => void;
   onEditConnection: () => void;
 }) {
-  const { t, settings, setSettings, notify, confirm } = useApp();
+  const { t, tip, settings, setSettings, notify, confirm } = useApp();
   // Notificatie-instelling leeft in config.json (de Rust-poller leest die).
   const [notifEnabled, setNotifEnabled] = useState(true);
   // Gekoppelde accounts (multi-account).
@@ -294,6 +294,14 @@ export default function SettingsView({
             onChange={(e) => toggleNotifications(e.target.checked)}
           />
         </div>
+        <div className="setting-row">
+          <span>{t("tooltipsSetting")}</span>
+          <input
+            type="checkbox"
+            checked={settings.showTooltips}
+            onChange={(e) => setSettings({ showTooltips: e.target.checked })}
+          />
+        </div>
       </section>
 
       <section className="settings-block">
@@ -340,7 +348,7 @@ export default function SettingsView({
                 className="icon-btn"
                 onClick={() => removeRule(r)}
                 aria-label={t("delete")}
-                title={t("delete")}
+                title={tip("delete")}
               >
                 <TrashIcon size={16} />
               </button>
@@ -482,7 +490,7 @@ export default function SettingsView({
                 className="icon-btn"
                 onClick={() => removeSignature(sig.id)}
                 aria-label={t("delete")}
-                title={t("delete")}
+                title={tip("delete")}
               >
                 <TrashIcon size={18} />
               </button>

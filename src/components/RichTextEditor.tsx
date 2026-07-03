@@ -27,7 +27,7 @@ export default function RichTextEditor({
    *  e-mailadres (het opstelvenster voegt de persoon dan toe aan Aan). */
   onMention?: (address: string) => void;
 }) {
-  const { t, notify } = useApp();
+  const { t, tip, notify } = useApp();
   // Bevries de start-HTML: de editor-DOM is daarna de waarheid. Zou de prop
   // live meebewegen (parent slaat onChange-waarde op), dan schrijft React de
   // innerHTML opnieuw en springt de cursor naar het begin.
@@ -177,16 +177,16 @@ export default function RichTextEditor({
   return (
     <>
       <div className="editor-toolbar">
-        <button className="tool-btn" onClick={() => exec("bold")} title={t("bold")}>
+        <button className="tool-btn" onClick={() => exec("bold")} title={tip("bold")}>
           <strong>B</strong>
         </button>
-        <button className="tool-btn" onClick={() => exec("italic")} title={t("italic")}>
+        <button className="tool-btn" onClick={() => exec("italic")} title={tip("italic")}>
           <em>I</em>
         </button>
         <button
           className="tool-btn"
           onClick={() => exec("underline")}
-          title={t("underline")}
+          title={tip("underline")}
         >
           <span style={{ textDecoration: "underline" }}>U</span>
         </button>
@@ -194,19 +194,19 @@ export default function RichTextEditor({
         <button
           className="tool-btn"
           onClick={() => exec("insertUnorderedList")}
-          title={t("bullets")}
+          title={tip("bullets")}
         >
           ••
         </button>
         <button
           className="tool-btn"
           onClick={() => exec("insertOrderedList")}
-          title={t("numbering")}
+          title={tip("numbering")}
         >
           1.
         </button>
         <span className="tool-sep" />
-        <button className="tool-btn" onClick={openLink} title={t("insertLink")}>
+        <button className="tool-btn" onClick={openLink} title={tip("insertLink")}>
           🔗
         </button>
         <button
@@ -215,7 +215,7 @@ export default function RichTextEditor({
             saveSelection();
             imgInput.current?.click();
           }}
-          title={t("insertImage")}
+          title={tip("insertImage")}
         >
           🖼
         </button>

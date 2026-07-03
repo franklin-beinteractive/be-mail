@@ -6,6 +6,8 @@ import type { UiSettings } from "./settings";
 
 export interface AppContextValue {
   t: (k: TextKey) => string;
+  /** Als t(), maar voor title-attributen: undefined als tooltips uitstaan. */
+  tip: (k: TextKey) => string | undefined;
   settings: UiSettings;
   setSettings: (patch: Partial<UiSettings>) => void;
   /** Toon een korte melding (fout of info) onderin het scherm. */

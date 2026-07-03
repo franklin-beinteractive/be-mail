@@ -5,9 +5,12 @@ import { useApp } from "../lib/ctx";
 
 export default function SetupScreen({
   onSaved,
+  onCancel,
   initial,
 }: {
   onSaved: () => void;
+  /** Terug zonder opslaan (alleen als er al een werkende verbinding is). */
+  onCancel?: () => void;
   initial?: { clientId: string; tenantId: string } | null;
 }) {
   const { t, notify } = useApp();
@@ -57,6 +60,11 @@ export default function SetupScreen({
         <button className="btn primary big" onClick={save} disabled={busy}>
           {t("save")}
         </button>
+        {onCancel && (
+          <button className="btn big" onClick={onCancel} disabled={busy}>
+            {t("cancel")}
+          </button>
+        )}
       </div>
     </div>
   );
