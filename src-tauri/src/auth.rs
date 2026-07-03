@@ -14,9 +14,14 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 /// De Graph-rechten die we vragen (delegated). Least privilege voor mail + agenda.
-/// People.Read is nodig voor het autoaanvullen van genodigden. Let op: na het
-/// toevoegen van een scope moet de gebruiker éénmalig opnieuw inloggen/toestemmen.
-const SCOPES: &str = "openid profile offline_access User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite People.Read";
+/// People.Read is nodig voor het autoaanvullen van genodigden, maar is optioneel:
+/// in tenants waar gebruikers zelf geen toestemming mogen geven (access_denied /
+/// "Beheerdersgoedkeuring vereist") valt de login terug op BASE_SCOPES zodat de
+/// app bruikbaar blijft. Na admin consent pakt een nieuwe login People.Read alsnog op.
+const BASE_SCOPES: &str =
+    "openid profile offline_access User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite";
+const FULL_SCOPES: &str =
+    "openid profile offline_access User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite People.Read";
 
 fn b64url(bytes: &[u8]) -> String {
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
@@ -104,16 +109,29 @@ async fn capture_redirect(listener: TcpListener, expected_state: &str) -> Result
         }
     }
 
-    let ok_page = "<!doctype html><html lang=nl><head><meta charset=utf-8><title>BE-Mail</title>\
-        <style>body{font-family:Segoe UI,system-ui,sans-serif;background:#f3f4f6;color:#111;\
-        display:flex;align-items:center;justify-content:center;height:100vh;margin:0}\
-        .card{background:#fff;padding:40px 48px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.12);text-align:center}\
-        h1{margin:0 0 8px;font-size:22px}p{margin:0;color:#555}</style></head>\
-        <body><div class=card><h1>&#9989; Inloggen gelukt</h1><p>Je kunt dit tabblad sluiten en teruggaan naar BE-Mail.</p></div></body></html>";
+    let (heading, detail) = if err.is_some() {
+        (
+            "&#10060; Inloggen niet gelukt",
+            "Ga terug naar BE-Mail; daar staat wat er misging.",
+        )
+    } else {
+        (
+            "&#9989; Inloggen gelukt",
+            "Je kunt dit tabblad sluiten en teruggaan naar BE-Mail.",
+        )
+    };
+    let page = format!(
+        "<!doctype html><html lang=nl><head><meta charset=utf-8><title>BE-Mail</title>\
+        <style>body{{font-family:Segoe UI,system-ui,sans-serif;background:#f3f4f6;color:#111;\
+        display:flex;align-items:center;justify-content:center;height:100vh;margin:0}}\
+        .card{{background:#fff;padding:40px 48px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.12);text-align:center}}\
+        h1{{margin:0 0 8px;font-size:22px}}p{{margin:0;color:#555}}</style></head>\
+        <body><div class=card><h1>{heading}</h1><p>{detail}</p></div></body></html>"
+    );
     let response = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-        ok_page.len(),
-        ok_page
+        page.len(),
+        page
     );
     let _ = stream.write_all(response.as_bytes()).await;
     let _ = stream.flush().await;
@@ -153,7 +171,28 @@ fn urldecode(s: &str) -> String {
 /// Volledige interactieve login. Opent de systeembrowser, vangt de redirect af
 /// en wisselt de code in voor tokens. Opslaan gebeurt door de aanroeper (pas
 /// nadat bekend is bij welk account de tokens horen).
+///
+/// Probeert eerst FULL_SCOPES; weigert de tenant de consent (access_denied,
+/// "Beheerdersgoedkeuring vereist" voor People.Read), dan volgt automatisch een
+/// tweede poging met BASE_SCOPES zodat inloggen niet geblokkeerd raakt.
 pub async fn login(config: &AppConfig) -> Result<TokenSet> {
+    match login_with_scopes(config, FULL_SCOPES).await {
+        Ok(tokens) => Ok(tokens),
+        Err(e) => {
+            let msg = e.to_string();
+            if msg.contains("access_denied") || msg.contains("consent_required") {
+                login_with_scopes(config, BASE_SCOPES).await.context(
+                    "Inloggen zonder People.Read is ook mislukt. Vraag de beheerder om \
+                     admin consent (zie docs/Azure-App-Registration.md → Troubleshooting)",
+                )
+            } else {
+                Err(e)
+            }
+        }
+    }
+}
+
+async fn login_with_scopes(config: &AppConfig, scopes: &str) -> Result<TokenSet> {
     if !config.is_complete() {
         bail!("Nog geen Client-ID ingesteld. Vul eerst de verbindingsgegevens in.");
     }
@@ -172,7 +211,7 @@ pub async fn login(config: &AppConfig) -> Result<TokenSet> {
         config.authority(),
         urlencode(&config.client_id),
         urlencode(&redirect_uri),
-        urlencode(SCOPES),
+        urlencode(scopes),
         urlencode(&state),
         challenge,
     );
@@ -190,7 +229,7 @@ pub async fn login(config: &AppConfig) -> Result<TokenSet> {
             ("code", code.as_str()),
             ("redirect_uri", redirect_uri.as_str()),
             ("code_verifier", verifier.as_str()),
-            ("scope", SCOPES),
+            ("scope", scopes),
         ])
         .send()
         .await
@@ -234,6 +273,13 @@ pub async fn valid_access_token(config: &AppConfig, account_id: &str) -> Result<
         bail!("Sessie verlopen, log opnieuw in");
     }
 
+    // Vernieuw met de scopes die bij de login daadwerkelijk zijn toegekend;
+    // People.Read opnieuw eisen zou falen als de tenant die nooit heeft goedgekeurd.
+    let scopes = if tokens.scope.trim().is_empty() {
+        BASE_SCOPES
+    } else {
+        tokens.scope.as_str()
+    };
     let client = reqwest::Client::new();
     let resp = client
         .post(format!("{}/oauth2/v2.0/token", config.authority()))
@@ -241,7 +287,7 @@ pub async fn valid_access_token(config: &AppConfig, account_id: &str) -> Result<
             ("client_id", config.client_id.as_str()),
             ("grant_type", "refresh_token"),
             ("refresh_token", tokens.refresh_token.as_str()),
-            ("scope", SCOPES),
+            ("scope", scopes),
         ])
         .send()
         .await
