@@ -488,6 +488,14 @@ export default function ComposeDialog({
             editorRef={editorRef}
             initialHtml={initialHtml}
             onChange={setHtml}
+            // @-vermelding: genoemde persoon automatisch aan "Aan" toevoegen.
+            onMention={(addr) =>
+              setTo((prev) =>
+                prev.toLowerCase().includes(addr.toLowerCase())
+                  ? prev
+                  : (prev.trim() ? prev.replace(/[,;\s]+$/, "") + ", " : "") + addr + ", "
+              )
+            }
           />
 
           {attachments.length > 0 && (

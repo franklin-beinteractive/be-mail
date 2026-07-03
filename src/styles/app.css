@@ -534,6 +534,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .editor:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 .editor [data-sig] { color: inherit; }
 .editor img { max-width: 100%; }
+.editor a[data-mention] { color: var(--accent); font-weight: 600; text-decoration: none; }
+.editor-wrap { position: relative; display: block; }
+.mention-list { top: 8px; left: 12px; right: auto; min-width: 280px; }
 
 /* Threading (gesprekken) */
 .msg-sub { margin-left: 20px; border-left: 2px solid var(--border); }
