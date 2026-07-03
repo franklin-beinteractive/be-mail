@@ -465,9 +465,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   padding: 16px 20px;
   overflow-y: auto;
   flex: 1;
-  line-height: 1.5;
+  line-height: 1.4;
 }
-.reader-body img { max-width: 100%; height: auto; }
+/* Outlook-parity: de Word-engine geeft <p> geen marge en mails zijn daarop
+   geschreven; de browser-standaard (1em boven+onder) oogt als dubbele regels. */
+.reader-body p { margin: 0; }
+/* height:auto moet ook van inline height-stijlen winnen, anders wordt een
+   afbeelding die door max-width smaller wordt, uitgerekt in de hoogte. */
+.reader-body img { max-width: 100%; height: auto !important; }
+.reader-body table { max-width: 100%; }
 .reader-body a { color: var(--accent); }
 .reader-body .plain { white-space: pre-wrap; font-family: inherit; }
 /* Dark mode: mail-HTML (meestal zwart-op-wit met inline stijlen) omkeren
