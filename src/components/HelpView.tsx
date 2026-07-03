@@ -57,6 +57,9 @@ function HelpNl() {
           <li><strong>Spam</strong>: <em>Spam</em> verplaatst naar Ongewenste e-mail; het blokkeer-icoon maakt bovendien een regel die die afzender voortaan automatisch daarheen stuurt.</li>
           <li><strong>Uitschrijven</strong>: bij nieuwsbrieven met een afmeldkoppeling verschijnt automatisch een Uitschrijven-knop.</li>
           <li><strong>Bijlagen</strong>: klik op een bijlage-chip om te downloaden naar je Downloads-map.</li>
+          <li><strong>Gesprekken</strong>: berichten uit dezelfde conversatie krijgen een teller-chip; klik erop om het gesprek uit te klappen.</li>
+          <li><strong>Uitstellen (snooze)</strong>: klok-knop in het leesvenster; het bericht verhuist naar Uitgesteld en komt op het gekozen moment ongelezen terug in Postvak IN (zolang de app draait).</li>
+          <li><strong>Categorieën</strong>: kleurlabels toewijzen in het leesvenster; stippen in de lijst. Vereist eenmalige extra beheerder-toestemming (MailboxSettings).</li>
         </ul>
       </section>
 
@@ -159,6 +162,9 @@ function HelpEn() {
           <li><strong>Spam</strong>: <em>Spam</em> moves to Junk Email; the block icon also creates a rule sending that sender there automatically.</li>
           <li><strong>Unsubscribe</strong>: newsletters with an unsubscribe link automatically show an Unsubscribe button.</li>
           <li><strong>Attachments</strong>: click an attachment chip to download it to your Downloads folder.</li>
+          <li><strong>Conversations</strong>: messages from the same thread get a counter chip; click it to expand the conversation.</li>
+          <li><strong>Snooze</strong>: clock button in the reading pane; the message moves to Snoozed and returns to the Inbox unread at the chosen time (while the app is running).</li>
+          <li><strong>Categories</strong>: assign colour labels in the reading pane; dots in the list. Needs one-time extra admin consent (MailboxSettings).</li>
         </ul>
       </section>
 

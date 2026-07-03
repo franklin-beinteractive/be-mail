@@ -37,6 +37,12 @@
    - `offline_access`
    - `openid`
    - `profile`
+   - `People.Read` *(optioneel: autoaanvullen van genodigden/ontvangers en @-vermeldingen)*
+   - `MailboxSettings.ReadWrite` *(optioneel: afwezigheid/automatisch antwoord en categorieën)*
+
+   > De twee optionele rechten zijn niet nodig om te kunnen mailen; de app
+   > werkt ook zonder. Zodra de consent er wél is, pakt de app ze vanzelf op
+   > (stille upgrade bij het vernieuwen van de sessie).
 
    Klik daarna op **Grant admin consent for <organisatie>** - die knop staat in de
    **actiebalk bovenaan de pagina "API permissions"** (naast *+ Add a permission*),
@@ -113,7 +119,8 @@ De gebruiker vult ze in op het instelscherm van BE-Mail bij het eerste opstarten
   1. Azure Portal → **App registrations** → *BE-Mail* → **API permissions**.
   2. Voeg onder **Microsoft Graph → Delegated permissions** toe:
      `User.Read`, `Mail.ReadWrite`, `Mail.Send`, `Calendars.ReadWrite`,
-     `People.Read`, `offline_access` (openid/profile gaan vanzelf mee).
+     `People.Read`, `MailboxSettings.ReadWrite`, `offline_access`
+     (openid/profile gaan vanzelf mee).
   3. Klik **Grant admin consent for &lt;organisatie&gt;** (vereist een
      beheerdersrol). Alle statussen worden groen ("Granted").
   4. Log daarna opnieuw in vanuit de app - de goedkeuringsvraag is weg.

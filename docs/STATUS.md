@@ -3,12 +3,10 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-03 (login-fix zonder People.Read; mappen
-standaard ingeklapt + status onthouden; scroll-fix mappenlijst; em dash
-overal vervangen door "-"; Help en Instellingen in 2 kolommen zonder
-witruimte-gaten; donkere scrollbars in dark mode; inline (cid:)
-afbeeldingen worden nu echt getoond; handtekeningen als HTML met
-wysiwyg-editor incl. afbeeldingen)
+**Laatst bijgewerkt:** 2026-07-03 (avond - grote backlog-batch: mappen
+sorteren gefixt, ontvanger-autocomplete, sneltoetsen, regels-beheer,
+afwezigheid, categorieën, snoozen, threading, grote bijlagen,
+@-vermeldingen)
 
 ## ✅ Af
 
@@ -75,6 +73,23 @@ wysiwyg-editor incl. afbeeldingen)
 - **Overig**: donkere modus, tekstgrootte, hoog contrast, NL/EN,
   foutmeldingen in mensentaal.
 
+- **Backlog-batch (2026-07-03 avond)**:
+  - **Mappen sorteren gefixt**: slepen startte niet doordat de rij door een
+    button werd bedekt; drop-positie nu direct uit het event, ruimere zones.
+  - **Autoaanvullen Aan/CC/BCC** in het opstelvenster (/me/people).
+  - **Sneltoetsen**: j/k of pijltjes, n, r/a/f, e, Delete, u, m, / (zie Help).
+  - **Regels-beheer**: inbox-regels tonen, aan/uit, verwijderen (Instellingen).
+  - **Afwezigheid (OOF)**: uit/aan/gepland, periode, intern/extern bericht.
+    Vereist optionele scope `MailboxSettings.ReadWrite` (stille upgrade).
+  - **Categorieën**: kleurlabels toewijzen in het leesvenster, stippen in de
+    lijst (vereist dezelfde MailboxSettings-scope).
+  - **Snoozen**: bericht uitstellen (klok-knop); komt op het gekozen moment
+    ongelezen terug in Postvak IN (wekker draait zolang de app open is).
+  - **Threading**: gesprekken gegroepeerd op conversationId met teller-chip.
+  - **Grote bijlagen tot 25 MB** via Graph upload-sessions.
+  - **@-vermeldingen** in de editor: @naam → suggestie → gemarkeerde
+    vermelding + automatisch in het Aan-veld.
+
 ## 🔜 Volgende stappen (afgesproken volgorde)
 
 1. ~~Bijlagen (lezen + downloaden + meesturen)~~ ✅
@@ -87,11 +102,11 @@ wysiwyg-editor incl. afbeeldingen)
    verzenden, dag-/werkweekweergave, spam/blokkeren/uitschrijven,
    desktop-notificaties.
 
-**Resterende achterhoede** (nog niet gepland): @-vermeldingen, regels-beheer
-(UI voor messageRules), OOF/automatisch antwoord, offline caching (SQLite +
-delta-sync), sneltoetsen, contacten/adresboek-autoaanvullen, threading,
-categorieën, snoozen. Ook open: opmerkingen van de gebruiker over de
-eerste rooktest.
+**Resterende achterhoede** (nog niet gepland): **offline caching**
+(SQLite + delta-sync) - bewust apart gehouden; dit is een eigen sessie
+waard (rusqlite-schema, delta-tokens per map, leesroute met fallback).
+Kleiner: reeks-patroon bewerken bij terugkerende afspraken, gedeelde
+postvakken, contactenlijst-UI.
 
 ## 📌 Openstaand / opmerkingen
 
@@ -105,11 +120,14 @@ eerste rooktest.
   éénmalig opnieuw is ingelogd.
 - **Multi-account-migratie**: tokens staan nu per account opgeslagen -
   iedereen moet éénmalig opnieuw inloggen (koppelt het account).
-- **Bitbucket-push geblokkeerd**: repo `quizmaster/be-mail` bestaat nog niet
-  (workspace bevat alleen `dim.beren`); gebruiker maakt hem aan, daarna
-  `git push -u origin main`. API-token van de MCP heeft geen
-  `admin:repository`-scope, dus aanmaken via API kon niet.
-- Gebruiker heeft nog opmerkingen over de eerste rooktest van de app -
-  **nog niet besproken**, komt later.
-- Grote bijlagen (>3 MB) vereisen Graph upload-sessions - bewust uitgesteld.
+- **Bitbucket-push geblokkeerd door SSH-sleutel**: de repo is aangemaakt,
+  maar de gebruikte SSH-sleutel lijkt een repository access key van
+  `dim.beren` (ssh -T meldt geen accountnaam) en heeft geen toegang tot
+  `quizmaster/be-mail`; ook de API-token ziet alleen `dim.beren`. Fix door
+  gebruiker: in Bitbucket de sleutel als **account-SSH-key** toevoegen
+  (Personal settings → SSH keys) of de access key ook aan de nieuwe repo
+  hangen; daarna `git push -u origin main`.
+- **MailboxSettings.ReadWrite** (afwezigheid + categorieën) staat nog niet
+  in de admin consent; de blokken tonen tot die tijd een uitleg. Zelfde
+  stappen als bij People.Read (zie Azure-App-Registration.md).
 - `$search` werkt in deze tenant zonder `ConsistencyLevel`-header (getest).
