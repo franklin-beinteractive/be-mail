@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
 import { signatureHtml } from "../lib/settings";
-import type { AttachmentInput, ComposeInput } from "../lib/types";
+import type { AttachmentInput, ComposeInput, Person } from "../lib/types";
 import { fileSize } from "../lib/format";
 import RichTextEditor from "./RichTextEditor";
 import { ClockIcon, CloseIcon, PaperclipIcon, SendIcon } from "./Icons";
@@ -65,6 +65,86 @@ function extractInlineImages(html: string): {
     img.setAttribute("src", `cid:${cid}`);
   });
   return { html: doc.body.innerHTML, attachments };
+}
+
+/**
+ * Ontvangerveld (Aan/CC/BCC) met autoaanvullen uit de organisatie (/me/people).
+ * De waarde blijft een kommagescheiden string; alleen het laatst getypte deel
+ * wordt gezocht en bij een keuze vervangen door het gekozen adres.
+ */
+function RecipientInput({
+  value,
+  onChange,
+  autoFocus = false,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  autoFocus?: boolean;
+}) {
+  const [suggestions, setSuggestions] = useState<Person[]>([]);
+  const [open, setOpen] = useState(false);
+  const tail = value.split(/[,;]/).pop()?.trim() ?? "";
+
+  useEffect(() => {
+    if (tail.length < 2 || tail.includes("@")) {
+      setSuggestions([]);
+      return;
+    }
+    const h = setTimeout(() => {
+      api
+        .searchPeople(tail)
+        .then((list) => {
+          setSuggestions(list);
+          setOpen(true);
+        })
+        .catch(() => setSuggestions([]));
+    }, 300);
+    return () => clearTimeout(h);
+  }, [tail]);
+
+  function pick(addr: string) {
+    const items = value
+      .split(/[,;]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (tail) items.pop(); // het getypte deel vervangen door de keuze
+    onChange([...items, addr].join(", ") + ", ");
+    setSuggestions([]);
+  }
+
+  return (
+    <span className="attendee-box">
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+        autoFocus={autoFocus}
+      />
+      {open && suggestions.length > 0 && (
+        <span className="suggest-list">
+          {suggestions.map((p, i) => {
+            const addr = p.scoredEmailAddresses[0]?.address ?? "";
+            if (!addr) return null;
+            return (
+              <button
+                key={i}
+                className="suggest-item"
+                // onMouseDown: vóór de blur van het invoerveld.
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pick(addr);
+                }}
+              >
+                <strong>{p.displayName || addr}</strong>{" "}
+                <span className="muted small">{addr}</span>
+              </button>
+            );
+          })}
+        </span>
+      )}
+    </span>
+  );
 }
 
 /** Leest een bestand in als base64 (zonder data:-prefix). */
@@ -379,15 +459,15 @@ export default function ComposeDialog({
         <div className="dialog-body">
           <label className="row">
             <span>{t("to")}</span>
-            <input value={to} onChange={(e) => setTo(e.target.value)} autoFocus />
+            <RecipientInput value={to} onChange={setTo} autoFocus />
           </label>
           <label className="row">
             <span>{t("cc")}</span>
-            <input value={cc} onChange={(e) => setCc(e.target.value)} />
+            <RecipientInput value={cc} onChange={setCc} />
           </label>
           <label className="row">
             <span>{t("bcc")}</span>
-            <input value={bcc} onChange={(e) => setBcc(e.target.value)} />
+            <RecipientInput value={bcc} onChange={setBcc} />
           </label>
           <label className="row">
             <span>{t("subject")}</span>
