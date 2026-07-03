@@ -3,7 +3,8 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-02 (avond — gebruikerswensen-batch afgerond)
+**Laatst bijgewerkt:** 2026-07-03 (login-fix zonder People.Read; mappen
+standaard ingeklapt + status onthouden; scroll-fix mappenlijst)
 
 ## ✅ Af
 
@@ -58,6 +59,11 @@
   naast Beantwoorden, **Help-pagina** (volledige handleiding NL/EN),
   actiebalk uitgelijnd met lijstkolom, **lettertype-instelling**
   (Calibri standaard).
+- **Mappenlijst-verbeteringen (2026-07-03)**: mappen bij het opstarten
+  standaard ingeklapt; in-/uitklapstatus van mappen én accountgroepen
+  wordt onthouden (Instellingen/localStorage); mappenkolom scrolt nu
+  echt (grid-rij was hoger dan het venster, waardoor de onderste mappen
+  onbereikbaar waren).
 - **Agenda**: maand/week/lijst, vandaag + navigatie, afspraak
   maken/**bewerken**/verwijderen, hele dag, locatie, herinnering, genodigden.
 - **Overig**: donkere modus, tekstgrootte, hoog contrast, NL/EN,

@@ -158,6 +158,8 @@
 - [x] **Accountnaam boven de mappenlijst** (bv. franklin@be-interactive.nl) 🟢
 - [x] Knop "Nieuw bericht" **links naast Beantwoorden** (zelfde stijl als reply-knoppen, maar blauw) 🟢
 - [x] **Kolombreedtes instelbaar** door te slepen (mappen | lijst | preview) 🟡
+- [x] Mappen bij het opstarten **standaard ingeklapt**; in-/uitklapstatus wordt **onthouden** (toegevoegd 2026-07-03) 🟢
+- [x] **Scrollbar bij de mappenlijst** — onderste mappen waren niet bereikbaar (toegevoegd 2026-07-03) 🟢
 
 ### Agenda
 - [x] Genodigden **autoaanvullen** met personen uit de organisatie 🟡

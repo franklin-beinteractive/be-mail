@@ -176,6 +176,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .mail {
   display: grid;
   grid-template-columns: var(--col-folders, 240px) 6px var(--col-list, 340px) 6px 1fr;
+  /* Rij vastpinnen op de containerhoogte; anders groeit de rij mee met een
+     lange mappenlijst en valt er in de kolommen niets te scrollen. */
+  grid-template-rows: minmax(0, 1fr);
   height: 100vh;
 }
 .col-resizer {

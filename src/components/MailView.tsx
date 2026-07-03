@@ -93,7 +93,11 @@ export default function MailView() {
   const [accounts, setAccounts] = useState<StoredAccount[]>([]);
   const [activeId, setActiveId] = useState<string>("");
   const [accountFolders, setAccountFolders] = useState<AccountFolders[]>([]);
-  const [collapsedAccounts, setCollapsedAccounts] = useState<Set<string>>(new Set());
+  // Ingeklapte accountgroepen: persistent in Instellingen (standaard uitgeklapt).
+  const collapsedAccounts = useMemo(
+    () => new Set(settings.collapsedAccounts ?? []),
+    [settings.collapsedAccounts]
+  );
   const [folderId, setFolderId] = useState<string>("");
 
   // Mappen van het actieve account (alle bestaande logica werkt hierop).
@@ -174,8 +178,12 @@ export default function MailView() {
     { mode: "create" } | { mode: "rename"; folder: MailFolder } | null
   >(null);
   const [folderName, setFolderName] = useState("");
-  // Mappenboom: ingeklapte mappen + drag & drop-status.
-  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+  // Mappenboom: uitgeklapte mappen (persistent in Instellingen; standaard
+  // alles ingeklapt) + drag & drop-status.
+  const expandedFolders = useMemo(
+    () => new Set(settings.expandedFolders ?? []),
+    [settings.expandedFolders]
+  );
   const [dragFolderId, setDragFolderId] = useState<string | null>(null);
   const [dropHint, setDropHint] = useState<{
     id: string;
@@ -489,12 +497,10 @@ export default function MailView() {
   }, [accountFolders, settings.folderOrder]);
 
   function toggleAccountCollapse(id: string) {
-    setCollapsedAccounts((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    const next = new Set(settings.collapsedAccounts ?? []);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSettings({ collapsedAccounts: [...next] });
   }
 
   /** Is `candidateId` een nakomeling van `ancestorId`? (voorkomt zelf-nesting) */
@@ -534,6 +540,10 @@ export default function MailView() {
     try {
       if (hint.pos === "into") {
         await api.moveFolder(dragId, target.id);
+        // Doelmap openklappen zodat de verplaatste map meteen zichtbaar is.
+        setSettings({
+          expandedFolders: [...new Set([...(settings.expandedFolders ?? []), target.id])],
+        });
         await reloadFolders();
         return;
       }
@@ -560,12 +570,10 @@ export default function MailView() {
   }
 
   function toggleCollapse(id: string) {
-    setCollapsedFolders((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    const next = new Set(settings.expandedFolders ?? []);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSettings({ expandedFolders: [...next] });
   }
 
   // ---- Mappenbeheer ----
@@ -732,7 +740,7 @@ export default function MailView() {
   ): React.ReactNode {
     const isActiveGroup = accountId === activeId;
     const hasKids = tree.hasKids(f.id);
-    const isCollapsed = collapsedFolders.has(f.id);
+    const isCollapsed = !expandedFolders.has(f.id);
     const hintHere = isActiveGroup && dropHint?.id === f.id ? dropHint.pos : null;
     return (
       <div key={f.id}>

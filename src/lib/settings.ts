@@ -32,6 +32,11 @@ export interface UiSettings {
   listWidth: number;
   /** Eigen mapvolgorde per bovenliggende map ("root" = hoofdniveau). */
   folderOrder: Record<string, string[]>;
+  /** Map-id's die uitgeklapt zijn; alles is standaard ingeklapt. Onthouden
+   *  over herstarts heen. */
+  expandedFolders: string[];
+  /** Account-id's waarvan de mappengroep is ingeklapt (standaard uitgeklapt). */
+  collapsedAccounts: string[];
 }
 
 const KEY = "BE-Mail.ui";
@@ -61,6 +66,8 @@ export const defaultSettings: UiSettings = {
   foldersWidth: 240,
   listWidth: 340,
   folderOrder: {},
+  expandedFolders: [],
+  collapsedAccounts: [],
 };
 
 export function loadSettings(): UiSettings {
