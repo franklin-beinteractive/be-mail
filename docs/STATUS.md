@@ -3,10 +3,9 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-03 (avond - grote backlog-batch: mappen
-sorteren gefixt, ontvanger-autocomplete, sneltoetsen, regels-beheer,
-afwezigheid, categorieën, snoozen, threading, grote bijlagen,
-@-vermeldingen)
+**Laatst bijgewerkt:** 2026-07-06 (berichtenlijst-velden instelbaar;
+datum+tijd in de lijst; Client-ID/Tenant-ID ingebakken - nieuwe pc's
+slaan het instelscherm over)
 
 ## ✅ Af
 
@@ -120,6 +119,19 @@ afwezigheid, categorieën, snoozen, threading, grote bijlagen,
   - **Grote bijlagen tot 25 MB** via Graph upload-sessions.
   - **@-vermeldingen** in de editor: @naam → suggestie → gemarkeerde
     vermelding + automatisch in het Aan-veld.
+- **Berichtenlijst-velden instelbaar (2026-07-06)**: nieuwe sectie
+  "Berichtenlijst" in Instellingen met vinkjes voor naam afzender,
+  e-mailadres afzender, onderwerp en gedeelte van het bericht.
+  Standaard: naam + onderwerp + berichtdeel aan, e-mailadres uit
+  (zoals voorheen). Indicatoren (vlag, prioriteit, bijlage) blijven
+  zichtbaar, ook als het onderwerp uitstaat. Datum in de lijst toont
+  nu altijd ook de tijd ("Vandaag 10:15" / "04 jul 10:15").
+- **Client-ID/Tenant-ID ingebakken (2026-07-06)**: `config.rs` valt
+  zonder config.json terug op ingebakken standaardwaarden
+  (`DEFAULT_CLIENT_ID`/`DEFAULT_TENANT_ID`). Nieuwe installatie =
+  installeren -> Inloggen (browser/SSO) -> klaar; geen instelscherm.
+  Instellingen -> Verbinding kan de waarden nog altijd overschrijven
+  (opgeslagen config.json wint van de ingebakken standaard).
 
 ## 🔜 Volgende stappen (afgesproken volgorde)
 

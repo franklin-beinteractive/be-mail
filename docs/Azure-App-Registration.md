@@ -81,6 +81,14 @@ Tenant-ID:  xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 De gebruiker vult ze in op het instelscherm van BE-Mail bij het eerste opstarten.
 
+> **Ingebakken standaardwaarden:** in de huidige build zitten de Client-ID en
+> Tenant-ID van de organisatie al **in de app** (`src-tauri/src/config.rs`,
+> `DEFAULT_CLIENT_ID`/`DEFAULT_TENANT_ID`). Een nieuwe installatie slaat het
+> instelscherm dan over: installeren -> "Inloggen" -> browser (SSO) -> klaar.
+> Het instelscherm blijft bereikbaar via Instellingen -> Verbinding en een daar
+> opgeslagen waarde gaat vóór de ingebakken standaard. Wijzigt de registratie,
+> pas dan de constanten aan en bouw opnieuw.
+
 ## Veelgestelde vragen
 
 - **Waarom geen client secret?** Een desktop-app kan een secret nooit echt geheim

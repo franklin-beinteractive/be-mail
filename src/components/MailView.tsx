@@ -1374,7 +1374,16 @@ export default function MailView() {
                 />
                 <div className="msg-main">
                   <div className="msg-top">
-                    <span className="msg-from">{senderName(m.from?.emailAddress)}</span>
+                    <span className="msg-from">
+                      {settings.listShowName && senderName(m.from?.emailAddress)}
+                      {settings.listShowEmail && (
+                        <span className="msg-from-email">
+                          {settings.listShowName
+                            ? ` <${senderAddress(m.from?.emailAddress)}>`
+                            : senderAddress(m.from?.emailAddress)}
+                        </span>
+                      )}
+                    </span>
                     {!sub && items.length > 1 && (
                       <button
                         className="thread-chip"
@@ -1406,13 +1415,20 @@ export default function MailView() {
                     )}
                     <span className="msg-date">{shortDate(m.receivedDateTime, settings.lang)}</span>
                   </div>
-                  <div className="msg-subject">
-                    {m.flag?.flagStatus === "flagged" && <span className="flagdot">⚑</span>}
-                    {m.importance === "high" && <span className="hi">!</span>}
-                    {m.subject || "(geen onderwerp)"}
-                    {m.hasAttachments && <PaperclipIcon size={14} style={{ marginLeft: 4 }} />}
-                  </div>
-                  <div className="msg-preview">{m.bodyPreview}</div>
+                  {(settings.listShowSubject ||
+                    m.flag?.flagStatus === "flagged" ||
+                    m.importance === "high" ||
+                    m.hasAttachments) && (
+                    <div className="msg-subject">
+                      {m.flag?.flagStatus === "flagged" && <span className="flagdot">⚑</span>}
+                      {m.importance === "high" && <span className="hi">!</span>}
+                      {settings.listShowSubject && (m.subject || "(geen onderwerp)")}
+                      {m.hasAttachments && <PaperclipIcon size={14} style={{ marginLeft: 4 }} />}
+                    </div>
+                  )}
+                  {settings.listShowPreview && (
+                    <div className="msg-preview">{m.bodyPreview}</div>
+                  )}
                 </div>
               </div>
             );

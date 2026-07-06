@@ -12,7 +12,8 @@ export function senderAddress(addr?: { address?: string | null } | null): string
   return addr?.address || "";
 }
 
-/** Korte, mensvriendelijke datum voor de berichtenlijst. */
+/** Korte, mensvriendelijke datum + tijd voor de berichtenlijst.
+ *  Vandaag → "Vandaag 10:15", anders "04 jul 10:15". */
 export function shortDate(iso?: string | null, lang: Lang = "nl"): string {
   if (!iso) return "";
   const d = new Date(iso);
@@ -23,10 +24,11 @@ export function shortDate(iso?: string | null, lang: Lang = "nl"): string {
     d.getMonth() === now.getMonth() &&
     d.getDate() === now.getDate();
   const locale = lang === "nl" ? "nl-NL" : "en-GB";
+  const time = d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
   if (sameDay) {
-    return d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+    return `${lang === "nl" ? "Vandaag" : "Today"} ${time}`;
   }
-  return d.toLocaleDateString(locale, { day: "2-digit", month: "short" });
+  return `${d.toLocaleDateString(locale, { day: "2-digit", month: "short" })} ${time}`;
 }
 
 export function longDateTime(iso?: string | null, lang: Lang = "nl"): string {

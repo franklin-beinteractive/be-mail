@@ -330,6 +330,28 @@ export default function SettingsView({
       </section>
 
       <section className="settings-block">
+        <h2>{t("mailList")}</h2>
+        <p className="muted small">{t("mailListHint")}</p>
+        {(
+          [
+            ["listShowName", t("listFieldName")],
+            ["listShowEmail", t("listFieldEmail")],
+            ["listShowSubject", t("listFieldSubject")],
+            ["listShowPreview", t("listFieldPreview")],
+          ] as const
+        ).map(([key, label]) => (
+          <div key={key} className="setting-row">
+            <input
+              type="checkbox"
+              checked={settings[key]}
+              onChange={(e) => setSettings({ [key]: e.target.checked })}
+            />
+            <span>{label}</span>
+          </div>
+        ))}
+      </section>
+
+      <section className="settings-block">
         <h2>{t("rules")}</h2>
         {rules !== null && rules.length === 0 && (
           <p className="muted">{t("noRules")}</p>

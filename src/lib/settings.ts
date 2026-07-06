@@ -53,6 +53,11 @@ export interface UiSettings {
   hiddenFolders: string[];
   /** Tooltips (uitleg bij knoppen) tonen; standaard aan. */
   showTooltips: boolean;
+  /** Zichtbare velden per bericht in de berichtenlijst. */
+  listShowName: boolean;
+  listShowEmail: boolean;
+  listShowSubject: boolean;
+  listShowPreview: boolean;
 }
 
 /** Standaardmappen die de gebruiker kan verbergen (Postvak IN nooit).
@@ -101,6 +106,10 @@ export const defaultSettings: UiSettings = {
   collapsedAccounts: [],
   hiddenFolders: [],
   showTooltips: true,
+  listShowName: true,
+  listShowEmail: false,
+  listShowSubject: true,
+  listShowPreview: true,
 };
 
 export function loadSettings(): UiSettings {
