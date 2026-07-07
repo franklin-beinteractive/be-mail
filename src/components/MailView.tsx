@@ -1314,6 +1314,17 @@ export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("search")}
           />
+          {search !== "" && (
+            <button
+              type="button"
+              className="search-clear"
+              onClick={() => setSearch("")}
+              title={tip("clearSearch")}
+              aria-label={t("clearSearch")}
+            >
+              <CloseIcon size={16} />
+            </button>
+          )}
         </div>
         {search.trim() !== "" && (
           <div className="search-scope">

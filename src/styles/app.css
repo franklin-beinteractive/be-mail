@@ -299,6 +299,19 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 .list-search input { border: none; background: transparent; flex: 1; padding: 6px 0; }
 .list-search input:focus-visible { outline: none; }
+/* Kruisje om het zoekveld te legen; alleen zichtbaar als er iets ingevuld is. */
+.search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+}
+.search-clear:hover { color: var(--text); background: var(--bg-sunken); }
 /* Zoekbereik (Overal / Deze map), alleen zichtbaar tijdens het zoeken. */
 .search-scope { padding: 6px 12px; border-bottom: 1px solid var(--border); }
 /* AI-antwoord-keuzelijst in de actiebalk. */

@@ -134,8 +134,9 @@ const dict = {
       "Vink uit welke standaardmappen je niet in de mappenlijst wilt zien.",
     mailList: "Berichtenlijst",
     mailListHint: "Kies wat je per bericht in de lijst wilt zien.",
-    searchEverywhere: "Overal",
+    searchEverywhere: "Alle mappen",
     searchThisFolder: "Deze map",
+    clearSearch: "Zoekopdracht wissen",
     aiSection: "AI-antwoorden (Claude)",
     aiKeyLabel: "Claude API-sleutel",
     aiKeyHint:
@@ -488,8 +489,9 @@ const dict = {
       "Untick the default folders you don't want to see in the folder list.",
     mailList: "Message list",
     mailListHint: "Choose what to show for each message in the list.",
-    searchEverywhere: "Everywhere",
+    searchEverywhere: "All folders",
     searchThisFolder: "This folder",
+    clearSearch: "Clear search",
     aiSection: "AI replies (Claude)",
     aiKeyLabel: "Claude API key",
     aiKeyHint:

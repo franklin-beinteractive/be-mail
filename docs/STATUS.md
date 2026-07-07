@@ -137,10 +137,11 @@ berichtenlijst-velden instelbaar, Client-ID/Tenant-ID ingebakken)
   Let op: dit zit pas in installers gebouwd op/na 7 juli - de bundel
   van 3 juli toont nog het instelscherm.
 - **Zoeken: bereik + optimalisatie (2026-07-07)**: tijdens het zoeken
-  verschijnt een keuze "Overal" (hele mailbox) / "Deze map" (alleen de
-  geopende map, via Graph `/mailFolders/{id}/messages?$search`).
+  verschijnt een keuze "Alle mappen" (hele mailbox) / "Deze map" (alleen
+  de geopende map, via Graph `/mailFolders/{id}/messages?$search`).
   Race-conditie gefixt: een traag, ouder zoekresultaat kan een nieuwer
-  resultaat niet meer overschrijven (volgnummer per verzoek).
+  resultaat niet meer overschrijven (volgnummer per verzoek). Kruisje in
+  het zoekveld leegt de zoekopdracht en toont weer de open map.
 - **AI-antwoorden via Claude (2026-07-07)**: knop "AI-antwoord" in het
   leesvenster met keuzelijst van stijlen (standaard: zakelijk, prive,
   kort; beheerbaar in Instellingen -> AI-antwoorden, incl. eigen
