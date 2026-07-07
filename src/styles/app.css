@@ -299,6 +299,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 .list-search input { border: none; background: transparent; flex: 1; padding: 6px 0; }
 .list-search input:focus-visible { outline: none; }
+/* Zoekbereik (Overal / Deze map), alleen zichtbaar tijdens het zoeken. */
+.search-scope { padding: 6px 12px; border-bottom: 1px solid var(--border); }
+/* AI-antwoord-keuzelijst in de actiebalk. */
+.ai-reply { max-width: 170px; }
 .list-controls {
   display: flex;
   gap: 8px;

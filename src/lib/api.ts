@@ -78,8 +78,13 @@ export const api = {
     invoke<void>("move_message", { id, destinationId: "archive" }),
   sendMessage: (input: ComposeInput) =>
     invoke<void>("send_message", { input }),
-  searchMessages: (query: string, top = 50) =>
-    invoke<MessagesPage>("search_messages", { query, top }),
+  // Zonder folderId: hele mailbox; met folderId: alleen die map.
+  searchMessages: (query: string, top = 50, folderId?: string) =>
+    invoke<MessagesPage>("search_messages", {
+      query,
+      top,
+      folderId: folderId ?? null,
+    }),
   // Concepten: aanmaken geeft het bericht (met id) terug; verzenden van een
   // concept werkt eerst de velden/bijlagen bij zodat er geen duplicaat ontstaat.
   createDraft: (input: ComposeInput) =>
@@ -121,6 +126,18 @@ export const api = {
     invoke<void>("move_message", { id, destinationId: "junkemail" }),
   // Afzender blokkeren via een inbox-regel.
   blockSender: (address: string) => invoke<void>("block_sender", { address }),
+
+  // AI-antwoorden (Claude). De API-sleutel leeft in de keychain (Rust-kern).
+  claudeKeyStatus: () => invoke<boolean>("claude_key_status"),
+  setClaudeKey: (key: string) => invoke<void>("set_claude_key", { key }),
+  aiReply: (input: {
+    stylePrompt: string;
+    userName: string;
+    lang: string;
+    from: string;
+    subject: string;
+    bodyText: string;
+  }) => invoke<string>("ai_reply", { ...input }),
 
   // Agenda
   listEvents: (start: string, end: string) =>

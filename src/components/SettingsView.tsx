@@ -7,6 +7,7 @@ import {
   FONT_CHOICES,
   HIDEABLE_FOLDERS,
   signatureHtml,
+  type AiSkill,
   type Signature,
 } from "../lib/settings";
 import type {
@@ -47,6 +48,10 @@ export default function SettingsView({
   const [oof, setOof] = useState<AutoReplySettings | null>(null);
   const [oofBlocked, setOofBlocked] = useState(false);
   const [oofBusy, setOofBusy] = useState(false);
+  // Claude API-sleutel: staat in de keychain; hier alleen "is er een sleutel?"
+  // en het invoerveld voor een nieuwe waarde.
+  const [aiKeySet, setAiKeySet] = useState(false);
+  const [aiKeyInput, setAiKeyInput] = useState("");
 
   useEffect(() => {
     api
@@ -59,7 +64,38 @@ export default function SettingsView({
       .getAutoReply()
       .then(setOof)
       .catch(() => setOofBlocked(true));
+    api.claudeKeyStatus().then(setAiKeySet).catch(() => {});
   }, []);
+
+  async function saveClaudeKey() {
+    try {
+      await api.setClaudeKey(aiKeyInput.trim());
+      setAiKeySet(aiKeyInput.trim() !== "");
+      setAiKeyInput("");
+      notify(t("saved"), "info");
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  function patchAiSkill(id: string, patch: Partial<AiSkill>) {
+    setSettings({
+      aiSkills: settings.aiSkills.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    });
+  }
+
+  function addAiSkill() {
+    setSettings({
+      aiSkills: [
+        ...settings.aiSkills,
+        { id: crypto.randomUUID(), name: "", prompt: "" },
+      ],
+    });
+  }
+
+  function removeAiSkill(id: string) {
+    setSettings({ aiSkills: settings.aiSkills.filter((s) => s.id !== id) });
+  }
 
   async function toggleRule(r: MessageRule, on: boolean) {
     setRules((prev) =>
@@ -561,6 +597,60 @@ export default function SettingsView({
             </div>
           </>
         )}
+      </section>
+
+      <section className="settings-block">
+        <h2>{t("aiSection")}</h2>
+        <p className="muted small">{t("aiKeyHint")}</p>
+        <div className="setting-row">
+          <span>{t("aiKeyLabel")}</span>
+          <input
+            type="password"
+            style={{ flex: 1 }}
+            value={aiKeyInput}
+            onChange={(e) => setAiKeyInput(e.target.value)}
+            placeholder="sk-ant-…"
+            autoComplete="off"
+          />
+          <button className="btn" onClick={saveClaudeKey}>
+            {t("save")}
+          </button>
+        </div>
+        <p className="muted small">{aiKeySet ? t("aiKeySet") : t("aiKeyMissing")}</p>
+
+        <p className="muted small">{t("aiSkillsHint")}</p>
+        {settings.aiSkills.map((s) => (
+          <div key={s.id} className="sig-item">
+            <div className="sig-head">
+              <label className="sig-name">
+                <span className="muted small">{t("aiSkillName")}</span>
+                <input
+                  value={s.name}
+                  onChange={(e) => patchAiSkill(s.id, { name: e.target.value })}
+                />
+              </label>
+              <button
+                className="icon-btn"
+                onClick={() => removeAiSkill(s.id)}
+                aria-label={t("delete")}
+                title={tip("delete")}
+              >
+                <TrashIcon size={18} />
+              </button>
+            </div>
+            <label className="setting-col">
+              <span className="muted small">{t("aiSkillPrompt")}</span>
+              <textarea
+                rows={3}
+                value={s.prompt}
+                onChange={(e) => patchAiSkill(s.id, { prompt: e.target.value })}
+              />
+            </label>
+          </div>
+        ))}
+        <button className="btn" onClick={addAiSkill}>
+          <PlusIcon size={18} /> {t("addAiSkill")}
+        </button>
       </section>
 
       <section className="settings-block">

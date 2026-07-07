@@ -102,8 +102,36 @@ pub fn load() -> Result<Option<AppConfig>> {
     }
     let text = std::fs::read_to_string(&path)
         .with_context(|| format!("Kon config niet lezen: {}", path.display()))?;
-    let cfg: AppConfig = serde_json::from_str(&text).context("Config-bestand is ongeldig")?;
+    let mut cfg: AppConfig = serde_json::from_str(&text).context("Config-bestand is ongeldig")?;
+    // Config zonder Client-ID (oude of onvolledige installatie): vul de
+    // ingebakken waarden in, maar behoud accounts en overige instellingen.
+    if cfg.client_id.trim().is_empty() && !DEFAULT_CLIENT_ID.trim().is_empty() {
+        cfg.client_id = DEFAULT_CLIENT_ID.to_string();
+        cfg.tenant_id = DEFAULT_TENANT_ID.to_string();
+    }
     Ok(Some(cfg))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Zonder config.json moet load() de ingebakken standaardwaarden geven
+    /// (verse installatie slaat het instelscherm over). De test kan alleen
+    /// draaien als er op deze machine geen config.json staat; anders no-op.
+    #[test]
+    fn defaults_gelden_zonder_config() {
+        if config_path().map(|p| p.exists()).unwrap_or(true) {
+            return;
+        }
+        let cfg = load()
+            .expect("load() faalde")
+            .expect("ingebakken defaults verwacht als config.json ontbreekt");
+        assert_eq!(cfg.client_id, DEFAULT_CLIENT_ID);
+        assert_eq!(cfg.tenant_id, DEFAULT_TENANT_ID);
+        assert!(cfg.is_complete(), "defaults moeten het instelscherm overslaan");
+        assert!(cfg.accounts.is_empty());
+    }
 }
 
 /// Schrijft de config naar schijf.

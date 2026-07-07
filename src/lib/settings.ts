@@ -24,6 +24,13 @@ export function signatureHtml(s: Signature): string {
     .replace(/\n/g, "<br>");
 }
 
+/** AI-antwoordstijl: bepaalt hoe Claude een antwoordmail schrijft. */
+export interface AiSkill {
+  id: string;
+  name: string;
+  prompt: string;
+}
+
 export interface UiSettings {
   theme: Theme;
   /** Schaalfactor voor tekst: 1 = normaal, tot 1.5 voor slechtzienden. */
@@ -58,6 +65,8 @@ export interface UiSettings {
   listShowEmail: boolean;
   listShowSubject: boolean;
   listShowPreview: boolean;
+  /** AI-antwoordstijlen (skills) voor Claude. */
+  aiSkills: AiSkill[];
 }
 
 /** Standaardmappen die de gebruiker kan verbergen (Postvak IN nooit).
@@ -110,6 +119,26 @@ export const defaultSettings: UiSettings = {
   listShowEmail: false,
   listShowSubject: true,
   listShowPreview: true,
+  aiSkills: [
+    {
+      id: "zakelijk",
+      name: "Antwoord zakelijk",
+      prompt:
+        "Schrijf een professioneel, zakelijk antwoord. Formele toon (u-vorm), kort en to the point, zonder overbodige beleefdheidsfrasen.",
+    },
+    {
+      id: "prive",
+      name: "Antwoord prive",
+      prompt:
+        "Schrijf een informeel, persoonlijk antwoord. Vriendelijke toon (je-vorm), warm en ontspannen.",
+    },
+    {
+      id: "kort",
+      name: "Kort antwoord",
+      prompt:
+        "Schrijf een zo kort mogelijk antwoord: maximaal enkele zinnen, vriendelijk maar zonder omhaal.",
+    },
+  ],
 };
 
 export function loadSettings(): UiSettings {

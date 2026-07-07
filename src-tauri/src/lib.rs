@@ -4,6 +4,7 @@
 
 mod auth;
 mod cache;
+mod claude;
 mod commands;
 mod config;
 mod graph;
@@ -45,6 +46,9 @@ pub fn run() {
             commands::move_message,
             commands::send_message,
             commands::search_messages,
+            commands::claude_key_status,
+            commands::set_claude_key,
+            commands::ai_reply,
             commands::create_draft,
             commands::update_draft,
             commands::send_draft,

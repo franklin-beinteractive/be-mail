@@ -16,13 +16,14 @@ import type {
 } from "../lib/types";
 import {
   fileSize,
+  htmlToText,
   longDateTime,
   sanitizeEmail,
   senderAddress,
   senderName,
   shortDate,
 } from "../lib/format";
-import { HIDEABLE_FOLDERS } from "../lib/settings";
+import { HIDEABLE_FOLDERS, signatureHtml, type AiSkill } from "../lib/settings";
 import ComposeDialog, { type ComposeInitial } from "./ComposeDialog";
 import {
   ArchiveIcon,
@@ -198,8 +199,15 @@ export default function MailView() {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
-  // Server-side zoekresultaten (hele mailbox). null = geen zoekopdracht actief.
+  // Server-side zoekresultaten. null = geen zoekopdracht actief.
   const [searchResult, setSearchResult] = useState<Message[] | null>(null);
+  // Zoekbereik: hele mailbox of alleen de geopende map.
+  const [searchScope, setSearchScope] = useState<"all" | "folder">("all");
+  // Volgnummer tegen verouderde zoekresultaten (trage respons die een
+  // nieuwere overschrijft).
+  const searchSeq = useRef(0);
+  // AI-antwoord (Claude) wordt gegenereerd.
+  const [aiBusy, setAiBusy] = useState(false);
   const [allowImages, setAllowImages] = useState(false);
   const [compose, setCompose] = useState<ComposeInitial | null>(null);
   // Bijlagen van het geopende bericht; id van de bijlage die nu downloadt.
@@ -335,8 +343,10 @@ export default function MailView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folders, folderId, searchResult]);
 
-  // Server-side zoeken door de héle mailbox, met korte debounce zodat we niet
-  // bij elke toetsaanslag een call doen. Leeg zoekvak → terug naar de mapweergave.
+  // Server-side zoeken (hele mailbox of huidige map), met korte debounce zodat
+  // we niet bij elke toetsaanslag een call doen. Leeg zoekvak → mapweergave.
+  // Het volgnummer voorkomt dat een traag, ouder resultaat een nieuwer
+  // resultaat overschrijft (race bij snel doortypen).
   useEffect(() => {
     const q = search.trim();
     if (!q) {
@@ -345,20 +355,26 @@ export default function MailView() {
       return;
     }
     const handle = setTimeout(async () => {
+      const seq = ++searchSeq.current;
       setLoading(true);
       try {
-        const page = await api.searchMessages(q, 50);
+        const page = await api.searchMessages(
+          q,
+          50,
+          searchScope === "folder" ? folderId ?? undefined : undefined
+        );
+        if (seq !== searchSeq.current) return; // verouderd resultaat
         setSearchResult(page.messages);
         setChecked(new Set());
       } catch (e) {
-        notify(String(e), "error");
+        if (seq === searchSeq.current) notify(String(e), "error");
       } finally {
-        setLoading(false);
+        if (seq === searchSeq.current) setLoading(false);
       }
     }, 400);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]);
+  }, [search, searchScope, folderId]);
 
   async function loadPage(from: number, replace: boolean) {
     if (!folderId) return;
@@ -1002,6 +1018,41 @@ export default function MailView() {
     };
   }
 
+  /** Laat Claude een antwoord schrijven in de gekozen stijl en open het
+   *  opstelvenster met die tekst boven het aangehaalde origineel. */
+  async function aiReply(m: Message, skill: AiSkill) {
+    setAiBusy(true);
+    notify(t("aiGenerating"), "info");
+    try {
+      const text = await api.aiReply({
+        stylePrompt: skill.prompt,
+        userName: account?.displayName ?? account?.mail ?? "",
+        lang: settings.lang,
+        from: `${senderName(m.from?.emailAddress)} <${senderAddress(m.from?.emailAddress)}>`,
+        subject: m.subject ?? "",
+        bodyText: htmlToText(m.body?.content ?? "") || m.bodyPreview || "",
+      });
+      // Platte tekst → editor-HTML (alinea's op lege regels).
+      const esc = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      const aiHtml = esc
+        .split(/\n{2,}/)
+        .map((p) => `<div>${p.replace(/\n/g, "<br>")}</div><div><br></div>`)
+        .join("");
+      const sig = settings.signatures.find(
+        (s) => s.id === settings.signatureReplyId
+      );
+      const html = aiHtml + (sig ? `<div data-sig="1">${signatureHtml(sig)}</div>` : "");
+      setCompose({ ...buildReply(m, false), html });
+    } catch (e) {
+      notify(String(e), "error");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
   function buildForward(m: Message): ComposeInitial {
     const header = `<p>- ${senderName(m.from?.emailAddress)} (${longDateTime(
       m.receivedDateTime,
@@ -1257,6 +1308,24 @@ export default function MailView() {
             placeholder={t("search")}
           />
         </div>
+        {search.trim() !== "" && (
+          <div className="search-scope">
+            <div className="seg">
+              <button
+                className={"seg-btn" + (searchScope === "all" ? " active" : "")}
+                onClick={() => setSearchScope("all")}
+              >
+                {t("searchEverywhere")}
+              </button>
+              <button
+                className={"seg-btn" + (searchScope === "folder" ? " active" : "")}
+                onClick={() => setSearchScope("folder")}
+              >
+                {t("searchThisFolder")}
+              </button>
+            </div>
+          </div>
+        )}
         <div className="list-controls">
           <select
             value={filterMode}
@@ -1497,6 +1566,29 @@ export default function MailView() {
               >
                 <ForwardIcon size={18} /> {t("forward")}
               </button>
+              {settings.aiSkills.length > 0 && (
+                <select
+                  className="ai-reply"
+                  value=""
+                  disabled={aiBusy}
+                  onChange={(e) => {
+                    const skill = settings.aiSkills.find(
+                      (s) => s.id === e.target.value
+                    );
+                    if (skill) void aiReply(selected, skill);
+                  }}
+                  title={tip("tipAiReply")}
+                >
+                  <option value="">
+                    ✨ {aiBusy ? t("aiGenerating") : t("aiReplyLabel")}
+                  </option>
+                  {settings.aiSkills.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              )}
               <span className="spacer" />
               {unsubscribeTarget(selected) && (
                 <button

@@ -3,9 +3,9 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-06 (berichtenlijst-velden instelbaar;
-datum+tijd in de lijst; Client-ID/Tenant-ID ingebakken - nieuwe pc's
-slaan het instelscherm over)
+**Laatst bijgewerkt:** 2026-07-07 (zoekbereik Overal/Deze map +
+race-fix; AI-antwoorden via Claude met instelbare stijlen; eerder:
+berichtenlijst-velden instelbaar, Client-ID/Tenant-ID ingebakken)
 
 ## ✅ Af
 
@@ -126,12 +126,30 @@ slaan het instelscherm over)
   (zoals voorheen). Indicatoren (vlag, prioriteit, bijlage) blijven
   zichtbaar, ook als het onderwerp uitstaat. Datum in de lijst toont
   nu altijd ook de tijd ("Vandaag 10:15" / "04 jul 10:15").
-- **Client-ID/Tenant-ID ingebakken (2026-07-06)**: `config.rs` valt
+- **Client-ID/Tenant-ID ingebakken (2026-07-06/07)**: `config.rs` valt
   zonder config.json terug op ingebakken standaardwaarden
   (`DEFAULT_CLIENT_ID`/`DEFAULT_TENANT_ID`). Nieuwe installatie =
   installeren -> Inloggen (browser/SSO) -> klaar; geen instelscherm.
+  Ook een config.json zónder Client-ID (oude installatie) krijgt de
+  ingebakken waarden; accounts en instellingen blijven behouden.
   Instellingen -> Verbinding kan de waarden nog altijd overschrijven
   (opgeslagen config.json wint van de ingebakken standaard).
+  Let op: dit zit pas in installers gebouwd op/na 7 juli - de bundel
+  van 3 juli toont nog het instelscherm.
+- **Zoeken: bereik + optimalisatie (2026-07-07)**: tijdens het zoeken
+  verschijnt een keuze "Overal" (hele mailbox) / "Deze map" (alleen de
+  geopende map, via Graph `/mailFolders/{id}/messages?$search`).
+  Race-conditie gefixt: een traag, ouder zoekresultaat kan een nieuwer
+  resultaat niet meer overschrijven (volgnummer per verzoek).
+- **AI-antwoorden via Claude (2026-07-07)**: knop "AI-antwoord" in het
+  leesvenster met keuzelijst van stijlen (standaard: zakelijk, prive,
+  kort; beheerbaar in Instellingen -> AI-antwoorden, incl. eigen
+  stijlen met vrije instructie). Claude (model claude-opus-4-8) schrijft
+  het antwoord op basis van de originele mail; het opstelvenster opent
+  met de tekst boven het aangehaalde origineel + reply-handtekening.
+  De Anthropic API-sleutel staat in de Windows-keychain (`claude.rs`,
+  raakt de webview nooit); invoer via Instellingen. Foutafhandeling in
+  mensentaal (ongeldige sleutel, limiet, weigering).
 
 ## 🔜 Volgende stappen (afgesproken volgorde)
 

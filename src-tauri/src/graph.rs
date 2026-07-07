@@ -362,16 +362,25 @@ impl GraphClient {
         self.expect_ok(resp).await
     }
 
-    /// Doorzoekt de héle mailbox (alle mappen) via Graph `$search`.
-    /// Let op: `$search` mag niet met `$orderby` gecombineerd worden - Graph
-    /// sorteert zelf op relevantie.
-    pub async fn search_messages(&self, query: &str, top: u32) -> Result<MessagesPage> {
+    /// Doorzoekt de mailbox via Graph `$search`; met `folder_id` alleen die map,
+    /// anders alle mappen. Let op: `$search` mag niet met `$orderby`
+    /// gecombineerd worden - Graph sorteert zelf op relevantie.
+    pub async fn search_messages(
+        &self,
+        query: &str,
+        top: u32,
+        folder_id: Option<&str>,
+    ) -> Result<MessagesPage> {
         // Dubbele quotes in de zoekterm breken de `$search="…"`-syntax; strip ze.
         let search = format!("\"{}\"", query.replace('"', " "));
         let top = top.to_string();
+        let url = match folder_id {
+            Some(id) => format!("{BASE}/me/mailFolders/{id}/messages"),
+            None => format!("{BASE}/me/messages"),
+        };
         let resp = self
             .http
-            .get(format!("{BASE}/me/messages"))
+            .get(url)
             .bearer_auth(&self.token)
             .query(&[
                 ("$search", search.as_str()),

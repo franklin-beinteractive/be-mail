@@ -483,10 +483,51 @@ pub async fn download_attachment(
 }
 
 #[tauri::command]
-pub async fn search_messages(query: String, top: Option<u32>) -> Result<MessagesPage, String> {
+pub async fn search_messages(
+    query: String,
+    top: Option<u32>,
+    folder_id: Option<String>,
+) -> Result<MessagesPage, String> {
     client()
         .await?
-        .search_messages(&query, top.unwrap_or(50))
+        .search_messages(&query, top.unwrap_or(50), folder_id.as_deref())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+// ---- AI-antwoorden (Claude) ----
+
+/// Is er een Claude API-sleutel opgeslagen?
+#[tauri::command]
+pub fn claude_key_status() -> Result<bool, String> {
+    crate::claude::load_key()
+        .map(|k| k.is_some())
+        .map_err(|e| e.to_string())
+}
+
+/// Slaat de Claude API-sleutel op in de keychain; leeg = verwijderen.
+#[tauri::command]
+pub fn set_claude_key(key: String) -> Result<(), String> {
+    let k = key.trim();
+    if k.is_empty() {
+        crate::claude::clear_key()
+    } else {
+        crate::claude::save_key(k)
+    }
+    .map_err(|e| e.to_string())
+}
+
+/// Genereert een antwoord-e-mail in de gekozen stijl.
+#[tauri::command]
+pub async fn ai_reply(
+    style_prompt: String,
+    user_name: String,
+    lang: String,
+    from: String,
+    subject: String,
+    body_text: String,
+) -> Result<String, String> {
+    crate::claude::generate_reply(&style_prompt, &user_name, &lang, &from, &subject, &body_text)
         .await
         .map_err(|e| e.to_string())
 }
