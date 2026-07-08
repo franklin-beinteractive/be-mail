@@ -1,0 +1,584 @@
+/* Opdrachten-module — bouwt voort op de thema-variabelen van app.css.
+   Alle klassen hebben het opdr-voorvoegsel om botsingen te vermijden. */
+
+:root {
+  --opdr-oranje: #b25e09;
+  --opdr-oranje-zacht: #fff4ce;
+  --opdr-rood-zacht: #fde7e9;
+  --opdr-groen: #0e700e;
+  --opdr-groen-zacht: #dff6dd;
+  /* Grafiekkleuren, gevalideerd (dataviz-skill) tegen wit: #0f6cbd + #b25e09 */
+  --opdr-chart-1: #0f6cbd;
+  --opdr-chart-2: #b25e09;
+}
+:root[data-theme="dark"] {
+  --opdr-oranje: #f2c661;
+  --opdr-oranje-zacht: #4a3f00;
+  --opdr-rood-zacht: #4b1e22;
+  --opdr-groen: #6ccb5f;
+  --opdr-groen-zacht: #1e3a1c;
+  /* Gevalideerd tegen donkere surface #252423 (L-band 0.48–0.67) */
+  --opdr-chart-1: #2f89d1;
+  --opdr-chart-2: #c1750e;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+
+.opdr-view {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
+.opdr-hoofd {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.opdr-kop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+  flex-wrap: wrap;
+}
+
+.opdr-tabs {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.opdr-tab {
+  border: none;
+  background: transparent;
+  padding: 7px 12px;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.opdr-tab:hover {
+  background: var(--bg-sunken);
+}
+
+.opdr-tab.active {
+  background: var(--bg-sunken);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.opdr-teller {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 7px;
+}
+
+.opdr-teller.rood {
+  background: var(--danger);
+}
+
+.opdr-lijst {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.opdr-detail {
+  width: 400px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  background: var(--bg-raised);
+  border-left: 1px solid var(--border);
+  padding: 14px;
+}
+
+/* ── Rijen ──────────────────────────────────────────────────────── */
+
+.opdr-rij {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.opdr-rij:hover {
+  border-color: var(--accent);
+}
+
+.opdr-rij.actief {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.opdr-rij.urgentie-0 {
+  border-left: 3px solid var(--danger);
+}
+
+.opdr-rij.urgentie-1 {
+  border-left: 3px solid var(--opdr-oranje);
+}
+
+.opdr-rij.heropenbaar {
+  background: var(--opdr-groen-zacht);
+}
+
+.opdr-rij.gearchiveerd {
+  opacity: 0.6;
+}
+
+.opdr-rij-midden {
+  flex: 1;
+  min-width: 0;
+}
+
+.opdr-rij-kop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.opdr-rij-omschrijving {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.opdr-rij-actie {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.opdr-rij-actie.klasse-0 {
+  color: var(--danger);
+}
+
+.opdr-rij-actie.klasse-1 {
+  color: var(--opdr-oranje);
+}
+
+.opdr-rij-actie.klasse-2 {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.opdr-groep-titel {
+  margin: 10px 0 2px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+}
+
+.opdr-leeg {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 40px 16px;
+}
+
+.opdr-leeg-groot {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+/* ── Badges ─────────────────────────────────────────────────────── */
+
+.opdr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 2px 9px;
+  background: var(--bg-sunken);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.opdr-badge.waarschuwing {
+  background: var(--opdr-oranje-zacht);
+  color: var(--opdr-oranje);
+}
+
+.opdr-badge.klaar {
+  background: var(--opdr-groen-zacht);
+  color: var(--opdr-groen);
+}
+
+.opdr-badge.dood {
+  text-decoration: line-through;
+}
+
+.opdr-badge-ronde {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0 5px;
+  font-size: 0.65rem;
+}
+
+/* ── Detailpaneel ───────────────────────────────────────────────── */
+
+.opdr-detail h2 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+}
+
+.opdr-detail-kop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.opdr-detail section {
+  margin-top: 18px;
+}
+
+.opdr-detail h3 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+}
+
+.opdr-veldrooster {
+  display: grid;
+  grid-template-columns: 105px 1fr;
+  gap: 6px 10px;
+  align-items: center;
+}
+
+.opdr-veldrooster label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.opdr-veldrooster input,
+.opdr-veldrooster select,
+.opdr-detail textarea,
+.opdr-extra-veld input {
+  font: inherit;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  width: 100%;
+  background: var(--bg-raised);
+  color: var(--text);
+}
+
+.opdr-detail textarea {
+  resize: vertical;
+}
+
+.opdr-veld-blok {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+/* ── Statusknoppen ──────────────────────────────────────────────── */
+
+.opdr-statusknoppen {
+  background: var(--bg-sunken);
+  border-radius: var(--radius);
+  padding: 10px;
+}
+
+.opdr-knoppenrij {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.opdr-extra-veld {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.opdr-extra-veld label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  flex-basis: 100%;
+  margin-bottom: -4px;
+}
+
+.opdr-extra-veld input {
+  flex: 1;
+  min-width: 150px;
+}
+
+.opdr-fout {
+  color: var(--danger);
+  background: var(--opdr-rood-zacht);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  margin: 8px 0 0;
+}
+
+/* ── Rondes, tijdlijn, mail ─────────────────────────────────────── */
+
+.opdr-ronde-blok {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.opdr-ronde-blok.actief {
+  border-color: var(--accent);
+}
+
+.opdr-ronde-kop {
+  font-weight: 600;
+  margin-bottom: 6px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.opdr-ronde-nu {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.opdr-ronde-velden {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 2px 8px;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.opdr-ronde-velden dt {
+  color: var(--text-muted);
+}
+
+.opdr-ronde-velden dd {
+  margin: 0;
+}
+
+.opdr-tijdlijn {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.opdr-tijdlijn li {
+  display: flex;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--bg-sunken);
+}
+
+.opdr-tijdlijn-icoon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+}
+
+.opdr-tijdlijn-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.opdr-mail-blok {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.opdr-mail-tekst {
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--bg-sunken);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 6px 0 8px;
+  white-space: pre-wrap;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+/* ── Statistiek ─────────────────────────────────────────────────── */
+
+.opdr-stats {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  align-content: start;
+}
+
+.opdr-stat-kaart {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: var(--shadow);
+}
+
+.opdr-stat-kaart h3 {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+}
+
+.opdr-stat-sub {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin: 0 0 12px;
+}
+
+.opdr-stat-groot {
+  font-size: 1.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.opdr-stat-rij3 {
+  display: flex;
+  gap: 20px;
+}
+
+.opdr-staaf-rij {
+  display: grid;
+  grid-template-columns: 52px 1fr 34px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+}
+
+.opdr-staaf-label {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.opdr-staaf-baan {
+  background: var(--bg-sunken);
+  border-radius: 4px;
+  height: 14px;
+  overflow: hidden;
+}
+
+.opdr-staaf {
+  height: 100%;
+  background: var(--opdr-chart-1);
+  /* Afgeronde data-einden alleen aan de waardekant; basislijn blijft recht. */
+  border-radius: 0 4px 4px 0;
+  min-width: 2px;
+}
+
+.opdr-staaf.vergelijk {
+  background: var(--opdr-chart-2);
+}
+
+.opdr-legenda {
+  display: flex;
+  gap: 14px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.opdr-legenda span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.opdr-legenda i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.opdr-duo-baan {
+  display: flex;
+  flex-direction: column;
+  gap: 2px; /* 2px surface-gap tussen de twee reeksen */
+}
+
+.opdr-duo-baan .opdr-staaf-baan {
+  height: 10px;
+}
+
+.opdr-staaf-waarde {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.opdr-uren-rij {
+  display: grid;
+  grid-template-columns: 1fr 60px 60px;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--bg-sunken);
+  font-size: 0.82rem;
+  align-items: baseline;
+}
+
+.opdr-uren-rij.kop {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.opdr-uren-rij .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.opdr-uren-rij .over {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.opdr-uren-rij .onder {
+  color: var(--opdr-groen);
+}

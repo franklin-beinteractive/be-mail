@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api } from "../lib/api";
+import { opdrachtenApi } from "../lib/opdrachten-api";
 import { useApp } from "../lib/ctx";
 import type {
   Account,
@@ -36,6 +37,7 @@ import {
   EditIcon,
   FlagIcon,
   ForwardIcon,
+  OpdrachtenIcon,
   PaperclipIcon,
   PlusIcon,
   ReplyAllIcon,
@@ -140,7 +142,12 @@ function buildTree(list: MailFolder[], order: Record<string, string[]>): FolderT
   };
 }
 
-export default function MailView() {
+interface MailViewProps {
+  /** Callback nadat vanuit een mail een opdracht-kaart is aangemaakt. */
+  onOpdrachtAangemaakt?: (id: number) => void;
+}
+
+export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
   const { t, tip, settings, setSettings, notify, confirm } = useApp();
   // Multi-account: mappen per account; acties werken op het actieve account.
   const [accounts, setAccounts] = useState<StoredAccount[]>([]);
@@ -1565,6 +1572,27 @@ export default function MailView() {
                 title={tip("tipForward")}
               >
                 <ForwardIcon size={18} /> {t("forward")}
+              </button>
+              <button
+                className="btn"
+                onClick={async () => {
+                  // Maakt een opdracht-kaart van deze mail (alleen lezen —
+                  // er wordt nooit iets verstuurd).
+                  try {
+                    const detail = await opdrachtenApi.opdrachtVanMail(
+                      senderName(selected.from?.emailAddress),
+                      senderAddress(selected.from?.emailAddress),
+                      selected.subject ?? "",
+                    );
+                    notify(t("opdrachtAangemaakt"));
+                    onOpdrachtAangemaakt?.(detail.aanvraag.id);
+                  } catch (e) {
+                    notify(String(e), "error");
+                  }
+                }}
+                title={tip("maakOpdracht")}
+              >
+                <OpdrachtenIcon size={18} /> {t("maakOpdracht")}
               </button>
               {settings.aiSkills.length > 0 && (
                 <select

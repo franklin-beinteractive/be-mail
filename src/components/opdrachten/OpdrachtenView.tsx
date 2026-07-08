@@ -1,0 +1,429 @@
+// Opdrachten-coördinatie: actielijst ("Wat moet ik nu doen?"), wachtkamer,
+// alle kaarten en statistiek. Data via plain state + herladen (geen query-lib),
+// zoals de rest van BE-Mail. De Rust-poller seint via "opdrachten-ververst".
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
+
+import { useApp } from "../../lib/ctx";
+import { opdrachtenApi } from "../../lib/opdrachten-api";
+import type {
+  Aanvraag,
+  ActieKaart,
+  Actielijst,
+  KaartDetail as Detail,
+  Statistiek as Stats,
+  WachtKaart,
+} from "../../lib/opdrachten-types";
+import { formatteerDatum } from "../../lib/opdrachten-types";
+import KaartDetail from "./KaartDetail";
+import SnelVastleggen from "./SnelVastleggen";
+import StatusBadge from "./StatusBadge";
+import Statistiek from "./Statistiek";
+
+type Tab = "acties" | "wachtkamer" | "alle" | "stats";
+
+const WACHT_GROEPEN: { sleutel: WachtKaart["wacht_op"]; titel: string }[] = [
+  { sleutel: "planning", titel: "Wacht op planning" },
+  { sleutel: "uitvoeringsdatum", titel: "Wacht op de uitvoeringsdatum" },
+  { sleutel: "uitvoering", titel: "In uitvoering" },
+];
+
+interface Props {
+  /** Kaart die direct geopend moet worden (bijv. net aangemaakt vanuit een mail). */
+  focusKaartId: number | null;
+  onFocusVerwerkt: () => void;
+}
+
+export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props) {
+  const { notify } = useApp();
+  const [tab, setTab] = useState<Tab>("acties");
+  const [actielijst, setActielijst] = useState<Actielijst | null>(null);
+  const [wachtkamer, setWachtkamer] = useState<WachtKaart[] | null>(null);
+  const [kaarten, setKaarten] = useState<Aanvraag[] | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [geselecteerd, setGeselecteerd] = useState<number | null>(null);
+  const [detail, setDetail] = useState<Detail | null>(null);
+  const [toonNieuw, setToonNieuw] = useState(false);
+  const [toonHeropenbaar, setToonHeropenbaar] = useState(false);
+  const [zoek, setZoek] = useState("");
+  const bezigRef = useRef(false);
+
+  const herlaad = useCallback(async () => {
+    if (bezigRef.current) return;
+    bezigRef.current = true;
+    try {
+      const [lijst, wacht, alle, statistiek] = await Promise.all([
+        opdrachtenApi.getActielijst(),
+        opdrachtenApi.getWachtkamer(),
+        opdrachtenApi.getKaarten(),
+        opdrachtenApi.getStatistiek(),
+      ]);
+      setActielijst(lijst);
+      setWachtkamer(wacht);
+      setKaarten(alle);
+      setStats(statistiek);
+    } catch (e) {
+      notify(String(e), "error");
+    } finally {
+      bezigRef.current = false;
+    }
+  }, [notify]);
+
+  // Laden bij openen + elke minuut + wanneer de Rust-poller seint.
+  useEffect(() => {
+    void herlaad();
+    const interval = window.setInterval(() => void herlaad(), 60_000);
+    const un = listen("opdrachten-ververst", () => void herlaad());
+    return () => {
+      window.clearInterval(interval);
+      un.then((f) => f());
+    };
+  }, [herlaad]);
+
+  // Detail laden bij selectie.
+  useEffect(() => {
+    if (geselecteerd === null) {
+      setDetail(null);
+      return;
+    }
+    opdrachtenApi
+      .getKaartDetail(geselecteerd)
+      .then(setDetail)
+      .catch((e) => notify(String(e), "error"));
+  }, [geselecteerd, notify]);
+
+  // Vanuit een mail aangemaakte kaart direct openen.
+  useEffect(() => {
+    if (focusKaartId !== null) {
+      setTab("acties");
+      setGeselecteerd(focusKaartId);
+      onFocusVerwerkt();
+      void herlaad();
+    }
+  }, [focusKaartId, onFocusVerwerkt, herlaad]);
+
+  function naGewijzigd(nieuw: Detail) {
+    setDetail(nieuw);
+    setGeselecteerd(nieuw.aanvraag.id);
+    void herlaad();
+  }
+
+  // Geordende ids van de actieve tab voor ↑/↓-navigatie.
+  const ids = useMemo(() => {
+    switch (tab) {
+      case "acties":
+        return [
+          ...(actielijst?.acties.map((a) => a.aanvraag.id) ?? []),
+          ...(actielijst?.heropenbaar.map((h) => h.aanvraag.id) ?? []),
+        ];
+      case "wachtkamer":
+        return wachtkamer?.map((w) => w.aanvraag.id) ?? [];
+      case "alle":
+        return kaarten?.map((k) => k.id) ?? [];
+      case "stats":
+        return [];
+    }
+  }, [tab, actielijst, wachtkamer, kaarten]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const doel = e.target as HTMLElement;
+      const inInvoer = ["INPUT", "TEXTAREA", "SELECT"].includes(doel.tagName);
+      if (e.key === "Escape") {
+        if (toonNieuw) setToonNieuw(false);
+        else if (geselecteerd !== null && !inInvoer) setGeselecteerd(null);
+        return;
+      }
+      if (inInvoer || toonNieuw) return;
+      switch (e.key) {
+        case "n":
+        case "N":
+          e.preventDefault();
+          setToonNieuw(true);
+          break;
+        case "1":
+          setTab("acties");
+          break;
+        case "2":
+          setTab("wachtkamer");
+          break;
+        case "3":
+          setTab("alle");
+          break;
+        case "4":
+          setTab("stats");
+          break;
+        case "ArrowDown":
+        case "ArrowUp": {
+          if (ids.length === 0) break;
+          e.preventDefault();
+          const huidige = geselecteerd !== null ? ids.indexOf(geselecteerd) : -1;
+          const delta = e.key === "ArrowDown" ? 1 : -1;
+          const volgende = Math.min(Math.max(huidige + delta, 0), ids.length - 1);
+          setGeselecteerd(ids[volgende]);
+          break;
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [ids, geselecteerd, toonNieuw]);
+
+  async function primaireActie(k: ActieKaart) {
+    try {
+      switch (k.actie_soort) {
+        case "verwerken":
+          naGewijzigd(await opdrachtenApi.wijzigStatus(k.aanvraag.id, "tijd_inschatten"));
+          break;
+        case "planning_herinneren":
+          naGewijzigd(await opdrachtenApi.planningHerinnerd(k.aanvraag.id));
+          break;
+        case "klant_informeren":
+          naGewijzigd(await opdrachtenApi.wijzigStatus(k.aanvraag.id, "ingepland"));
+          break;
+        case "uitvoering_starten":
+          naGewijzigd(await opdrachtenApi.wijzigStatus(k.aanvraag.id, "in_uitvoering"));
+          break;
+        default:
+          setGeselecteerd(k.aanvraag.id);
+      }
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  const actieKnopLabel: Record<string, string> = {
+    verwerken: "In behandeling",
+    inschatten: "Inschatten…",
+    planning_herinneren: "✓ Herinnerd",
+    klant_informeren: "✓ Geïnformeerd",
+    uitvoering_starten: "Gestart",
+    feedback_vragen: "Akkoord/feedback…",
+    op_schema_check: "Op schema?",
+  };
+
+  const aantalActies = actielijst?.acties.length ?? 0;
+  const aantalRood = actielijst?.acties.filter((a) => a.urgentieklasse === 0).length ?? 0;
+
+  const term = zoek.trim().toLowerCase();
+  const gefilterd = (kaarten ?? []).filter((a) => {
+    if (!term) return true;
+    return [a.klant_naam, a.klant_bedrijf, a.omschrijving, a.klant_email]
+      .filter(Boolean)
+      .some((v) => v!.toLowerCase().includes(term));
+  });
+
+  return (
+    <div className="opdr-view">
+      <div className="opdr-hoofd">
+        <header className="opdr-kop">
+          <nav className="opdr-tabs">
+            <button className={`opdr-tab${tab === "acties" ? " active" : ""}`} onClick={() => setTab("acties")}>
+              Wat moet ik nu doen?
+              {aantalActies > 0 && (
+                <span className={`opdr-teller${aantalRood > 0 ? " rood" : ""}`}>{aantalActies}</span>
+              )}
+            </button>
+            <button className={`opdr-tab${tab === "wachtkamer" ? " active" : ""}`} onClick={() => setTab("wachtkamer")}>
+              Wachtkamer
+              {(wachtkamer?.length ?? 0) > 0 && <span className="opdr-teller" style={{ background: "var(--text-muted)" }}>{wachtkamer!.length}</span>}
+            </button>
+            <button className={`opdr-tab${tab === "alle" ? " active" : ""}`} onClick={() => setTab("alle")}>
+              Alle kaarten
+            </button>
+            <button className={`opdr-tab${tab === "stats" ? " active" : ""}`} onClick={() => setTab("stats")}>
+              Statistiek
+            </button>
+          </nav>
+          <button className="btn primary" onClick={() => setToonNieuw(true)} title="Sneltoets: N">
+            ＋ Nieuwe aanvraag
+          </button>
+        </header>
+
+        {tab === "stats" ? (
+          stats ? (
+            <Statistiek stats={stats} />
+          ) : (
+            <p className="opdr-leeg">Laden…</p>
+          )
+        ) : (
+          <div className="opdr-lijst">
+            {tab === "acties" && actielijst && (
+              <>
+                {actielijst.acties.length === 0 ? (
+                  <div className="opdr-leeg">
+                    <p className="opdr-leeg-groot">Niets te doen 🎉</p>
+                    <p>Alles wacht op iemand anders — kijk gerust in de wachtkamer.</p>
+                  </div>
+                ) : (
+                  actielijst.acties.map((k) => (
+                    <div
+                      key={k.aanvraag.id}
+                      className={`opdr-rij urgentie-${k.urgentieklasse}${geselecteerd === k.aanvraag.id ? " actief" : ""}`}
+                      onClick={() => setGeselecteerd(k.aanvraag.id)}
+                    >
+                      <div className="opdr-rij-midden">
+                        <div className="opdr-rij-kop">
+                          <strong>{k.aanvraag.klant_naam}</strong>
+                          {k.aanvraag.klant_bedrijf && <span className="muted">{k.aanvraag.klant_bedrijf}</span>}
+                          <StatusBadge status={k.aanvraag.status} ronde={k.aanvraag.huidige_ronde} />
+                        </div>
+                        <div className="opdr-rij-omschrijving">{k.aanvraag.omschrijving || "—"}</div>
+                        <div className={`opdr-rij-actie klasse-${k.urgentieklasse}`}>{k.actie_label}</div>
+                      </div>
+                      <button
+                        className="btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void primaireActie(k);
+                        }}
+                      >
+                        {actieKnopLabel[k.actie_soort] ?? "Openen"}
+                      </button>
+                    </div>
+                  ))
+                )}
+                {actielijst.heropenbaar.length > 0 && (
+                  <>
+                    <button className="btn ghost" style={{ alignSelf: "flex-start" }} onClick={() => setToonHeropenbaar(!toonHeropenbaar)}>
+                      {toonHeropenbaar ? "▾" : "▸"} Recent afgerond — nog heropenbaar ({actielijst.heropenbaar.length})
+                    </button>
+                    {toonHeropenbaar &&
+                      actielijst.heropenbaar.map((h) => (
+                        <div
+                          key={h.aanvraag.id}
+                          className={`opdr-rij heropenbaar${geselecteerd === h.aanvraag.id ? " actief" : ""}`}
+                          onClick={() => setGeselecteerd(h.aanvraag.id)}
+                        >
+                          <div className="opdr-rij-midden">
+                            <div className="opdr-rij-kop">
+                              <strong>{h.aanvraag.klant_naam}</strong>
+                              <span className="muted">{h.aanvraag.omschrijving}</span>
+                            </div>
+                            <div className="opdr-rij-actie klasse-2">
+                              Nog {h.dagen_resterend} dagen heropenbaar
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </>
+                )}
+              </>
+            )}
+
+            {tab === "wachtkamer" &&
+              (wachtkamer && wachtkamer.length > 0 ? (
+                WACHT_GROEPEN.map(({ sleutel, titel }) => {
+                  const groep = wachtkamer.filter((k) => k.wacht_op === sleutel);
+                  if (groep.length === 0) return null;
+                  return (
+                    <section key={sleutel}>
+                      <h3 className="opdr-groep-titel">{titel}</h3>
+                      {groep.map((k) => (
+                        <div
+                          key={k.aanvraag.id}
+                          className={`opdr-rij${geselecteerd === k.aanvraag.id ? " actief" : ""}`}
+                          style={{ marginBottom: 8 }}
+                          onClick={() => setGeselecteerd(k.aanvraag.id)}
+                        >
+                          <div className="opdr-rij-midden">
+                            <div className="opdr-rij-kop">
+                              <strong>{k.aanvraag.klant_naam}</strong>
+                              {k.aanvraag.klant_bedrijf && <span className="muted">{k.aanvraag.klant_bedrijf}</span>}
+                              <StatusBadge status={k.aanvraag.status} ronde={k.aanvraag.huidige_ronde} />
+                            </div>
+                            <div className="opdr-rij-omschrijving">{k.aanvraag.omschrijving || "—"}</div>
+                            <div className="opdr-rij-actie klasse-2">
+                              {k.wacht_label}
+                              {k.sinds && ` · sinds ${formatteerDatum(k.sinds)}`}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </section>
+                  );
+                })
+              ) : (
+                <div className="opdr-leeg">
+                  <p className="opdr-leeg-groot">De wachtkamer is leeg</p>
+                  <p>Er wacht momenteel niets op planning of uitvoering.</p>
+                </div>
+              ))}
+
+            {tab === "alle" && (
+              <>
+                <input
+                  type="search"
+                  placeholder="Zoeken op klant, bedrijf of omschrijving…"
+                  value={zoek}
+                  style={{ font: "inherit", border: "1px solid var(--border)", borderRadius: 6, padding: "7px 10px", background: "var(--bg-raised)", color: "var(--text)" }}
+                  onChange={(e) => setZoek(e.target.value)}
+                />
+                {gefilterd.length === 0 ? (
+                  <p className="opdr-leeg">Geen kaarten gevonden.</p>
+                ) : (
+                  gefilterd.map((a) => (
+                    <div
+                      key={a.id}
+                      className={`opdr-rij${geselecteerd === a.id ? " actief" : ""}${a.gearchiveerd ? " gearchiveerd" : ""}`}
+                      onClick={() => setGeselecteerd(a.id)}
+                    >
+                      <div className="opdr-rij-midden">
+                        <div className="opdr-rij-kop">
+                          <strong>{a.klant_naam}</strong>
+                          {a.klant_bedrijf && <span className="muted">{a.klant_bedrijf}</span>}
+                          <StatusBadge status={a.status} ronde={a.huidige_ronde} />
+                          {a.gearchiveerd && <span className="opdr-badge dood">gearchiveerd</span>}
+                        </div>
+                        <div className="opdr-rij-omschrijving">{a.omschrijving || "—"}</div>
+                        <div className="opdr-rij-actie klasse-2">
+                          Binnengekomen {formatteerDatum(a.datum_binnen)}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+                {import.meta.env.DEV && (
+                  <button
+                    className="btn ghost"
+                    style={{ alignSelf: "flex-start", color: "var(--danger)" }}
+                    onClick={async () => {
+                      try {
+                        await opdrachtenApi.seedDemo();
+                        notify("Demo-data geladen");
+                        void herlaad();
+                      } catch (e) {
+                        notify(String(e), "error");
+                      }
+                    }}
+                  >
+                    Demo-data laden (dev — wist huidige data)
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {detail && (
+        <KaartDetail
+          detail={detail}
+          onGewijzigd={naGewijzigd}
+          onSluit={() => setGeselecteerd(null)}
+          onFout={(m) => notify(m, "error")}
+        />
+      )}
+
+      {toonNieuw && (
+        <SnelVastleggen
+          onSluit={() => setToonNieuw(false)}
+          onAangemaakt={(id, openDetail) => {
+            if (openDetail) setGeselecteerd(id);
+            void herlaad();
+          }}
+        />
+      )}
+    </div>
+  );
+}

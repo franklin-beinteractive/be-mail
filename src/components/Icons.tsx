@@ -122,6 +122,15 @@ export const PlusIcon = (p: Props) => (
     <path d="M12 5v14M5 12h14" />
   </Svg>
 );
+/* Klembord met vinkjes: de opdrachten-sectie (takenlijst-achtig). */
+export const OpdrachtenIcon = (p: Props) => (
+  <Svg {...p}>
+    <rect x="5" y="4" width="14" height="17" rx="2" />
+    <path d="M9 4a3 3 0 0 1 6 0" />
+    <path d="m8.5 11 1.5 1.5L13 9.5" />
+    <path d="M8.5 16.5h7" />
+  </Svg>
+);
 export const SendIcon = (p: Props) => (
   <Svg {...p}>
     <path d="m22 2-7 20-4-9-9-4z" />
