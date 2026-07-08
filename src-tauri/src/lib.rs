@@ -10,6 +10,7 @@ mod config;
 mod graph;
 mod models;
 mod notifier;
+mod opdrachten;
 mod token_store;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -17,9 +18,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             // Achtergrond-poller voor nieuwe-mail-notificaties.
             notifier::start(app.handle().clone());
+            // Opdrachten-module: eigen database + herinnerings-poller.
+            opdrachten::db::init()
+                .map_err(|e| format!("Opdrachten-database kon niet geopend worden: {e}"))?;
+            opdrachten::achtergrond::start(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -71,6 +77,24 @@ pub fn run() {
             commands::update_event_times,
             commands::search_people,
             commands::delete_event,
+            // Opdrachten-module (leest mail-gegevens, verstuurt nooit e-mail)
+            opdrachten::commands::snel_vastleggen,
+            opdrachten::commands::opdracht_van_mail,
+            opdrachten::commands::update_aanvraag,
+            opdrachten::commands::update_ronde,
+            opdrachten::commands::wijzig_status,
+            opdrachten::commands::stap_terug,
+            opdrachten::commands::planning_herinnerd,
+            opdrachten::commands::get_actielijst,
+            opdrachten::commands::get_wachtkamer,
+            opdrachten::commands::get_kaarten,
+            opdrachten::commands::get_kaart_detail,
+            opdrachten::commands::voeg_notitie_toe,
+            opdrachten::commands::get_opdracht_instellingen,
+            opdrachten::commands::zet_opdracht_instelling,
+            opdrachten::commands::get_statistiek,
+            #[cfg(debug_assertions)]
+            opdrachten::commands::seed_opdrachten_demo,
         ])
         .run(tauri::generate_context!())
         .expect("Fout bij het starten van BE-Mail");
