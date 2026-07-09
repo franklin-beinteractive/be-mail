@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { useApp } from "../../lib/ctx";
 import { opdrachtenApi } from "../../lib/opdrachten-api";
 
 interface Props {
@@ -9,6 +10,7 @@ interface Props {
 
 /** Nieuwe kaart in seconden: naam + één zin, Enter = opslaan (spec §6.2). */
 export default function SnelVastleggen({ onSluit, onAangemaakt }: Props) {
+  const { t } = useApp();
   const [naam, setNaam] = useState("");
   const [omschrijving, setOmschrijving] = useState("");
   const [fout, setFout] = useState<string | null>(null);
@@ -16,7 +18,7 @@ export default function SnelVastleggen({ onSluit, onAangemaakt }: Props) {
 
   async function opslaan(openDetail: boolean) {
     if (!naam.trim()) {
-      setFout("Klantnaam is verplicht");
+      setFout(t("opdrKlantnaamVerplicht"));
       return;
     }
     setBezig(true);
@@ -40,36 +42,34 @@ export default function SnelVastleggen({ onSluit, onAangemaakt }: Props) {
     <div className="overlay" role="dialog" aria-modal="true" onClick={onSluit}>
       <div className="dialog" onClick={(e) => e.stopPropagation()} onKeyDown={toets} style={{ width: 460 }}>
         <header className="dialog-head">
-          <h2>Nieuwe aanvraag</h2>
+          <h2>{t("opdrNieuweAanvraagTitel")}</h2>
         </header>
         <div className="dialog-body" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <input
             type="text"
-            placeholder="Klantnaam *"
+            placeholder={t("opdrPlaceholderKlantnaam")}
             value={naam}
             autoFocus
             onChange={(e) => setNaam(e.target.value)}
           />
           <input
             type="text"
-            placeholder="Waar gaat het over? (één zin is genoeg)"
+            placeholder={t("opdrPlaceholderOmschrijving")}
             value={omschrijving}
             onChange={(e) => setOmschrijving(e.target.value)}
           />
           {fout && <p className="opdr-fout">{fout}</p>}
-          <p className="muted small">
-            De rest vul je later aan — Enter slaat op, Ctrl+Enter opent de kaart direct.
-          </p>
+          <p className="muted small">{t("opdrHintSnel")}</p>
         </div>
         <footer className="dialog-foot">
           <button className="btn ghost" onClick={onSluit}>
-            Sluiten
+            {t("opdrSluiten")}
           </button>
           <button className="btn" onClick={() => void opslaan(true)} disabled={bezig}>
-            Vastleggen + openen
+            {t("opdrVastleggenOpen")}
           </button>
           <button className="btn primary" onClick={() => void opslaan(false)} disabled={bezig}>
-            Vastleggen
+            {t("opdrVastleggen")}
           </button>
         </footer>
       </div>

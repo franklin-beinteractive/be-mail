@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { useApp } from "../../lib/ctx";
+import type { TextKey } from "../../lib/i18n";
 import { opdrachtenApi } from "../../lib/opdrachten-api";
 import type {
   KaartDetail,
@@ -11,26 +13,26 @@ type ExtraVeld = "datum" | "feedback" | undefined;
 
 interface Overgang {
   doel: OpdrachtStatus;
-  label: string;
+  labelKey: TextKey;
   veld?: ExtraVeld;
   primair?: boolean;
 }
 
 /** TS-spiegel van de toegestane overgangen (opdrachten/domein/status.rs). */
 const OVERGANGEN: Record<OpdrachtStatus, Overgang[]> = {
-  binnengekomen: [{ doel: "tijd_inschatten", label: "In behandeling nemen", primair: true }],
-  tijd_inschatten: [{ doel: "bij_planning", label: "Naar planning sturen", primair: true }],
+  binnengekomen: [{ doel: "tijd_inschatten", labelKey: "opdrOvergangBehandelen", primair: true }],
+  tijd_inschatten: [{ doel: "bij_planning", labelKey: "opdrOvergangNaarPlanning", primair: true }],
   bij_planning: [
-    { doel: "klant_informeren", label: "Planning gaf een datum terug…", veld: "datum", primair: true },
+    { doel: "klant_informeren", labelKey: "opdrOvergangDatumTerug", veld: "datum", primair: true },
   ],
-  klant_informeren: [{ doel: "ingepland", label: "✓ Klant geïnformeerd", primair: true }],
-  ingepland: [{ doel: "in_uitvoering", label: "Uitvoering gestart", primair: true }],
-  in_uitvoering: [{ doel: "feedback_controle", label: "Uitvoering klaar → controle", primair: true }],
+  klant_informeren: [{ doel: "ingepland", labelKey: "opdrOvergangKlantGeinformeerd", primair: true }],
+  ingepland: [{ doel: "in_uitvoering", labelKey: "opdrOvergangUitvoeringGestart", primair: true }],
+  in_uitvoering: [{ doel: "feedback_controle", labelKey: "opdrOvergangKlaar", primair: true }],
   feedback_controle: [
-    { doel: "afgerond", label: "✓ Klant akkoord — afronden", primair: true },
-    { doel: "tijd_inschatten", label: "Feedback → nieuwe ronde", veld: "feedback" },
+    { doel: "afgerond", labelKey: "opdrOvergangAkkoord", primair: true },
+    { doel: "tijd_inschatten", labelKey: "opdrOvergangFeedbackRonde", veld: "feedback" },
   ],
-  afgerond: [{ doel: "tijd_inschatten", label: "Heropenen (nieuwe ronde)" }],
+  afgerond: [{ doel: "tijd_inschatten", labelKey: "opdrOvergangHeropenen" }],
   geannuleerd: [],
 };
 
@@ -40,6 +42,7 @@ interface Props {
 }
 
 export default function StatusKnoppen({ detail, onGewijzigd }: Props) {
+  const { t } = useApp();
   const { aanvraag } = detail;
   const [openVeld, setOpenVeld] = useState<null | { doel: OpdrachtStatus; veld: "datum" | "feedback" | "reden" }>(null);
   const [waarde, setWaarde] = useState("");
@@ -103,17 +106,17 @@ export default function StatusKnoppen({ detail, onGewijzigd }: Props) {
       <div className="opdr-knoppenrij">
         {overgangen.map((o) => (
           <button
-            key={o.doel + o.label}
+            key={o.doel + o.labelKey}
             className={o.primair ? "btn primary" : "btn"}
             onClick={() => klik(o)}
             disabled={bezig}
           >
-            {o.label}
+            {t(o.labelKey)}
           </button>
         ))}
         {kanTerug && (
-          <button className="btn ghost" title="Misklik? Eén stap terug in de flow" onClick={() => void terug()} disabled={bezig}>
-            ↩ Stap terug
+          <button className="btn ghost" title={t("opdrStapTerugTip")} onClick={() => void terug()} disabled={bezig}>
+            {t("opdrStapTerug")}
           </button>
         )}
         {kanAnnuleren && (
@@ -126,7 +129,7 @@ export default function StatusKnoppen({ detail, onGewijzigd }: Props) {
               setFout(null);
             }}
           >
-            Annuleren…
+            {t("opdrAnnulerenKnop")}
           </button>
         )}
       </div>
@@ -135,7 +138,7 @@ export default function StatusKnoppen({ detail, onGewijzigd }: Props) {
         <div className="opdr-extra-veld">
           {openVeld.veld === "datum" ? (
             <>
-              <label>Ingeplande datum</label>
+              <label>{t("opdrIngeplandeDatum")}</label>
               <input
                 type="date"
                 value={waarde}
@@ -146,22 +149,22 @@ export default function StatusKnoppen({ detail, onGewijzigd }: Props) {
             </>
           ) : (
             <>
-              <label>{openVeld.veld === "feedback" ? "Wat koppelde de klant terug?" : "Reden van annuleren"}</label>
+              <label>{openVeld.veld === "feedback" ? t("opdrFeedbackVraag") : t("opdrRedenAnnuleren")}</label>
               <input
                 type="text"
                 value={waarde}
                 autoFocus
-                placeholder={openVeld.veld === "feedback" ? "bijv. kleur klopt niet" : "bijv. klant haakt af"}
+                placeholder={openVeld.veld === "feedback" ? t("opdrFeedbackPlaceholder") : t("opdrRedenPlaceholder")}
                 onChange={(e) => setWaarde(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && bevestig()}
               />
             </>
           )}
           <button className="btn primary" onClick={bevestig} disabled={bezig}>
-            Bevestigen
+            {t("opdrBevestigen")}
           </button>
           <button className="btn ghost" onClick={() => setOpenVeld(null)}>
-            Annuleer
+            {t("opdrAnnuleer")}
           </button>
         </div>
       )}

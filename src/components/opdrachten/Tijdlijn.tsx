@@ -1,3 +1,4 @@
+import { useApp } from "../../lib/ctx";
 import type { LogboekRegel } from "../../lib/opdrachten-types";
 import { formatteerTijdstip } from "../../lib/opdrachten-types";
 
@@ -7,8 +8,10 @@ const TYPE_ICOON: Record<string, string> = {
   herinnering: "🔔",
 };
 
+/** Logboek-teksten zelf zijn opgeslagen data (NL); alleen de UI eromheen vertaalt. */
 export default function Tijdlijn({ regels }: { regels: LogboekRegel[] }) {
-  if (regels.length === 0) return <p className="muted small">Nog geen gebeurtenissen.</p>;
+  const { t } = useApp();
+  if (regels.length === 0) return <p className="muted small">{t("opdrGeenGebeurtenissen")}</p>;
   return (
     <ol className="opdr-tijdlijn">
       {regels.map((r) => (
@@ -18,7 +21,7 @@ export default function Tijdlijn({ regels }: { regels: LogboekRegel[] }) {
             <div>{r.tekst}</div>
             <div className="opdr-tijdlijn-meta">
               {formatteerTijdstip(r.tijdstip)}
-              {r.rondenummer != null && r.rondenummer > 1 && ` · ronde ${r.rondenummer}`}
+              {r.rondenummer != null && r.rondenummer > 1 && ` · ${t("opdrRondeWoord")} ${r.rondenummer}`}
             </div>
           </div>
         </li>

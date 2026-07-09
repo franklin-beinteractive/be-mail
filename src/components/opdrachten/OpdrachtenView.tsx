@@ -5,7 +5,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 
 import { useApp } from "../../lib/ctx";
+import type { TextKey } from "../../lib/i18n";
 import { opdrachtenApi } from "../../lib/opdrachten-api";
+import { actieLabel, vul, wachtLabel } from "../../lib/opdrachten-labels";
 import type {
   Aanvraag,
   ActieKaart,
@@ -22,11 +24,21 @@ import Statistiek from "./Statistiek";
 
 type Tab = "acties" | "wachtkamer" | "alle" | "stats";
 
-const WACHT_GROEPEN: { sleutel: WachtKaart["wacht_op"]; titel: string }[] = [
-  { sleutel: "planning", titel: "Wacht op planning" },
-  { sleutel: "uitvoeringsdatum", titel: "Wacht op de uitvoeringsdatum" },
-  { sleutel: "uitvoering", titel: "In uitvoering" },
+const WACHT_GROEPEN: { sleutel: WachtKaart["wacht_op"]; titelKey: TextKey }[] = [
+  { sleutel: "planning", titelKey: "opdrGroepPlanning" },
+  { sleutel: "uitvoeringsdatum", titelKey: "opdrGroepDatum" },
+  { sleutel: "uitvoering", titelKey: "opdrGroepUitvoering" },
 ];
+
+const ACTIE_KNOP_KEY: Record<string, TextKey> = {
+  verwerken: "opdrKnopInBehandeling",
+  inschatten: "opdrKnopInschatten",
+  planning_herinneren: "opdrKnopHerinnerd",
+  klant_informeren: "opdrKnopGeinformeerd",
+  uitvoering_starten: "opdrKnopGestart",
+  feedback_vragen: "opdrKnopFeedback",
+  op_schema_check: "opdrKnopOpSchema",
+};
 
 interface Props {
   /** Kaart die direct geopend moet worden (bijv. net aangemaakt vanuit een mail). */
@@ -35,7 +47,7 @@ interface Props {
 }
 
 export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props) {
-  const { notify } = useApp();
+  const { t, notify } = useApp();
   const [tab, setTab] = useState<Tab>("acties");
   const [actielijst, setActielijst] = useState<Actielijst | null>(null);
   const [wachtkamer, setWachtkamer] = useState<WachtKaart[] | null>(null);
@@ -192,16 +204,6 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
     }
   }
 
-  const actieKnopLabel: Record<string, string> = {
-    verwerken: "In behandeling",
-    inschatten: "Inschatten…",
-    planning_herinneren: "✓ Herinnerd",
-    klant_informeren: "✓ Geïnformeerd",
-    uitvoering_starten: "Gestart",
-    feedback_vragen: "Akkoord/feedback…",
-    op_schema_check: "Op schema?",
-  };
-
   const aantalActies = actielijst?.acties.length ?? 0;
   const aantalRood = actielijst?.acties.filter((a) => a.urgentieklasse === 0).length ?? 0;
 
@@ -219,24 +221,24 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
         <header className="opdr-kop">
           <nav className="opdr-tabs">
             <button className={`opdr-tab${tab === "acties" ? " active" : ""}`} onClick={() => setTab("acties")}>
-              Wat moet ik nu doen?
+              {t("opdrTabActies")}
               {aantalActies > 0 && (
                 <span className={`opdr-teller${aantalRood > 0 ? " rood" : ""}`}>{aantalActies}</span>
               )}
             </button>
             <button className={`opdr-tab${tab === "wachtkamer" ? " active" : ""}`} onClick={() => setTab("wachtkamer")}>
-              Wachtkamer
+              {t("opdrTabWachtkamer")}
               {(wachtkamer?.length ?? 0) > 0 && <span className="opdr-teller" style={{ background: "var(--text-muted)" }}>{wachtkamer!.length}</span>}
             </button>
             <button className={`opdr-tab${tab === "alle" ? " active" : ""}`} onClick={() => setTab("alle")}>
-              Alle kaarten
+              {t("opdrTabAlle")}
             </button>
             <button className={`opdr-tab${tab === "stats" ? " active" : ""}`} onClick={() => setTab("stats")}>
-              Statistiek
+              {t("opdrTabStats")}
             </button>
           </nav>
-          <button className="btn primary" onClick={() => setToonNieuw(true)} title="Sneltoets: N">
-            ＋ Nieuwe aanvraag
+          <button className="btn primary" onClick={() => setToonNieuw(true)} title="N">
+            {t("opdrNieuweAanvraag")}
           </button>
         </header>
 
@@ -244,7 +246,7 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
           stats ? (
             <Statistiek stats={stats} />
           ) : (
-            <p className="opdr-leeg">Laden…</p>
+            <p className="opdr-leeg">{t("opdrLaden")}</p>
           )
         ) : (
           <div className="opdr-lijst">
@@ -252,8 +254,8 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
               <>
                 {actielijst.acties.length === 0 ? (
                   <div className="opdr-leeg">
-                    <p className="opdr-leeg-groot">Niets te doen 🎉</p>
-                    <p>Alles wacht op iemand anders — kijk gerust in de wachtkamer.</p>
+                    <p className="opdr-leeg-groot">{t("opdrNietsTeDoen")}</p>
+                    <p>{t("opdrNietsTeDoenSub")}</p>
                   </div>
                 ) : (
                   actielijst.acties.map((k) => (
@@ -269,7 +271,7 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
                           <StatusBadge status={k.aanvraag.status} ronde={k.aanvraag.huidige_ronde} />
                         </div>
                         <div className="opdr-rij-omschrijving">{k.aanvraag.omschrijving || "—"}</div>
-                        <div className={`opdr-rij-actie klasse-${k.urgentieklasse}`}>{k.actie_label}</div>
+                        <div className={`opdr-rij-actie klasse-${k.urgentieklasse}`}>{actieLabel(t, k)}</div>
                       </div>
                       <button
                         className="btn"
@@ -278,7 +280,7 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
                           void primaireActie(k);
                         }}
                       >
-                        {actieKnopLabel[k.actie_soort] ?? "Openen"}
+                        {ACTIE_KNOP_KEY[k.actie_soort] ? t(ACTIE_KNOP_KEY[k.actie_soort]) : t("opdrKnopOpenen")}
                       </button>
                     </div>
                   ))
@@ -286,7 +288,7 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
                 {actielijst.heropenbaar.length > 0 && (
                   <>
                     <button className="btn ghost" style={{ alignSelf: "flex-start" }} onClick={() => setToonHeropenbaar(!toonHeropenbaar)}>
-                      {toonHeropenbaar ? "▾" : "▸"} Recent afgerond — nog heropenbaar ({actielijst.heropenbaar.length})
+                      {toonHeropenbaar ? "▾" : "▸"} {t("opdrHeropenbaarKop")} ({actielijst.heropenbaar.length})
                     </button>
                     {toonHeropenbaar &&
                       actielijst.heropenbaar.map((h) => (
@@ -301,7 +303,7 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
                               <span className="muted">{h.aanvraag.omschrijving}</span>
                             </div>
                             <div className="opdr-rij-actie klasse-2">
-                              Nog {h.dagen_resterend} dagen heropenbaar
+                              {vul(t("opdrNogDagenHeropenbaar"), { n: h.dagen_resterend })}
                             </div>
                           </div>
                         </div>
@@ -313,12 +315,12 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
 
             {tab === "wachtkamer" &&
               (wachtkamer && wachtkamer.length > 0 ? (
-                WACHT_GROEPEN.map(({ sleutel, titel }) => {
+                WACHT_GROEPEN.map(({ sleutel, titelKey }) => {
                   const groep = wachtkamer.filter((k) => k.wacht_op === sleutel);
                   if (groep.length === 0) return null;
                   return (
                     <section key={sleutel}>
-                      <h3 className="opdr-groep-titel">{titel}</h3>
+                      <h3 className="opdr-groep-titel">{t(titelKey)}</h3>
                       {groep.map((k) => (
                         <div
                           key={k.aanvraag.id}
@@ -334,8 +336,8 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
                             </div>
                             <div className="opdr-rij-omschrijving">{k.aanvraag.omschrijving || "—"}</div>
                             <div className="opdr-rij-actie klasse-2">
-                              {k.wacht_label}
-                              {k.sinds && ` · sinds ${formatteerDatum(k.sinds)}`}
+                              {wachtLabel(t, k)}
+                              {k.sinds && ` · ${vul(t("opdrSinds"), { d: formatteerDatum(k.sinds) })}`}
                             </div>
                           </div>
                         </div>
@@ -345,8 +347,8 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
                 })
               ) : (
                 <div className="opdr-leeg">
-                  <p className="opdr-leeg-groot">De wachtkamer is leeg</p>
-                  <p>Er wacht momenteel niets op planning of uitvoering.</p>
+                  <p className="opdr-leeg-groot">{t("opdrWachtkamerLeeg")}</p>
+                  <p>{t("opdrWachtkamerLeegSub")}</p>
                 </div>
               ))}
 
@@ -354,13 +356,13 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
               <>
                 <input
                   type="search"
-                  placeholder="Zoeken op klant, bedrijf of omschrijving…"
+                  placeholder={t("opdrZoeken")}
                   value={zoek}
                   style={{ font: "inherit", border: "1px solid var(--border)", borderRadius: 6, padding: "7px 10px", background: "var(--bg-raised)", color: "var(--text)" }}
                   onChange={(e) => setZoek(e.target.value)}
                 />
                 {gefilterd.length === 0 ? (
-                  <p className="opdr-leeg">Geen kaarten gevonden.</p>
+                  <p className="opdr-leeg">{t("opdrGeenKaarten")}</p>
                 ) : (
                   gefilterd.map((a) => (
                     <div
@@ -373,11 +375,11 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
                           <strong>{a.klant_naam}</strong>
                           {a.klant_bedrijf && <span className="muted">{a.klant_bedrijf}</span>}
                           <StatusBadge status={a.status} ronde={a.huidige_ronde} />
-                          {a.gearchiveerd && <span className="opdr-badge dood">gearchiveerd</span>}
+                          {a.gearchiveerd && <span className="opdr-badge dood">{t("opdrGearchiveerd")}</span>}
                         </div>
                         <div className="opdr-rij-omschrijving">{a.omschrijving || "—"}</div>
                         <div className="opdr-rij-actie klasse-2">
-                          Binnengekomen {formatteerDatum(a.datum_binnen)}
+                          {vul(t("opdrBinnengekomenOp"), { d: formatteerDatum(a.datum_binnen) })}
                         </div>
                       </div>
                     </div>
@@ -390,14 +392,14 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
                     onClick={async () => {
                       try {
                         await opdrachtenApi.seedDemo();
-                        notify("Demo-data geladen");
+                        notify(t("opdrSeedKlaar"));
                         void herlaad();
                       } catch (e) {
                         notify(String(e), "error");
                       }
                     }}
                   >
-                    Demo-data laden (dev — wist huidige data)
+                    {t("opdrSeed")}
                   </button>
                 )}
               </>

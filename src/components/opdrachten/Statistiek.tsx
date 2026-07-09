@@ -1,4 +1,7 @@
+import { useApp } from "../../lib/ctx";
+import { vul } from "../../lib/opdrachten-labels";
 import type { Statistiek as Stats } from "../../lib/opdrachten-types";
+import { formatteerDatum } from "../../lib/opdrachten-types";
 
 /**
  * Statistiekoverzicht (spec §10 Fase 3). Vormkeuzes volgens de dataviz-richtlijn:
@@ -8,44 +11,46 @@ import type { Statistiek as Stats } from "../../lib/opdrachten-types";
  * licht én donker thema.
  */
 export default function Statistiek({ stats }: { stats: Stats }) {
+  const { t } = useApp();
   const weekMax = Math.max(1, ...stats.per_week.map((w) => w.aantal));
   const urenMax = Math.max(
     1,
     ...stats.uren_kaarten.flatMap((k) => [k.geschat, k.werkelijk]),
   );
   const rondes = [
-    { label: "1 ronde", aantal: stats.kaarten_1_ronde },
-    { label: "2 rondes", aantal: stats.kaarten_2_rondes },
-    { label: "3+ rondes", aantal: stats.kaarten_3plus_rondes },
+    { label: t("opdrStatsRonde1"), aantal: stats.kaarten_1_ronde },
+    { label: t("opdrStatsRonde2"), aantal: stats.kaarten_2_rondes },
+    { label: t("opdrStatsRonde3"), aantal: stats.kaarten_3plus_rondes },
   ];
   const rondeMax = Math.max(1, ...rondes.map((r) => r.aantal));
 
   return (
     <div className="opdr-stats">
       <div className="opdr-stat-kaart">
-        <h3>Kaarten</h3>
-        <p className="opdr-stat-sub">Totaal in de administratie</p>
+        <h3>{t("opdrStatsKaarten")}</h3>
+        <p className="opdr-stat-sub">{t("opdrStatsKaartenSub")}</p>
         <div className="opdr-stat-rij3">
           <div>
             <div className="opdr-stat-groot">{stats.open}</div>
-            <div className="muted small">open</div>
+            <div className="muted small">{t("opdrStatsOpen")}</div>
           </div>
           <div>
             <div className="opdr-stat-groot">{stats.afgerond}</div>
-            <div className="muted small">afgerond</div>
+            <div className="muted small">{t("opdrStatsAfgerondWoord")}</div>
           </div>
           <div>
             <div className="opdr-stat-groot">{stats.geannuleerd}</div>
-            <div className="muted small">geannuleerd</div>
+            <div className="muted small">{t("opdrStatsGeannuleerdWoord")}</div>
           </div>
         </div>
       </div>
 
       <div className="opdr-stat-kaart">
-        <h3>Doorlooptijd planning</h3>
+        <h3>{t("opdrStatsDoorlooptijd")}</h3>
         <p className="opdr-stat-sub">
-          Gemiddeld aantal werkdagen tot een antwoord van planning
-          {stats.doorlooptijd_meetpunten > 0 && ` (${stats.doorlooptijd_meetpunten} metingen)`}
+          {t("opdrStatsDoorlooptijdSub")}
+          {stats.doorlooptijd_meetpunten > 0 &&
+            ` ${vul(t("opdrStatsMetingen"), { n: stats.doorlooptijd_meetpunten })}`}
         </p>
         <div className="opdr-stat-groot">
           {stats.gem_doorlooptijd_planning != null
@@ -55,10 +60,14 @@ export default function Statistiek({ stats }: { stats: Stats }) {
       </div>
 
       <div className="opdr-stat-kaart">
-        <h3>Nieuwe aanvragen per week</h3>
-        <p className="opdr-stat-sub">Laatste 12 weken, op datum van binnenkomst</p>
+        <h3>{t("opdrStatsPerWeek")}</h3>
+        <p className="opdr-stat-sub">{t("opdrStatsPerWeekSub")}</p>
         {stats.per_week.map((w) => (
-          <div className="opdr-staaf-rij" key={w.start} title={`Week van ${w.start}: ${w.aantal} aanvragen`}>
+          <div
+            className="opdr-staaf-rij"
+            key={w.start}
+            title={vul(t("opdrStatsWeekTip"), { d: formatteerDatum(w.start), n: w.aantal })}
+          >
             <span className="opdr-staaf-label">{w.label}</span>
             <div className="opdr-staaf-baan">
               <div
@@ -72,10 +81,10 @@ export default function Statistiek({ stats }: { stats: Stats }) {
       </div>
 
       <div className="opdr-stat-kaart">
-        <h3>Rondes per opdracht</h3>
-        <p className="opdr-stat-sub">Opdrachten die terugkomen kosten méér dan de schatting</p>
+        <h3>{t("opdrStatsRondes")}</h3>
+        <p className="opdr-stat-sub">{t("opdrStatsRondesSub")}</p>
         {rondes.map((r) => (
-          <div className="opdr-staaf-rij" key={r.label} title={`${r.label}: ${r.aantal} kaarten`}>
+          <div className="opdr-staaf-rij" key={r.label} title={`${r.label}: ${r.aantal}`}>
             <span className="opdr-staaf-label">{r.label}</span>
             <div className="opdr-staaf-baan">
               <div
@@ -89,37 +98,32 @@ export default function Statistiek({ stats }: { stats: Stats }) {
       </div>
 
       <div className="opdr-stat-kaart" style={{ gridColumn: "1 / -1" }}>
-        <h3>Geschat versus werkelijk</h3>
+        <h3>{t("opdrStatsUren")}</h3>
         <p className="opdr-stat-sub">
-          Kaarten met geregistreerde werkelijke uren · totaal geschat{" "}
-          <strong>{stats.totaal_geschat}</strong> uur, werkelijk{" "}
-          <strong>{stats.totaal_werkelijk}</strong> uur
+          {vul(t("opdrStatsUrenSub"), { g: stats.totaal_geschat, w: stats.totaal_werkelijk })}
         </p>
         {stats.uren_kaarten.length === 0 ? (
-          <p className="muted small">
-            Nog geen werkelijke uren ingevuld — dat kan op de kaart zodra een opdracht in
-            uitvoering is.
-          </p>
+          <p className="muted small">{t("opdrStatsUrenLeeg")}</p>
         ) : (
           <>
             <div className="opdr-legenda">
               <span>
-                <i style={{ background: "var(--opdr-chart-1)" }} /> Geschat
+                <i style={{ background: "var(--opdr-chart-1)" }} /> {t("opdrGeschat")}
               </span>
               <span>
-                <i style={{ background: "var(--opdr-chart-2)" }} /> Werkelijk
+                <i style={{ background: "var(--opdr-chart-2)" }} /> {t("opdrWerkelijk")}
               </span>
             </div>
             <div className="opdr-uren-rij kop">
-              <span>Opdracht</span>
-              <span className="num">Geschat</span>
-              <span className="num">Werkelijk</span>
+              <span>{t("opdrStatsOpdracht")}</span>
+              <span className="num">{t("opdrGeschat")}</span>
+              <span className="num">{t("opdrWerkelijk")}</span>
             </div>
             {stats.uren_kaarten.map((k, i) => {
               const over = k.werkelijk > k.geschat && k.geschat > 0;
               return (
                 <div key={i}>
-                  <div className="opdr-uren-rij" title={`${k.klant}: geschat ${k.geschat} uur, werkelijk ${k.werkelijk} uur`}>
+                  <div className="opdr-uren-rij">
                     <span>
                       <strong>{k.klant}</strong>
                       {k.omschrijving && <span className="muted"> — {k.omschrijving}</span>}

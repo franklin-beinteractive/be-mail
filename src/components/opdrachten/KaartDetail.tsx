@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { useApp } from "../../lib/ctx";
 import { opdrachtenApi } from "../../lib/opdrachten-api";
 import type { KaartDetail as Detail, Ronde } from "../../lib/opdrachten-types";
 import { formatteerDatum, formatteerTijdstip } from "../../lib/opdrachten-types";
@@ -9,40 +10,42 @@ import StatusKnoppen from "./StatusKnoppen";
 import Tijdlijn from "./Tijdlijn";
 
 function RondeBlok({ ronde, actief }: { ronde: Ronde; actief: boolean }) {
+  const { t } = useApp();
+  const rondeWoord = t("opdrRondeWoord");
   return (
     <div className={`opdr-ronde-blok${actief ? " actief" : ""}`}>
       <div className="opdr-ronde-kop">
-        Ronde {ronde.rondenummer}
-        {actief && <span className="opdr-ronde-nu">huidig</span>}
+        {rondeWoord.charAt(0).toUpperCase() + rondeWoord.slice(1)} {ronde.rondenummer}
+        {actief && <span className="opdr-ronde-nu">{t("opdrHuidig")}</span>}
       </div>
       <dl className="opdr-ronde-velden">
-        <dt>Geschat</dt>
-        <dd>{ronde.geschatte_uren != null ? `${ronde.geschatte_uren} uur` : "—"}</dd>
-        <dt>Werkelijk</dt>
-        <dd>{ronde.werkelijke_uren != null ? `${ronde.werkelijke_uren} uur` : "—"}</dd>
-        <dt>Naar planning</dt>
+        <dt>{t("opdrGeschat")}</dt>
+        <dd>{ronde.geschatte_uren != null ? `${ronde.geschatte_uren} u` : "—"}</dd>
+        <dt>{t("opdrWerkelijk")}</dt>
+        <dd>{ronde.werkelijke_uren != null ? `${ronde.werkelijke_uren} u` : "—"}</dd>
+        <dt>{t("opdrNaarPlanningLabel")}</dt>
         <dd>{formatteerDatum(ronde.datum_naar_planning)}</dd>
-        <dt>Ingepland op</dt>
+        <dt>{t("opdrIngeplandOpLabel")}</dt>
         <dd>{formatteerDatum(ronde.ingeplande_datum)}</dd>
-        <dt>Klant geïnformeerd</dt>
+        <dt>{t("opdrKlantGeinformeerdLabel")}</dt>
         <dd>{formatteerDatum(ronde.datum_klant_geinformeerd)}</dd>
-        <dt>Uitvoering gestart</dt>
+        <dt>{t("opdrUitvoeringGestartLabel")}</dt>
         <dd>{formatteerDatum(ronde.datum_uitvoering_start)}</dd>
         {ronde.uitvoerder && (
           <>
-            <dt>Uitvoerder</dt>
+            <dt>{t("opdrUitvoerder")}</dt>
             <dd>{ronde.uitvoerder}</dd>
           </>
         )}
         {ronde.feedback_tekst && (
           <>
-            <dt>Feedback</dt>
+            <dt>{t("opdrFeedbackLabel")}</dt>
             <dd style={{ fontStyle: "italic" }}>“{ronde.feedback_tekst}”</dd>
           </>
         )}
         {ronde.afgerond_op && (
           <>
-            <dt>Afgerond</dt>
+            <dt>{t("opdrAfgerondLabel")}</dt>
             <dd>{formatteerTijdstip(ronde.afgerond_op)}</dd>
           </>
         )}
@@ -59,6 +62,7 @@ interface Props {
 }
 
 export default function KaartDetail({ detail, onGewijzigd, onSluit, onFout }: Props) {
+  const { t } = useApp();
   const { aanvraag, rondes, logboek } = detail;
   const [notitieTekst, setNotitieTekst] = useState("");
   const huidigeRonde = rondes.find((r) => r.rondenummer === aanvraag.huidige_ronde);
@@ -96,9 +100,9 @@ export default function KaartDetail({ detail, onGewijzigd, onSluit, onFout }: Pr
         <div>
           <h2>{aanvraag.klant_naam}</h2>
           <StatusBadge status={aanvraag.status} ronde={aanvraag.huidige_ronde} />
-          {aanvraag.gearchiveerd && <span className="opdr-badge dood">gearchiveerd</span>}
+          {aanvraag.gearchiveerd && <span className="opdr-badge dood">{t("opdrGearchiveerd")}</span>}
         </div>
-        <button className="icon-btn" onClick={onSluit} title="Sluiten (Esc)">
+        <button className="icon-btn" onClick={onSluit} title={t("opdrSluiten")}>
           ✕
         </button>
       </header>
@@ -112,33 +116,33 @@ export default function KaartDetail({ detail, onGewijzigd, onSluit, onFout }: Pr
       <KopieerMail detail={detail} />
 
       <section>
-        <h3>Klant</h3>
+        <h3>{t("opdrKlant")}</h3>
         <div className="opdr-veldrooster">
-          <label>Naam</label>
+          <label>{t("opdrNaam")}</label>
           <input key={`naam-${aanvraag.id}`} type="text" {...veld("klant_naam", aanvraag.klant_naam)} />
-          <label>Bedrijf</label>
+          <label>{t("opdrBedrijf")}</label>
           <input key={`bedrijf-${aanvraag.id}`} type="text" {...veld("klant_bedrijf", aanvraag.klant_bedrijf)} />
-          <label>Telefoon</label>
+          <label>{t("opdrTelefoon")}</label>
           <input key={`tel-${aanvraag.id}`} type="text" {...veld("klant_telefoon", aanvraag.klant_telefoon)} />
-          <label>E-mail</label>
+          <label>{t("opdrKanaalEmail")}</label>
           <input key={`mail-${aanvraag.id}`} type="text" {...veld("klant_email", aanvraag.klant_email)} />
-          <label>Kanaal</label>
+          <label>{t("opdrKanaal")}</label>
           <select
             key={`kanaal-${aanvraag.id}`}
             defaultValue={aanvraag.kanaal ?? ""}
             onChange={(e) => e.target.value && void bewaarAanvraag("kanaal", e.target.value)}
           >
             <option value="" disabled>
-              — kies —
+              {t("opdrKies")}
             </option>
-            <option value="telefoon">Telefoon</option>
-            <option value="email">E-mail</option>
+            <option value="telefoon">{t("opdrKanaalTelefoon")}</option>
+            <option value="email">{t("opdrKanaalEmail")}</option>
           </select>
-          <label>Binnengekomen</label>
+          <label>{t("opdrBinnengekomenLabel")}</label>
           <span>{formatteerDatum(aanvraag.datum_binnen)}</span>
         </div>
         <label className="opdr-veld-blok">
-          Omschrijving
+          {t("opdrOmschrijving")}
           <textarea
             key={`omschrijving-${aanvraag.id}`}
             rows={2}
@@ -149,9 +153,9 @@ export default function KaartDetail({ detail, onGewijzigd, onSluit, onFout }: Pr
 
       {huidigeRonde && (
         <section>
-          <h3>Huidige ronde</h3>
+          <h3>{t("opdrHuidigeRonde")}</h3>
           <div className="opdr-veldrooster">
-            <label>Geschatte uren</label>
+            <label>{t("opdrGeschatteUren")}</label>
             <input
               key={`uren-${aanvraag.id}-${huidigeRonde.rondenummer}`}
               type="number"
@@ -167,7 +171,7 @@ export default function KaartDetail({ detail, onGewijzigd, onSluit, onFout }: Pr
             />
             {toonWerkelijkeUren && (
               <>
-                <label>Werkelijke uren</label>
+                <label>{t("opdrWerkelijkeUren")}</label>
                 <input
                   key={`wuren-${aanvraag.id}-${huidigeRonde.rondenummer}`}
                   type="number"
@@ -183,7 +187,7 @@ export default function KaartDetail({ detail, onGewijzigd, onSluit, onFout }: Pr
                 />
               </>
             )}
-            <label>Uitvoerder</label>
+            <label>{t("opdrUitvoerder")}</label>
             <input
               key={`uitvoerder-${aanvraag.id}-${huidigeRonde.rondenummer}`}
               type="text"
@@ -200,7 +204,9 @@ export default function KaartDetail({ detail, onGewijzigd, onSluit, onFout }: Pr
 
       {rondes.length > 1 && (
         <section>
-          <h3>Rondes ({rondes.length})</h3>
+          <h3>
+            {t("opdrRondes")} ({rondes.length})
+          </h3>
           {[...rondes].reverse().map((r) => (
             <RondeBlok key={r.id} ronde={r} actief={r.rondenummer === aanvraag.huidige_ronde} />
           ))}
@@ -208,10 +214,10 @@ export default function KaartDetail({ detail, onGewijzigd, onSluit, onFout }: Pr
       )}
 
       <section>
-        <h3>Tijdlijn</h3>
+        <h3>{t("opdrTijdlijn")}</h3>
         <input
           type="text"
-          placeholder="Notitie toevoegen…"
+          placeholder={t("opdrNotitiePlaceholder")}
           value={notitieTekst}
           style={{ width: "100%", font: "inherit", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 8px", background: "var(--bg-raised)", color: "var(--text)" }}
           onChange={(e) => setNotitieTekst(e.target.value)}
