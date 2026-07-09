@@ -39,10 +39,12 @@ const OVERGANGEN: Record<OpdrachtStatus, Overgang[]> = {
 interface Props {
   detail: KaartDetail;
   onGewijzigd: (detail: KaartDetail) => void;
+  /** Na definitief verwijderen: paneel sluiten + lijsten verversen. */
+  onVerwijderd: () => void;
 }
 
-export default function StatusKnoppen({ detail, onGewijzigd }: Props) {
-  const { t } = useApp();
+export default function StatusKnoppen({ detail, onGewijzigd, onVerwijderd }: Props) {
+  const { t, confirm, notify } = useApp();
   const { aanvraag } = detail;
   const [openVeld, setOpenVeld] = useState<null | { doel: OpdrachtStatus; veld: "datum" | "feedback" | "reden" }>(null);
   const [waarde, setWaarde] = useState("");
@@ -121,8 +123,7 @@ export default function StatusKnoppen({ detail, onGewijzigd }: Props) {
         )}
         {kanAnnuleren && (
           <button
-            className="btn ghost"
-            style={{ color: "var(--danger)" }}
+            className="btn danger"
             onClick={() => {
               setOpenVeld({ doel: "geannuleerd", veld: "reden" });
               setWaarde("");
@@ -132,6 +133,25 @@ export default function StatusKnoppen({ detail, onGewijzigd }: Props) {
             {t("opdrAnnulerenKnop")}
           </button>
         )}
+        <button
+          className="btn danger"
+          onClick={async () => {
+            if (!(await confirm(t("opdrVerwijderBevestig")))) return;
+            setBezig(true);
+            try {
+              await opdrachtenApi.verwijderAanvragen([aanvraag.id]);
+              notify(t("opdrVerwijderd"));
+              onVerwijderd();
+            } catch (e) {
+              setFout(String(e));
+            } finally {
+              setBezig(false);
+            }
+          }}
+          disabled={bezig}
+        >
+          {t("opdrVerwijderen")}
+        </button>
       </div>
 
       {openVeld && (

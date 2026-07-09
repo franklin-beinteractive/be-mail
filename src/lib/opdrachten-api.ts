@@ -40,6 +40,9 @@ export const opdrachtenApi = {
   planningHerinnerd: (aanvraagId: number) =>
     invoke<KaartDetail>("planning_herinnerd", { aanvraagId }),
 
+  /** Definitief verwijderen (incl. rondes en tijdlijn, via CASCADE). */
+  verwijderAanvragen: (ids: number[]) => invoke<number>("verwijder_aanvragen", { ids }),
+
   getActielijst: () => invoke<Actielijst>("get_actielijst"),
   getWachtkamer: () => invoke<WachtKaart[]>("get_wachtkamer"),
   getKaarten: () => invoke<Aanvraag[]>("get_kaarten"),

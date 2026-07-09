@@ -59,9 +59,10 @@ interface Props {
   onGewijzigd: (detail: Detail) => void;
   onSluit: () => void;
   onFout: (melding: string) => void;
+  onVerwijderd: () => void;
 }
 
-export default function KaartDetail({ detail, onGewijzigd, onSluit, onFout }: Props) {
+export default function KaartDetail({ detail, onGewijzigd, onSluit, onFout, onVerwijderd }: Props) {
   const { t } = useApp();
   const { aanvraag, rondes, logboek } = detail;
   const [notitieTekst, setNotitieTekst] = useState("");
@@ -111,6 +112,7 @@ export default function KaartDetail({ detail, onGewijzigd, onSluit, onFout }: Pr
         key={`${aanvraag.id}-${aanvraag.status}`}
         detail={detail}
         onGewijzigd={onGewijzigd}
+        onVerwijderd={onVerwijderd}
       />
 
       <KopieerMail detail={detail} />

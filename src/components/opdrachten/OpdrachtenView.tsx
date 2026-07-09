@@ -47,7 +47,7 @@ interface Props {
 }
 
 export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props) {
-  const { t, notify } = useApp();
+  const { t, notify, confirm } = useApp();
   const [tab, setTab] = useState<Tab>("acties");
   const [actielijst, setActielijst] = useState<Actielijst | null>(null);
   const [wachtkamer, setWachtkamer] = useState<WachtKaart[] | null>(null);
@@ -58,6 +58,8 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
   const [toonNieuw, setToonNieuw] = useState(false);
   const [toonHeropenbaar, setToonHeropenbaar] = useState(false);
   const [zoek, setZoek] = useState("");
+  // Multiselect voor definitief verwijderen.
+  const [selectie, setSelectie] = useState<Set<number>>(new Set());
   const bezigRef = useRef(false);
 
   const herlaad = useCallback(async () => {
@@ -118,6 +120,53 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
     setDetail(nieuw);
     setGeselecteerd(nieuw.aanvraag.id);
     void herlaad();
+  }
+
+  function naVerwijderd() {
+    setGeselecteerd(null);
+    setSelectie(new Set());
+    void herlaad();
+  }
+
+  function wisselSelectie(id: number) {
+    setSelectie((oud) => {
+      const nieuw = new Set(oud);
+      if (nieuw.has(id)) nieuw.delete(id);
+      else nieuw.add(id);
+      return nieuw;
+    });
+  }
+
+  async function verwijderSelectie() {
+    const ids = [...selectie];
+    if (ids.length === 0) return;
+    const vraag =
+      ids.length === 1
+        ? t("opdrVerwijderBevestig")
+        : vul(t("opdrVerwijderBevestigMeer"), { n: ids.length });
+    if (!(await confirm(vraag))) return;
+    try {
+      await opdrachtenApi.verwijderAanvragen(ids);
+      notify(t("opdrVerwijderd"));
+      if (geselecteerd !== null && selectie.has(geselecteerd)) setGeselecteerd(null);
+      setSelectie(new Set());
+      void herlaad();
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  /** Checkbox vooraan elke rij; klik selecteert zonder het detail te openen. */
+  function SelectieVak({ id }: { id: number }) {
+    return (
+      <input
+        type="checkbox"
+        checked={selectie.has(id)}
+        style={{ flexShrink: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        onChange={() => wisselSelectie(id)}
+      />
+    );
   }
 
   // Geordende ids van de actieve tab voor ↑/↓-navigatie.
@@ -237,6 +286,19 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
               {t("opdrTabStats")}
             </button>
           </nav>
+          {selectie.size > 0 && (
+            <>
+              <span className="muted small">
+                {selectie.size} {t("selected")}
+              </span>
+              <button className="btn danger" onClick={() => void verwijderSelectie()}>
+                {t("opdrVerwijderen")}
+              </button>
+              <button className="btn ghost" onClick={() => setSelectie(new Set())}>
+                {t("clearSelection")}
+              </button>
+            </>
+          )}
           <button className="btn primary" onClick={() => setToonNieuw(true)} title="N">
             {t("opdrNieuweAanvraag")}
           </button>
@@ -264,6 +326,7 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
                       className={`opdr-rij urgentie-${k.urgentieklasse}${geselecteerd === k.aanvraag.id ? " actief" : ""}`}
                       onClick={() => setGeselecteerd(k.aanvraag.id)}
                     >
+                      <SelectieVak id={k.aanvraag.id} />
                       <div className="opdr-rij-midden">
                         <div className="opdr-rij-kop">
                           <strong>{k.aanvraag.klant_naam}</strong>
@@ -297,6 +360,7 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
                           className={`opdr-rij heropenbaar${geselecteerd === h.aanvraag.id ? " actief" : ""}`}
                           onClick={() => setGeselecteerd(h.aanvraag.id)}
                         >
+                          <SelectieVak id={h.aanvraag.id} />
                           <div className="opdr-rij-midden">
                             <div className="opdr-rij-kop">
                               <strong>{h.aanvraag.klant_naam}</strong>
@@ -328,6 +392,7 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
                           style={{ marginBottom: 8 }}
                           onClick={() => setGeselecteerd(k.aanvraag.id)}
                         >
+                          <SelectieVak id={k.aanvraag.id} />
                           <div className="opdr-rij-midden">
                             <div className="opdr-rij-kop">
                               <strong>{k.aanvraag.klant_naam}</strong>
@@ -370,6 +435,7 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
                       className={`opdr-rij${geselecteerd === a.id ? " actief" : ""}${a.gearchiveerd ? " gearchiveerd" : ""}`}
                       onClick={() => setGeselecteerd(a.id)}
                     >
+                      <SelectieVak id={a.id} />
                       <div className="opdr-rij-midden">
                         <div className="opdr-rij-kop">
                           <strong>{a.klant_naam}</strong>
@@ -414,6 +480,7 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
           onGewijzigd={naGewijzigd}
           onSluit={() => setGeselecteerd(null)}
           onFout={(m) => notify(m, "error")}
+          onVerwijderd={naVerwijderd}
         />
       )}
 

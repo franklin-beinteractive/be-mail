@@ -84,6 +84,7 @@ pub fn run() {
             opdrachten::commands::update_ronde,
             opdrachten::commands::wijzig_status,
             opdrachten::commands::stap_terug,
+            opdrachten::commands::verwijder_aanvragen,
             opdrachten::commands::planning_herinnerd,
             opdrachten::commands::get_actielijst,
             opdrachten::commands::get_wachtkamer,

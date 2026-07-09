@@ -601,6 +601,22 @@ pub fn planning_herinnerd(aanvraag_id: i64) -> Result<KaartDetail, String> {
     .map_err(|e| e.to_string())
 }
 
+/// Definitief verwijderen (één of meer kaarten). ON DELETE CASCADE wist de
+/// bijbehorende rondes en logboekregels mee.
+#[tauri::command]
+pub fn verwijder_aanvragen(ids: Vec<i64>) -> Result<u32, String> {
+    let conn = db::conn();
+    verwijder_aanvragen_impl(&conn, &ids).map_err(|e| e.to_string())
+}
+
+fn verwijder_aanvragen_impl(conn: &Connection, ids: &[i64]) -> AppResult<u32> {
+    let mut aantal = 0u32;
+    for id in ids {
+        aantal += conn.execute("DELETE FROM aanvraag WHERE id = ?1", [id])? as u32;
+    }
+    Ok(aantal)
+}
+
 #[tauri::command]
 pub fn get_actielijst() -> Result<Actielijst, String> {
     let conn = db::conn();
@@ -982,6 +998,32 @@ mod tests {
         assert_eq!(s.doorlooptijd_meetpunten, 1);
         assert_eq!(s.gem_doorlooptijd_planning, Some(0.0));
         assert_eq!(s.per_week.last().map(|w| w.aantal), Some(1));
+    }
+
+    #[test]
+    fn verwijderen_wist_kaart_rondes_en_logboek() {
+        let (conn, inst) = setup();
+        let id1 = kaart(&conn);
+        let id2 = kaart(&conn);
+        // Kaart 1 een eind door de flow zodat er meerdere logregels zijn
+        wijzig_status_impl(&conn, id1, Status::TijdInschatten,
+            &StatusPayload::default(), &inst, NU, d(VANDAAG)).unwrap();
+
+        let n = verwijder_aanvragen_impl(&conn, &[id1]).unwrap();
+        assert_eq!(n, 1);
+        assert!(haal_aanvraag(&conn, id1).is_err());
+        // CASCADE: rondes en logboek weg
+        let rondes: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM ronde WHERE aanvraag_id = ?1", [id1], |r| r.get(0)).unwrap();
+        let logs: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM logboek WHERE aanvraag_id = ?1", [id1], |r| r.get(0)).unwrap();
+        assert_eq!((rondes, logs), (0, 0));
+        // Andere kaart onaangetast; onbekend id is geen fout (0 verwijderd)
+        assert!(haal_aanvraag(&conn, id2).is_ok());
+        assert_eq!(verwijder_aanvragen_impl(&conn, &[9999]).unwrap(), 0);
+        // Multiselect: meerdere tegelijk
+        let id3 = kaart(&conn);
+        assert_eq!(verwijder_aanvragen_impl(&conn, &[id2, id3]).unwrap(), 2);
     }
 
     #[test]
