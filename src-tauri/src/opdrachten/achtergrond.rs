@@ -148,6 +148,7 @@ mod tests {
                 datum_klant_geinformeerd: None,
                 datum_uitvoering_start: None,
                 uitvoerder: None,
+                planner: None,
                 feedback_tekst: None,
                 afgerond_op: None,
                 werkelijke_uren: None,

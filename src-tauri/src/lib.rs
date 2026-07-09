@@ -90,7 +90,6 @@ pub fn run() {
             opdrachten::commands::get_wachtkamer,
             opdrachten::commands::get_kaarten,
             opdrachten::commands::get_kaart_detail,
-            opdrachten::commands::voeg_notitie_toe,
             opdrachten::commands::get_opdracht_instellingen,
             opdrachten::commands::zet_opdracht_instelling,
             opdrachten::commands::get_statistiek,

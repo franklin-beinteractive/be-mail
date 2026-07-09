@@ -31,6 +31,56 @@ export interface AiSkill {
   prompt: string;
 }
 
+/** Persoon voor het autoaanvullen op een opdracht-kaart (uitvoerder/planner). */
+export interface OpdrachtPersoon {
+  id: string;
+  naam: string;
+  email: string;
+}
+
+/** Klant voor het autoaanvullen op een opdracht-kaart. */
+export interface OpdrachtKlantContact {
+  id: string;
+  bedrijf: string;
+  contactpersoon: string;
+  email: string;
+}
+
+/** Bewerkbare mailtekst voor de opdrachten-module, met {merge-tags}. */
+export interface OpdrachtMailSjabloon {
+  onderwerp: string;
+  tekst: string;
+}
+
+export const OPDR_MAIL_PLANNING_STANDAARD: OpdrachtMailSjabloon = {
+  onderwerp: "Inplannen: {klant} - {omschrijving}{ronde}",
+  tekst: [
+    "Hallo {planner},",
+    "",
+    "Graag de volgende opdracht inplannen:",
+    "- Klant: {klant}",
+    "- Opdracht: {omschrijving}{ronde}",
+    "- Geschatte tijd: {uren}",
+    "",
+    "Horen jullie wanneer dit past?",
+    "",
+    "Groet",
+  ].join("\n"),
+};
+
+export const OPDR_MAIL_KLANT_STANDAARD: OpdrachtMailSjabloon = {
+  onderwerp: "Uw opdracht is ingepland op {datum}",
+  tekst: [
+    "Beste {naam},",
+    "",
+    'Goed nieuws: uw opdracht "{omschrijving}" wordt opgepakt op {datum}.',
+    "",
+    "Heeft u vragen, dan horen we het graag.",
+    "",
+    "Met vriendelijke groet",
+  ].join("\n"),
+};
+
 export interface UiSettings {
   theme: Theme;
   /** Schaalfactor voor tekst: 1 = normaal, tot 1.5 voor slechtzienden. */
@@ -67,6 +117,15 @@ export interface UiSettings {
   listShowPreview: boolean;
   /** AI-antwoordstijlen (skills) voor Claude. */
   aiSkills: AiSkill[];
+  /** Autoaanvullen-lijsten voor de opdrachten-module. */
+  opdrUitvoerders: OpdrachtPersoon[];
+  opdrPlanners: OpdrachtPersoon[];
+  opdrKlanten: OpdrachtKlantContact[];
+  /** Bewerkbare mailteksten (kopieerblok op de kaart), met {merge-tags}. */
+  opdrMailPlanning: OpdrachtMailSjabloon;
+  opdrMailKlant: OpdrachtMailSjabloon;
+  /** Breedte (px) van het detailpaneel in Opdrachten; instelbaar door slepen. */
+  opdrDetailWidth: number;
 }
 
 /** Standaardmappen die de gebruiker kan verbergen (Postvak IN nooit).
@@ -139,6 +198,12 @@ export const defaultSettings: UiSettings = {
         "Schrijf een zo kort mogelijk antwoord: maximaal enkele zinnen, vriendelijk maar zonder omhaal.",
     },
   ],
+  opdrUitvoerders: [],
+  opdrPlanners: [],
+  opdrKlanten: [],
+  opdrMailPlanning: OPDR_MAIL_PLANNING_STANDAARD,
+  opdrMailKlant: OPDR_MAIL_KLANT_STANDAARD,
+  opdrDetailWidth: 400,
 };
 
 export function loadSettings(): UiSettings {

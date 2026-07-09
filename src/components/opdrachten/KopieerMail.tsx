@@ -12,9 +12,12 @@ import { mailTekstenVoor } from "../../lib/opdrachten-mail";
  * De mailteksten zelf blijven Nederlands (zakelijke output naar klant/planning).
  */
 export default function KopieerMail({ detail }: { detail: KaartDetail }) {
-  const { t } = useApp();
+  const { t, settings } = useApp();
   const [gekopieerd, setGekopieerd] = useState<string | null>(null);
-  const teksten = mailTekstenVoor(detail);
+  const teksten = mailTekstenVoor(detail, {
+    planning: settings.opdrMailPlanning,
+    klant: settings.opdrMailKlant,
+  });
   if (teksten.length === 0) return null;
 
   return (

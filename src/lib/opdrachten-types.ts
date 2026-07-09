@@ -39,6 +39,7 @@ export interface Ronde {
   datum_klant_geinformeerd: string | null;
   datum_uitvoering_start: string | null;
   uitvoerder: string | null;
+  planner: string | null;
   feedback_tekst: string | null;
   afgerond_op: string | null;
   werkelijke_uren: number | null;
@@ -112,6 +113,7 @@ export interface AanvraagUpdate {
 export interface RondeUpdate {
   geschatte_uren?: number;
   uitvoerder?: string;
+  planner?: string;
   werkelijke_uren?: number;
 }
 

@@ -99,12 +99,20 @@
 }
 
 .opdr-detail {
-  width: 400px;
+  width: var(--opdr-detail-w, 400px);
   flex-shrink: 0;
   overflow-y: auto;
   background: var(--bg-raised);
   border-left: 1px solid var(--border);
   padding: 14px;
+}
+
+/* Sleepbalk vóór het detailpaneel (zelfde look als in de mailweergave,
+   maar in een flex-layout: eigen breedte nodig). */
+.opdr-view > .col-resizer {
+  width: 6px;
+  flex-shrink: 0;
+  margin: 0 -3px 0 0;
 }
 
 /* ── Rijen ──────────────────────────────────────────────────────── */
@@ -304,6 +312,57 @@
   font-size: 0.8rem;
   color: var(--text-muted);
   margin-top: 8px;
+}
+
+/* ── Autoaanvullen (uitvoerder/planner/klant) ───────────────────── */
+
+.opdr-suggest {
+  position: relative;
+}
+
+.opdr-suggest input {
+  font: inherit;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  width: 100%;
+  background: var(--bg-raised);
+  color: var(--text);
+}
+
+.opdr-suggest-lijst {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.opdr-suggest-lijst li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.opdr-suggest-lijst li.actief {
+  background: var(--bg-sunken);
+}
+
+.opdr-suggest-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
 /* ── Statusknoppen ──────────────────────────────────────────────── */

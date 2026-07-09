@@ -47,8 +47,26 @@ interface Props {
 }
 
 export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props) {
-  const { t, notify, confirm } = useApp();
+  const { t, notify, confirm, settings, setSettings } = useApp();
   const [tab, setTab] = useState<Tab>("acties");
+  // Breedte (px) van het detailpaneel; tijdens slepen lokaal, bij loslaten
+  // opgeslagen (zelfde patroon als de kolommen in MailView).
+  const [detailW, setDetailW] = useState(settings.opdrDetailWidth);
+
+  function startDetailResize(e: React.MouseEvent) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = detailW;
+    const clamp = (x: number) => Math.min(720, Math.max(300, x));
+    const onMove = (ev: MouseEvent) => setDetailW(clamp(startW + startX - ev.clientX));
+    const onUp = (ev: MouseEvent) => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      setSettings({ opdrDetailWidth: clamp(startW + startX - ev.clientX) });
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
   const [actielijst, setActielijst] = useState<Actielijst | null>(null);
   const [wachtkamer, setWachtkamer] = useState<WachtKaart[] | null>(null);
   const [kaarten, setKaarten] = useState<Aanvraag[] | null>(null);
@@ -265,7 +283,7 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
   });
 
   return (
-    <div className="opdr-view">
+    <div className="opdr-view" style={{ "--opdr-detail-w": `${detailW}px` } as React.CSSProperties}>
       <div className="opdr-hoofd">
         <header className="opdr-kop">
           <nav className="opdr-tabs">
@@ -474,6 +492,14 @@ export default function OpdrachtenView({ focusKaartId, onFocusVerwerkt }: Props)
         )}
       </div>
 
+      {detail && (
+        <div
+          className="col-resizer"
+          onMouseDown={startDetailResize}
+          role="separator"
+          aria-orientation="vertical"
+        />
+      )}
       {detail && (
         <KaartDetail
           detail={detail}

@@ -1,9 +1,8 @@
-import { useState } from "react";
-
 import { useApp } from "../../lib/ctx";
 import { opdrachtenApi } from "../../lib/opdrachten-api";
-import type { KaartDetail as Detail, Ronde } from "../../lib/opdrachten-types";
+import type { AanvraagUpdate, KaartDetail as Detail, Ronde } from "../../lib/opdrachten-types";
 import { formatteerDatum, formatteerTijdstip } from "../../lib/opdrachten-types";
+import AutoAanvullen from "./AutoAanvullen";
 import KopieerMail from "./KopieerMail";
 import StatusBadge from "./StatusBadge";
 import StatusKnoppen from "./StatusKnoppen";
@@ -37,6 +36,12 @@ function RondeBlok({ ronde, actief }: { ronde: Ronde; actief: boolean }) {
             <dd>{ronde.uitvoerder}</dd>
           </>
         )}
+        {ronde.planner && (
+          <>
+            <dt>{t("opdrPlanner")}</dt>
+            <dd>{ronde.planner}</dd>
+          </>
+        )}
         {ronde.feedback_tekst && (
           <>
             <dt>{t("opdrFeedbackLabel")}</dt>
@@ -63,24 +68,23 @@ interface Props {
 }
 
 export default function KaartDetail({ detail, onGewijzigd, onSluit, onFout, onVerwijderd }: Props) {
-  const { t } = useApp();
+  const { t, settings } = useApp();
   const { aanvraag, rondes, logboek } = detail;
-  const [notitieTekst, setNotitieTekst] = useState("");
   const huidigeRonde = rondes.find((r) => r.rondenummer === aanvraag.huidige_ronde);
   // Werkelijke uren zijn zinvol vanaf de uitvoering.
   const toonWerkelijkeUren = ["in_uitvoering", "feedback_controle", "afgerond"].includes(
     aanvraag.status,
   );
 
-  async function bewaarAanvraag(veld: string, waarde: string) {
+  async function bewaarAanvraag(velden: AanvraagUpdate) {
     try {
-      onGewijzigd(await opdrachtenApi.updateAanvraag(aanvraag.id, { [veld]: waarde }));
+      onGewijzigd(await opdrachtenApi.updateAanvraag(aanvraag.id, velden));
     } catch (e) {
       onFout(String(e));
     }
   }
 
-  async function bewaarRonde(velden: { geschatte_uren?: number; uitvoerder?: string; werkelijke_uren?: number }) {
+  async function bewaarRonde(velden: { geschatte_uren?: number; uitvoerder?: string; planner?: string; werkelijke_uren?: number }) {
     try {
       onGewijzigd(await opdrachtenApi.updateRonde(aanvraag.id, velden));
     } catch (e) {
@@ -88,12 +92,29 @@ export default function KaartDetail({ detail, onGewijzigd, onSluit, onFout, onVe
     }
   }
 
-  const veld = (naam: string, huidig: string | null) => ({
+  const veld = (naam: keyof AanvraagUpdate, huidig: string | null) => ({
     defaultValue: huidig ?? "",
     onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      if (e.target.value !== (huidig ?? "")) void bewaarAanvraag(naam, e.target.value);
+      if (e.target.value !== (huidig ?? "")) void bewaarAanvraag({ [naam]: e.target.value });
     },
   });
+
+  // Autoaanvullen-suggesties uit Instellingen → Opdrachten. Een klant kiezen
+  // vult naam, bedrijf en e-mailadres in één keer.
+  const klanten = settings.opdrKlanten.filter((k) => k.bedrijf.trim() || k.contactpersoon.trim());
+  const kiesKlant = (id: string) => {
+    const k = klanten.find((x) => x.id === id);
+    if (!k) return;
+    void bewaarAanvraag({
+      klant_naam: k.contactpersoon.trim() || k.bedrijf.trim(),
+      klant_bedrijf: k.bedrijf,
+      klant_email: k.email,
+    });
+  };
+  const persoonSuggesties = (lijst: typeof settings.opdrUitvoerders) =>
+    lijst
+      .filter((p) => p.naam.trim())
+      .map((p) => ({ id: p.id, label: p.naam, sub: p.email || undefined }));
 
   return (
     <aside className="opdr-detail">
@@ -121,18 +142,42 @@ export default function KaartDetail({ detail, onGewijzigd, onSluit, onFout, onVe
         <h3>{t("opdrKlant")}</h3>
         <div className="opdr-veldrooster">
           <label>{t("opdrNaam")}</label>
-          <input key={`naam-${aanvraag.id}`} type="text" {...veld("klant_naam", aanvraag.klant_naam)} />
+          <AutoAanvullen
+            key={`naam-${aanvraag.id}-${aanvraag.klant_naam}`}
+            beginwaarde={aanvraag.klant_naam}
+            suggesties={klanten.map((k) => ({
+              id: k.id,
+              label: k.contactpersoon.trim() || k.bedrijf,
+              sub: k.contactpersoon.trim() ? k.bedrijf || k.email : k.email,
+            }))}
+            onKies={(s) => kiesKlant(s.id)}
+            onTekst={(tekst) => void bewaarAanvraag({ klant_naam: tekst })}
+          />
           <label>{t("opdrBedrijf")}</label>
-          <input key={`bedrijf-${aanvraag.id}`} type="text" {...veld("klant_bedrijf", aanvraag.klant_bedrijf)} />
+          <AutoAanvullen
+            key={`bedrijf-${aanvraag.id}-${aanvraag.klant_bedrijf ?? ""}`}
+            beginwaarde={aanvraag.klant_bedrijf ?? ""}
+            suggesties={klanten.map((k) => ({
+              id: k.id,
+              label: k.bedrijf.trim() || k.contactpersoon,
+              sub: k.bedrijf.trim() ? k.contactpersoon || k.email : k.email,
+            }))}
+            onKies={(s) => kiesKlant(s.id)}
+            onTekst={(tekst) => void bewaarAanvraag({ klant_bedrijf: tekst })}
+          />
           <label>{t("opdrTelefoon")}</label>
           <input key={`tel-${aanvraag.id}`} type="text" {...veld("klant_telefoon", aanvraag.klant_telefoon)} />
           <label>{t("opdrKanaalEmail")}</label>
-          <input key={`mail-${aanvraag.id}`} type="text" {...veld("klant_email", aanvraag.klant_email)} />
+          <input
+            key={`mail-${aanvraag.id}-${aanvraag.klant_email ?? ""}`}
+            type="text"
+            {...veld("klant_email", aanvraag.klant_email)}
+          />
           <label>{t("opdrKanaal")}</label>
           <select
             key={`kanaal-${aanvraag.id}`}
             defaultValue={aanvraag.kanaal ?? ""}
-            onChange={(e) => e.target.value && void bewaarAanvraag("kanaal", e.target.value)}
+            onChange={(e) => e.target.value && void bewaarAanvraag({ kanaal: e.target.value })}
           >
             <option value="" disabled>
               {t("opdrKies")}
@@ -190,15 +235,20 @@ export default function KaartDetail({ detail, onGewijzigd, onSluit, onFout, onVe
               </>
             )}
             <label>{t("opdrUitvoerder")}</label>
-            <input
-              key={`uitvoerder-${aanvraag.id}-${huidigeRonde.rondenummer}`}
-              type="text"
-              defaultValue={huidigeRonde.uitvoerder ?? ""}
-              onBlur={(e) => {
-                if (e.target.value !== (huidigeRonde.uitvoerder ?? "")) {
-                  void bewaarRonde({ uitvoerder: e.target.value });
-                }
-              }}
+            <AutoAanvullen
+              key={`uitvoerder-${aanvraag.id}-${huidigeRonde.rondenummer}-${huidigeRonde.uitvoerder ?? ""}`}
+              beginwaarde={huidigeRonde.uitvoerder ?? ""}
+              suggesties={persoonSuggesties(settings.opdrUitvoerders)}
+              onKies={(s) => void bewaarRonde({ uitvoerder: s.label })}
+              onTekst={(tekst) => void bewaarRonde({ uitvoerder: tekst })}
+            />
+            <label>{t("opdrPlanner")}</label>
+            <AutoAanvullen
+              key={`planner-${aanvraag.id}-${huidigeRonde.rondenummer}-${huidigeRonde.planner ?? ""}`}
+              beginwaarde={huidigeRonde.planner ?? ""}
+              suggesties={persoonSuggesties(settings.opdrPlanners)}
+              onKies={(s) => void bewaarRonde({ planner: s.label })}
+              onTekst={(tekst) => void bewaarRonde({ planner: tekst })}
             />
           </div>
         </section>
@@ -217,23 +267,6 @@ export default function KaartDetail({ detail, onGewijzigd, onSluit, onFout, onVe
 
       <section>
         <h3>{t("opdrTijdlijn")}</h3>
-        <input
-          type="text"
-          placeholder={t("opdrNotitiePlaceholder")}
-          value={notitieTekst}
-          style={{ width: "100%", font: "inherit", border: "1px solid var(--border)", borderRadius: 6, padding: "6px 8px", background: "var(--bg-raised)", color: "var(--text)" }}
-          onChange={(e) => setNotitieTekst(e.target.value)}
-          onKeyDown={async (e) => {
-            if (e.key === "Enter" && notitieTekst.trim()) {
-              try {
-                onGewijzigd(await opdrachtenApi.voegNotitieToe(aanvraag.id, notitieTekst));
-                setNotitieTekst("");
-              } catch (err) {
-                onFout(String(err));
-              }
-            }
-          }}
-        />
         <Tijdlijn regels={logboek} />
       </section>
     </aside>

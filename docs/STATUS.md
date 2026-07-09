@@ -3,9 +3,9 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-07 (zoekbereik Overal/Deze map +
-race-fix; AI-antwoorden via Claude met instelbare stijlen; eerder:
-berichtenlijst-velden instelbaar, Client-ID/Tenant-ID ingebakken)
+**Laatst bijgewerkt:** 2026-07-09 (Instellingen in tabbladen; opdrachten:
+autoaanvullen uitvoerder/planner/klant, bewerkbare mailteksten met
+merge-tags, planner-veld, notitie-invoer weg, detailpaneel versleepbaar)
 
 ## ✅ Af
 
@@ -151,6 +151,27 @@ berichtenlijst-velden instelbaar, Client-ID/Tenant-ID ingebakken)
   De Anthropic API-sleutel staat in de Windows-keychain (`claude.rs`,
   raakt de webview nooit); invoer via Instellingen. Foutafhandeling in
   mensentaal (ongeldige sleutel, limiet, weigering).
+
+- **Instellingen-tabbladen + opdrachten-batch (2026-07-09)**:
+  - **Instellingen in 4 tabbladen**: Algemeen (accounts, weergave, gedrag,
+    verbinding), E-mail (mappen, berichtenlijst, regels, afwezigheid,
+    handtekeningen, AI), Agenda (nog leeg, placeholder) en Opdrachten.
+  - **Tab Opdrachten**: termijnen (de 4 werkdag-drempels uit opdrachten.db,
+    eindelijk met UI), beheerlijsten voor **uitvoerders** en **planners**
+    (naam + e-mailadres) en **klanten** (bedrijf, contactpersoon,
+    e-mailadres), en de **mailteksten** (onderwerp + tekst, bewerkbaar met
+    merge-tags: {klant} {naam} {bedrijf} {omschrijving} {uren} {ronde}
+    {datum} {planner} {uitvoerder}; herstel-knop per tekst). Lijsten en
+    teksten in localStorage (UiSettings), termijnen in opdrachten.db.
+  - **Autoaanvullen op de kaart**: uitvoerder, planner (nieuw veld op de
+    ronde, migratie v3) en klant (naam/bedrijf; een klant kiezen vult naam,
+    bedrijf en e-mailadres in één keer). Vrije tekst blijft mogelijk.
+  - **Notitie-invoer bij de tijdlijn verwijderd** (na onderzoek: handmatige
+    "notitie"-logregels werden nergens gebruikt - niet in mailteksten,
+    statistiek of iets anders). Bestaande notities blijven zichtbaar in de
+    tijdlijn; de automatische statusregels blijven zoals ze waren.
+  - **Detailpaneel (rechter kolom) versleepbaar** (300-720 px, zelfde
+    sleepgreep als de mailkolommen; onthouden in Instellingen).
 
 ## 🔜 Volgende stappen (afgesproken volgorde)
 

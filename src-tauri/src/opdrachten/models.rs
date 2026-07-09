@@ -92,6 +92,8 @@ pub struct Ronde {
     pub datum_klant_geinformeerd: Option<String>, // lokale datum
     pub datum_uitvoering_start: Option<String>,   // lokale datum
     pub uitvoerder: Option<String>,
+    /// Wie de opdracht inplant (naam; autoaanvullen uit Instellingen).
+    pub planner: Option<String>,
     pub feedback_tekst: Option<String>,
     pub afgerond_op: Option<String>, // UTC RFC3339
     /// Werkelijk bestede uren (invulbaar vanaf In uitvoering) — voedt de
@@ -188,6 +190,7 @@ pub struct AanvraagUpdate {
 pub struct RondeUpdate {
     pub geschatte_uren: Option<f64>,
     pub uitvoerder: Option<String>,
+    pub planner: Option<String>,
     pub werkelijke_uren: Option<f64>,
 }
 

@@ -73,6 +73,8 @@ const MIGRATIES: &[&str] = &[
     "#,
     // v2: werkelijke uren per ronde (statistiek geschat vs. werkelijk)
     "ALTER TABLE ronde ADD COLUMN werkelijke_uren REAL;",
+    // v3: planner per ronde (wie de opdracht inplant; naam, vrij tekstveld)
+    "ALTER TABLE ronde ADD COLUMN planner TEXT;",
 ];
 
 /// Opent (of maakt) de database; aanroepen in setup() vóór de poller start.
@@ -141,6 +143,7 @@ pub fn map_ronde(row: &rusqlite::Row) -> rusqlite::Result<Ronde> {
         datum_klant_geinformeerd: row.get("datum_klant_geinformeerd")?,
         datum_uitvoering_start: row.get("datum_uitvoering_start")?,
         uitvoerder: row.get("uitvoerder")?,
+        planner: row.get("planner")?,
         feedback_tekst: row.get("feedback_tekst")?,
         afgerond_op: row.get("afgerond_op")?,
         werkelijke_uren: row.get("werkelijke_uren")?,

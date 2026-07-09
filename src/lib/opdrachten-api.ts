@@ -48,9 +48,6 @@ export const opdrachtenApi = {
   getKaarten: () => invoke<Aanvraag[]>("get_kaarten"),
   getKaartDetail: (id: number) => invoke<KaartDetail>("get_kaart_detail", { id }),
 
-  voegNotitieToe: (id: number, tekst: string) =>
-    invoke<KaartDetail>("voeg_notitie_toe", { id, tekst }),
-
   getInstellingen: () => invoke<OpdrachtInstellingen>("get_opdracht_instellingen"),
   zetInstelling: (sleutel: string, waarde: string) =>
     invoke<OpdrachtInstellingen>("zet_opdracht_instelling", { sleutel, waarde }),

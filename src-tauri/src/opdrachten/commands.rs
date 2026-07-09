@@ -549,6 +549,9 @@ pub fn update_ronde(aanvraag_id: i64, velden: RondeUpdate) -> Result<KaartDetail
         if let Some(uitvoerder) = &velden.uitvoerder {
             conn.execute("UPDATE ronde SET uitvoerder = ?1 WHERE id = ?2", (uitvoerder, ronde.id))?;
         }
+        if let Some(planner) = &velden.planner {
+            conn.execute("UPDATE ronde SET planner = ?1 WHERE id = ?2", (planner, ronde.id))?;
+        }
         if let Some(uren) = velden.werkelijke_uren {
             conn.execute("UPDATE ronde SET werkelijke_uren = ?1 WHERE id = ?2", (uren, ronde.id))?;
         }
@@ -657,23 +660,6 @@ pub fn get_kaarten() -> Result<Vec<Aanvraag>, String> {
 pub fn get_kaart_detail(id: i64) -> Result<KaartDetail, String> {
     let conn = db::conn();
     haal_detail(&conn, id).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn voeg_notitie_toe(id: i64, tekst: String) -> Result<KaartDetail, String> {
-    let conn = db::conn();
-    let (nu, _) = klok();
-    (|| -> AppResult<KaartDetail> {
-        let tekst = tekst.trim();
-        if tekst.is_empty() {
-            return Err(AppError::Validatie("Notitie mag niet leeg zijn".into()));
-        }
-        let aanvraag = haal_aanvraag(&conn, id)?;
-        log(&conn, id, Some(aanvraag.huidige_ronde), "notitie", tekst, &nu)?;
-        raak_aan(&conn, id, &nu)?;
-        haal_detail(&conn, id)
-    })()
-    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
