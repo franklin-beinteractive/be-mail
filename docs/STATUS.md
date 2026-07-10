@@ -3,9 +3,10 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-10 (back-up/overzetten: export+import naar
-.json voor instellingen en assignments apart; eerder: Instellingen in
-tabbladen, opdrachten-autoaanvullen, bewerkbare mailteksten, planner-veld)
+**Laatst bijgewerkt:** 2026-07-10 (leesvenster-toolbar opgeruimd: archiveerknop
+weg, Spam en gelezen/ongelezen als icoon, AI-antwoord ingekort tot ✨; nieuw:
+Ctrl+A vinkt alle mails in de lijst aan. Eerder: back-up/overzetten export+import
+naar .json voor instellingen en assignments apart)
 
 ## ✅ Af
 

@@ -37,12 +37,15 @@ import {
   EditIcon,
   FlagIcon,
   ForwardIcon,
+  MailIcon,
+  MailOpenIcon,
   OpdrachtenIcon,
   PaperclipIcon,
   PlusIcon,
   ReplyAllIcon,
   ReplyIcon,
   SearchIcon,
+  SpamIcon,
   TrashIcon,
 } from "./Icons";
 
@@ -719,17 +722,28 @@ export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
   // opstelvenster open is. Bewust zonder deps: goedkoop, altijd verse closures.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (compose || e.ctrlKey || e.metaKey || e.altKey) return;
       const el = document.activeElement as HTMLElement | null;
-      if (
-        el &&
+      const inField =
+        !!el &&
         (el.tagName === "INPUT" ||
           el.tagName === "TEXTAREA" ||
           el.tagName === "SELECT" ||
-          el.isContentEditable)
-      ) {
+          el.isContentEditable);
+      // Ctrl+A vinkt alle zichtbare mails aan wanneer de cursor (muis of
+      // focus) in de maillijst staat; in invoervelden blijft Ctrl+A gewoon
+      // tekst selecteren.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "a") {
+        const inList =
+          document.querySelector(".list-scroll:hover") != null ||
+          el?.closest(".list-scroll") != null;
+        if (!compose && !inField && inList) {
+          e.preventDefault();
+          setChecked(new Set((searchResult ?? messages).map((m) => m.id)));
+        }
         return;
       }
+      if (compose || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (inField) return;
       const k = e.key;
       if (k === "n") {
         e.preventDefault();
@@ -1618,9 +1632,7 @@ export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
                   }}
                   title={tip("tipAiReply")}
                 >
-                  <option value="">
-                    ✨ {aiBusy ? t("aiGenerating") : t("aiReplyLabel")}
-                  </option>
+                  <option value="">{aiBusy ? `✨ ${t("aiGenerating")}` : "✨"}</option>
                   {settings.aiSkills.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
@@ -1643,7 +1655,7 @@ export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
                 onClick={() => reportJunk(selected)}
                 title={tip("tipSpam")}
               >
-                Spam
+                <SpamIcon size={18} />
               </button>
               <button
                 className="btn"
@@ -1660,10 +1672,7 @@ export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
                 onClick={() => toggleRead(selected)}
                 title={tip("tipRead")}
               >
-                {selected.isRead ? t("markUnread") : t("markRead")}
-              </button>
-              <button className="btn" onClick={() => archive(selected)} title={tip("tipArchive")}>
-                <ArchiveIcon size={18} />
+                {selected.isRead ? <MailIcon size={18} /> : <MailOpenIcon size={18} />}
               </button>
               <span className="snooze-wrap">
                 <button

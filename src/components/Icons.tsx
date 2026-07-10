@@ -86,6 +86,20 @@ export const ArchiveIcon = (p: Props) => (
     <path d="M5 8v12h14V8M10 12h4" />
   </Svg>
 );
+/* Geopende envelop: bericht als gelezen markeren. */
+export const MailOpenIcon = (p: Props) => (
+  <Svg {...p}>
+    <path d="M21.2 8.4c.5.4.8 1 .8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10c0-.6.3-1.2.8-1.6l8-6a2 2 0 0 1 2.4 0z" />
+    <path d="m22 10-9 5.7a1.9 1.9 0 0 1-2 0L2 10" />
+  </Svg>
+);
+/* Achthoek met uitroepteken: spam melden. */
+export const SpamIcon = (p: Props) => (
+  <Svg {...p}>
+    <path d="M7.9 2.5h8.2l5.4 5.4v8.2l-5.4 5.4H7.9l-5.4-5.4V7.9z" />
+    <path d="M12 8v4M12 16v.01" />
+  </Svg>
+);
 export const HelpIcon = (p: Props) => (
   <Svg {...p}>
     <circle cx="12" cy="12" r="9" />

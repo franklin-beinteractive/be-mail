@@ -106,6 +106,7 @@ function HelpNl() {
           <li><strong>r</strong> / <strong>a</strong> / <strong>f</strong>: beantwoorden / allen beantwoorden / doorsturen</li>
           <li><strong>e</strong>: archiveren · <strong>Delete</strong>: verwijderen</li>
           <li><strong>u</strong>: gelezen/ongelezen · <strong>m</strong>: vlag aan/uit</li>
+          <li><strong>Ctrl+A</strong>: alle mails in de lijst aanvinken (cursor in de maillijst)</li>
           <li><strong>/</strong>: naar het zoekvak</li>
         </ul>
       </section>
@@ -214,6 +215,7 @@ function HelpEn() {
           <li><strong>r</strong> / <strong>a</strong> / <strong>f</strong>: reply / reply all / forward</li>
           <li><strong>e</strong>: archive · <strong>Delete</strong>: delete</li>
           <li><strong>u</strong>: read/unread · <strong>m</strong>: toggle flag</li>
+          <li><strong>Ctrl+A</strong>: tick all messages in the list (cursor in the message list)</li>
           <li><strong>/</strong>: focus the search box</li>
         </ul>
       </section>
