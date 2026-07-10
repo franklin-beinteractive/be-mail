@@ -3,11 +3,13 @@
 // Agenda en Opdrachten (termijnen, autoaanvullen-lijsten, mailteksten).
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { bewaarJson, kiesJson } from "../lib/backup";
 import { useApp } from "../lib/ctx";
 import { OPDR_MERGE_TAGS } from "../lib/opdrachten-mail";
 import { opdrachtenApi } from "../lib/opdrachten-api";
 import type { OpdrachtInstellingen } from "../lib/opdrachten-types";
 import {
+  defaultSettings,
   FONT_CHOICES,
   HIDEABLE_FOLDERS,
   OPDR_MAIL_KLANT_STANDAARD,
@@ -265,6 +267,72 @@ export default function SettingsView({
     });
   }
 
+  // ── Back-up & overzetten (export/import naar .json) ──
+
+  async function exportInstellingen() {
+    try {
+      const payload = {
+        type: "bemail-instellingen",
+        schemaVersie: 1,
+        geexporteerdOp: new Date().toISOString(),
+        ui: settings,
+        opdrachtInstellingen: opdrInst ?? undefined,
+      };
+      const pad = await bewaarJson("bemail-instellingen", JSON.stringify(payload, null, 2));
+      if (pad) notify(t("backupOpgeslagen"), "info");
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  async function importInstellingen() {
+    try {
+      if (!(await confirm(t("backupImportInstellingenBevestig")))) return;
+      const raw = await kiesJson();
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data?.type !== "bemail-instellingen" || !data.ui) {
+        notify(t("backupVerkeerdBestand"), "error");
+        return;
+      }
+      setSettings({ ...defaultSettings, ...data.ui });
+      if (data.opdrachtInstellingen) {
+        for (const [sleutel, waarde] of Object.entries(data.opdrachtInstellingen)) {
+          try {
+            setOpdrInst(await opdrachtenApi.zetInstelling(sleutel, String(waarde)));
+          } catch {
+            /* onbekende/oude sleutel: overslaan */
+          }
+        }
+      }
+      notify(t("backupGeimporteerd"), "info");
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  async function exportAssignments() {
+    try {
+      const json = await opdrachtenApi.exportOpdrachten();
+      const pad = await bewaarJson("bemail-assignments", json);
+      if (pad) notify(t("backupOpgeslagen"), "info");
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  async function importAssignments() {
+    try {
+      if (!(await confirm(t("backupImportAssignmentsBevestig")))) return;
+      const raw = await kiesJson();
+      if (!raw) return;
+      const n = await opdrachtenApi.importOpdrachten(raw);
+      notify(`${t("backupGeimporteerd")} (${n})`, "info");
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
   return (
     <div className="settings">
       <h1>{t("settings")}</h1>
@@ -429,6 +497,29 @@ export default function SettingsView({
             checked={settings.showTooltips}
             onChange={(e) => setSettings({ showTooltips: e.target.checked })}
           />
+        </div>
+      </section>
+
+      <section className="settings-block">
+        <h2>{t("backupTitel")}</h2>
+        <p className="muted small">{t("backupUitleg")}</p>
+        <div className="setting-row">
+          <span style={{ flex: 1 }}>{t("backupInstellingen")}</span>
+          <button className="btn" onClick={exportInstellingen}>
+            {t("backupExporteren")}
+          </button>
+          <button className="btn" onClick={importInstellingen}>
+            {t("backupImporteren")}
+          </button>
+        </div>
+        <div className="setting-row">
+          <span style={{ flex: 1 }}>{t("backupAssignments")}</span>
+          <button className="btn" onClick={exportAssignments}>
+            {t("backupExporteren")}
+          </button>
+          <button className="btn" onClick={importAssignments}>
+            {t("backupImporteren")}
+          </button>
         </div>
       </section>
 

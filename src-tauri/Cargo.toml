@@ -19,6 +19,9 @@ tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
 # Opdrachten-module: kopieerknoppen voor mailsjablonen (nooit zelf versturen).
 tauri-plugin-clipboard-manager = "2"
+# Bestandskiezer voor export/import (back-up van instellingen + assignments).
+# Alleen om een pad te kiezen; lezen/schrijven doet de Rust-kern met std::fs.
+tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "time"] }

@@ -63,7 +63,7 @@ impl Status {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Aanvraag {
     pub id: i64,
     pub klant_naam: String,
@@ -80,7 +80,7 @@ pub struct Aanvraag {
     pub gearchiveerd: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Ronde {
     pub id: i64,
     pub aanvraag_id: i64,
@@ -101,7 +101,7 @@ pub struct Ronde {
     pub werkelijke_uren: Option<f64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogboekRegel {
     pub id: i64,
     pub aanvraag_id: i64,

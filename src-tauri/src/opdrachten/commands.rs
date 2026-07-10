@@ -8,13 +8,14 @@
 
 use chrono::{DateTime, Local, NaiveDate, SecondsFormat, Utc};
 use rusqlite::Connection;
+use serde::{Deserialize, Serialize};
 
 use crate::opdrachten::db;
 use crate::opdrachten::domein::{acties, statistiek, status};
 use crate::opdrachten::error::{AppError, AppResult};
 use crate::opdrachten::models::{
     Aanvraag, AanvraagUpdate, ActieKaart, Actielijst, HeropenbareKaart, Instellingen,
-    KaartDetail, Ronde, RondeUpdate, Status, StatusPayload, WachtKaart,
+    KaartDetail, LogboekRegel, Ronde, RondeUpdate, Status, StatusPayload, WachtKaart,
 };
 
 /// Het enige punt waar de klok wordt afgelezen.
@@ -662,6 +663,110 @@ pub fn get_kaart_detail(id: i64) -> Result<KaartDetail, String> {
     haal_detail(&conn, id).map_err(|e| e.to_string())
 }
 
+// ── Export / import (back-up van alle assignments) ─────────────────
+// Termijn-instellingen horen bij de instellingen-export (frontend), niet hier.
+
+/// Volledige assignments-back-up: alle aanvragen, rondes en logboekregels.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OpdrachtenExport {
+    #[serde(rename = "type")]
+    soort: String,
+    schema_versie: u32,
+    geexporteerd_op: String,
+    aanvragen: Vec<Aanvraag>,
+    rondes: Vec<Ronde>,
+    logboek: Vec<LogboekRegel>,
+}
+
+fn bouw_export(conn: &Connection) -> AppResult<OpdrachtenExport> {
+    let (nu, _) = klok();
+    let mut stmt = conn.prepare("SELECT * FROM aanvraag ORDER BY id")?;
+    let aanvragen = stmt.query_map([], db::map_aanvraag)?.collect::<Result<Vec<_>, _>>()?;
+    let mut stmt = conn.prepare("SELECT * FROM ronde ORDER BY id")?;
+    let rondes = stmt.query_map([], db::map_ronde)?.collect::<Result<Vec<_>, _>>()?;
+    let mut stmt = conn.prepare("SELECT * FROM logboek ORDER BY id")?;
+    let logboek = stmt.query_map([], db::map_logboek)?.collect::<Result<Vec<_>, _>>()?;
+    Ok(OpdrachtenExport {
+        soort: "bemail-opdrachten".into(),
+        schema_versie: 1,
+        geexporteerd_op: nu,
+        aanvragen,
+        rondes,
+        logboek,
+    })
+}
+
+/// Geeft de hele assignments-administratie als (mooi opgemaakte) JSON terug.
+#[tauri::command]
+pub fn export_opdrachten() -> Result<String, String> {
+    let conn = db::conn();
+    let payload = bouw_export(&conn).map_err(|e| e.to_string())?;
+    serde_json::to_string_pretty(&payload).map_err(|e| format!("Kon de export niet maken: {e}"))
+}
+
+/// Overschrijft ALLE assignments met de inhoud van een eerder gemaakte export.
+/// Eén-pc-model: laatste import wint. Geeft het aantal ingelezen kaarten terug.
+#[tauri::command]
+pub fn import_opdrachten(json: String) -> Result<u32, String> {
+    let conn = db::conn();
+    import_opdrachten_impl(&conn, &json).map_err(|e| e.to_string())
+}
+
+fn import_opdrachten_impl(conn: &Connection, json: &str) -> AppResult<u32> {
+    let data: OpdrachtenExport = serde_json::from_str(json)
+        .map_err(|e| AppError::Validatie(format!("Ongeldig back-upbestand: {e}")))?;
+    if data.soort != "bemail-opdrachten" {
+        return Err(AppError::Validatie(
+            "Dit bestand is geen assignments-export.".into(),
+        ));
+    }
+    // Alles-of-niets: één transactie, kinderen eerst wissen.
+    let tx = conn.unchecked_transaction()?;
+    tx.execute("DELETE FROM logboek", [])?;
+    tx.execute("DELETE FROM ronde", [])?;
+    tx.execute("DELETE FROM aanvraag", [])?;
+    for a in &data.aanvragen {
+        tx.execute(
+            "INSERT INTO aanvraag (id, klant_naam, klant_bedrijf, klant_telefoon, klant_email,
+                                   kanaal, omschrijving, status, huidige_ronde, datum_binnen,
+                                   aangemaakt_op, bijgewerkt_op, gearchiveerd)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
+            rusqlite::params![
+                a.id, a.klant_naam, a.klant_bedrijf, a.klant_telefoon, a.klant_email,
+                a.kanaal, a.omschrijving, a.status.als_str(), a.huidige_ronde, a.datum_binnen,
+                a.aangemaakt_op, a.bijgewerkt_op, a.gearchiveerd as i64
+            ],
+        )?;
+    }
+    for r in &data.rondes {
+        tx.execute(
+            "INSERT INTO ronde (id, aanvraag_id, rondenummer, geschatte_uren, datum_naar_planning,
+                                datum_planning_antwoord, ingeplande_datum, datum_klant_geinformeerd,
+                                datum_uitvoering_start, uitvoerder, planner, feedback_tekst,
+                                afgerond_op, werkelijke_uren)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)",
+            rusqlite::params![
+                r.id, r.aanvraag_id, r.rondenummer, r.geschatte_uren, r.datum_naar_planning,
+                r.datum_planning_antwoord, r.ingeplande_datum, r.datum_klant_geinformeerd,
+                r.datum_uitvoering_start, r.uitvoerder, r.planner, r.feedback_tekst,
+                r.afgerond_op, r.werkelijke_uren
+            ],
+        )?;
+    }
+    for l in &data.logboek {
+        tx.execute(
+            "INSERT INTO logboek (id, aanvraag_id, rondenummer, tijdstip, type, tekst)
+             VALUES (?1,?2,?3,?4,?5,?6)",
+            rusqlite::params![
+                l.id, l.aanvraag_id, l.rondenummer, l.tijdstip, l.r#type, l.tekst
+            ],
+        )?;
+    }
+    tx.commit()?;
+    Ok(data.aanvragen.len() as u32)
+}
+
 #[tauri::command]
 pub fn get_opdracht_instellingen() -> Result<Instellingen, String> {
     let conn = db::conn();
@@ -1032,6 +1137,43 @@ mod tests {
         let n = archiveer_verlopen_impl(&conn, &inst, "2026-07-28T10:00:00Z", d("2026-07-28")).unwrap();
         assert_eq!(n, 1);
         assert!(haal_aanvraag(&conn, id).unwrap().gearchiveerd);
+    }
+
+    #[test]
+    fn export_en_import_overschrijft_alles() {
+        let (conn, _) = setup();
+        let id = kaart(&conn);
+        conn.execute(
+            "UPDATE ronde SET uitvoerder = 'Tim', planner = 'Ilse' WHERE aanvraag_id = ?1",
+            [id],
+        )
+        .unwrap();
+        let json = serde_json::to_string(&bouw_export(&conn).unwrap()).unwrap();
+
+        // Verse database met ándere data die volledig overschreven moet worden.
+        let conn2 = Connection::open_in_memory().unwrap();
+        db::init_conn(&conn2).unwrap();
+        kaart(&conn2);
+        kaart(&conn2);
+
+        let n = import_opdrachten_impl(&conn2, &json).unwrap();
+        assert_eq!(n, 1);
+        let count: i64 = conn2
+            .query_row("SELECT COUNT(*) FROM aanvraag", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 1, "import moet de bestaande kaarten wissen");
+        let detail = haal_detail(&conn2, id).unwrap();
+        assert_eq!(detail.aanvraag.klant_naam, "Testklant");
+        assert_eq!(detail.rondes[0].uitvoerder.as_deref(), Some("Tim"));
+        assert_eq!(detail.rondes[0].planner.as_deref(), Some("Ilse"));
+
+        // Rommel en een verkeerd exporttype worden netjes geweigerd.
+        assert!(import_opdrachten_impl(&conn2, "{}").is_err());
+        assert!(import_opdrachten_impl(
+            &conn2,
+            r#"{"type":"iets-anders","schemaVersie":1,"geexporteerdOp":"x","aanvragen":[],"rondes":[],"logboek":[]}"#
+        )
+        .is_err());
     }
 
     #[cfg(debug_assertions)]

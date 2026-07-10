@@ -54,5 +54,10 @@ export const opdrachtenApi = {
 
   getStatistiek: () => invoke<Statistiek>("get_statistiek"),
 
+  /** Hele assignments-administratie als JSON-tekst (back-up/export). */
+  exportOpdrachten: () => invoke<string>("export_opdrachten"),
+  /** Overschrijft ALLE assignments met een eerder gemaakte export. */
+  importOpdrachten: (json: string) => invoke<number>("import_opdrachten", { json }),
+
   seedDemo: () => invoke<void>("seed_opdrachten_demo"),
 };

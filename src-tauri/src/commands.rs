@@ -482,6 +482,20 @@ pub async fn download_attachment(
         .map_err(|e| e.to_string())
 }
 
+/// Schrijft tekst naar een door de gebruiker gekozen pad (export/back-up).
+/// Het pad komt uit de bestandskiezer (tauri-plugin-dialog); het schrijven
+/// zelf gebeurt hier zodat we geen fs-scope-permissies nodig hebben.
+#[tauri::command]
+pub fn schrijf_tekstbestand(pad: String, inhoud: String) -> Result<(), String> {
+    std::fs::write(&pad, inhoud).map_err(|e| format!("Kon het bestand niet opslaan: {e}"))
+}
+
+/// Leest een door de gebruiker gekozen tekstbestand (import/herstel).
+#[tauri::command]
+pub fn lees_tekstbestand(pad: String) -> Result<String, String> {
+    std::fs::read_to_string(&pad).map_err(|e| format!("Kon het bestand niet lezen: {e}"))
+}
+
 #[tauri::command]
 pub async fn search_messages(
     query: String,

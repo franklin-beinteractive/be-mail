@@ -87,6 +87,8 @@
 
 ## 4. E-mail - accounts & instellingen
 - [x] Inloggen met Office 365 (OAuth2) 🟢
+- [x] Instellingen + assignments exporteren/importeren naar .json (apart) 🟡
+- [~] Automatische cloud-sync via OneDrive (Graph app-map) - gepland 🔴
 - [ ] Meerdere accounts naast elkaar 🔴
 - [ ] Gedeelde postvakken / mailbox delegation 🔴
 - [x] Automatisch antwoord / afwezigheidsassistent (Out of Office) 🟡

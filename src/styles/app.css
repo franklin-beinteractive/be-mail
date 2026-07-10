@@ -148,7 +148,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 /* ---------- App-shell + navigatierail ---------- */
 .shell { display: flex; }
 .rail {
-  width: 84px;
+  width: 92px;
   background: var(--bg-sunken);
   border-right: 1px solid var(--border);
   display: flex;
@@ -170,6 +170,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   border-radius: var(--radius);
   cursor: pointer;
   font-size: 0.72rem;
+}
+/* Lange labels (bv. "Assignments") binnen de knop houden: afbreken met
+   streepje i.p.v. overlopen; <html lang> stuurt de afbreekregels. */
+.rail-btn span {
+  max-width: 100%;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  text-align: center;
 }
 .rail-btn:hover { background: var(--bg-raised); color: var(--text); }
 .rail-btn.active { background: var(--bg-raised); color: var(--accent); font-weight: 600; }

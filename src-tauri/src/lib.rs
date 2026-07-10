@@ -19,6 +19,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // Achtergrond-poller voor nieuwe-mail-notificaties.
             notifier::start(app.handle().clone());
@@ -32,6 +33,8 @@ pub fn run() {
             commands::get_config,
             commands::save_config,
             commands::set_notifications_enabled,
+            commands::schrijf_tekstbestand,
+            commands::lees_tekstbestand,
             commands::auth_status,
             commands::login,
             commands::logout,
@@ -90,6 +93,8 @@ pub fn run() {
             opdrachten::commands::get_wachtkamer,
             opdrachten::commands::get_kaarten,
             opdrachten::commands::get_kaart_detail,
+            opdrachten::commands::export_opdrachten,
+            opdrachten::commands::import_opdrachten,
             opdrachten::commands::get_opdracht_instellingen,
             opdrachten::commands::zet_opdracht_instelling,
             opdrachten::commands::get_statistiek,

@@ -383,6 +383,21 @@ const dict = {
     opdrSetMailHint: "Deze teksten staan op de kaart klaar om te kopiëren. Beschikbare merge-tags:",
     opdrSetHerstel: "Standaardtekst herstellen",
     opdrSetTekstLabel: "Tekst",
+    // ── Back-up & overzetten ──
+    backupTitel: "Back-up & overzetten",
+    backupUitleg:
+      "Zet je gegevens over naar een andere pc of maak een back-up. Assignments en instellingen worden apart geëxporteerd als .json. Importeren overschrijft wat er nu op deze pc staat.",
+    backupInstellingen: "Instellingen (assignees, planners, klanten, mailteksten, termijnen, weergave)",
+    backupAssignments: "Assignments (alle kaarten, rondes en tijdlijn)",
+    backupExporteren: "Exporteren…",
+    backupImporteren: "Importeren…",
+    backupOpgeslagen: "Bestand opgeslagen",
+    backupGeimporteerd: "Geïmporteerd",
+    backupVerkeerdBestand: "Dit bestand hoort niet bij deze functie.",
+    backupImportInstellingenBevestig:
+      "De huidige instellingen op deze pc worden overschreven door het gekozen bestand. Doorgaan?",
+    backupImportAssignmentsBevestig:
+      "Alle huidige assignments op deze pc worden vervangen door het gekozen bestand. Dit kan niet ongedaan worden gemaakt. Doorgaan?",
   },
   en: {
     appName: "BE-Mail",
@@ -764,6 +779,21 @@ const dict = {
     opdrSetMailHint: "These texts are ready to copy on the card. Available merge tags:",
     opdrSetHerstel: "Restore default text",
     opdrSetTekstLabel: "Text",
+    // ── Backup & transfer ──
+    backupTitel: "Backup & transfer",
+    backupUitleg:
+      "Move your data to another PC or make a backup. Assignments and settings are exported separately as .json. Importing overwrites what is currently on this PC.",
+    backupInstellingen: "Settings (assignees, planners, customers, email texts, thresholds, appearance)",
+    backupAssignments: "Assignments (all cards, rounds and timeline)",
+    backupExporteren: "Export…",
+    backupImporteren: "Import…",
+    backupOpgeslagen: "File saved",
+    backupGeimporteerd: "Imported",
+    backupVerkeerdBestand: "This file does not belong to this function.",
+    backupImportInstellingenBevestig:
+      "The current settings on this PC will be overwritten by the chosen file. Continue?",
+    backupImportAssignmentsBevestig:
+      "All current assignments on this PC will be replaced by the chosen file. This cannot be undone. Continue?",
   },
 } as const;
 

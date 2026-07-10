@@ -3,9 +3,9 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-09 (Instellingen in tabbladen; opdrachten:
-autoaanvullen uitvoerder/planner/klant, bewerkbare mailteksten met
-merge-tags, planner-veld, notitie-invoer weg, detailpaneel versleepbaar)
+**Laatst bijgewerkt:** 2026-07-10 (back-up/overzetten: export+import naar
+.json voor instellingen en assignments apart; eerder: Instellingen in
+tabbladen, opdrachten-autoaanvullen, bewerkbare mailteksten, planner-veld)
 
 ## ✅ Af
 
@@ -173,6 +173,24 @@ merge-tags, planner-veld, notitie-invoer weg, detailpaneel versleepbaar)
   - **Detailpaneel (rechter kolom) versleepbaar** (300-720 px, zelfde
     sleepgreep als de mailkolommen; onthouden in Instellingen).
 
+- **Back-up & overzetten naar .json (2026-07-10)**: Instellingen ->
+  Algemeen -> "Back-up & overzetten" met vier knoppen (Instellingen en
+  Assignments elk apart exporteren/importeren). Bestandskiezer via
+  `tauri-plugin-dialog`; lezen/schrijven in de Rust-kern
+  (`schrijf_tekstbestand`/`lees_tekstbestand`, geen fs-scope nodig).
+  - **Instellingen-export** (`bemail-instellingen-<datum>.json`): de hele
+    `UiSettings` (assignees, planners, klanten, mailteksten, weergave,
+    handtekeningen, AI-stijlen, ...) + de 4 termijnen uit opdrachten.db.
+    Import overschrijft `UiSettings` volledig (over `defaultSettings`) en
+    zet de termijnen terug via `zet_opdracht_instelling`.
+  - **Assignments-export** (`bemail-assignments-<datum>.json`): alle
+    aanvragen, rondes en logboek uit opdrachten.db, via nieuwe commands
+    `export_opdrachten`/`import_opdrachten` (import in één transactie,
+    kinderen eerst gewist). Termijnen horen bij de instellingen-export.
+  - **Model = één pc tegelijk, importeren overschrijft** (met bevestiging);
+    geen samenvoeg-/conflictlogica. Accounts/tokens blijven bewust buiten de
+    export (staan in config.json/keychain; op een nieuwe pc log je opnieuw in).
+
 ## 🔜 Volgende stappen (afgesproken volgorde)
 
 1. ~~Bijlagen (lezen + downloaden + meesturen)~~ ✅
@@ -191,6 +209,30 @@ offline cachen, en "stale-while-revalidate" (cache direct tonen terwijl
 vers laadt) als snelheidsverbetering bovenop de offline cache.
 
 ## 📌 Openstaand / opmerkingen
+
+- **Automatische cloud-sync via OneDrive (Graph) - GEPLAND, nog niet
+  gebouwd.** Bovenop de handmatige .json-export (2026-07-10) is dit de
+  afgesproken vervolgstap voor "niet meer alles opnieuw invullen op een
+  andere pc". Aanpak:
+  - **Hergebruik de bestaande O365-login** (geen tweede account/wachtwoord).
+    De app is al met Graph geauthenticeerd; sla dezelfde twee JSON-blobs
+    (instellingen + assignments) op in de **app-map van de gebruiker in
+    OneDrive** (`/me/drive/special/approot`).
+  - **Scope**: `Files.ReadWrite.AppFolder` (least privilege; eigen verborgen
+    app-map, niet de hele Drive). Toevoegen aan de optionele scopes in
+    `auth.rs` (zoals People.Read), met stille upgrade via het refresh-token.
+  - **RISICO - admin consent**: deze tenant staat user-consent voor sommige
+    scopes niet toe (zie People.Read hierboven). Files.ReadWrite.AppFolder
+    kan dus óók een eenmalige **Grant admin consent** + opnieuw inloggen
+    vereisen. Vóór de bouw checken of dit acceptabel is.
+  - **Model**: één pc tegelijk -> laatste-opslag-wint met tijdstempel.
+    "Nu back-uppen" / "Herstellen"-knoppen, later evt. automatisch bij
+    afsluiten. Géén samenvoeglogica nodig.
+  - **Terugvaloptie als de scope geblokkeerd wordt**: de export-JSON naar een
+    door de gebruiker gekozen map schrijven die hun eigen Google Drive/
+    OneDrive/Dropbox-desktopclient al synct (nul extra rechten). NB: alleen
+    de JSON-snapshot syncen, nooit de levende SQLite-`.db` (corruptierisico).
+
 
 - **Entra: beheerdersgoedkeuring vereist** - de scope `People.Read`
   (autocomplete genodigden) mag in deze tenant niet door de gebruiker zelf

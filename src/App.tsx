@@ -164,20 +164,20 @@ export default function App() {
               </button>
               <span className="rail-spacer" />
               <button
-                className={"rail-btn" + (section === "help" ? " active" : "")}
-                onClick={() => setSection("help")}
-                title={tip("help")}
-              >
-                <HelpIcon size={24} />
-                <span>{t("help")}</span>
-              </button>
-              <button
                 className={"rail-btn" + (section === "settings" ? " active" : "")}
                 onClick={() => setSection("settings")}
                 title={tip("settings")}
               >
                 <SettingsIcon size={24} />
                 <span>{t("settings")}</span>
+              </button>
+              <button
+                className={"rail-btn" + (section === "help" ? " active" : "")}
+                onClick={() => setSection("help")}
+                title={tip("help")}
+              >
+                <HelpIcon size={24} />
+                <span>{t("help")}</span>
               </button>
             </nav>
 
