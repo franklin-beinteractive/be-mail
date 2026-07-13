@@ -26,6 +26,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": ["nsis", "msi", "deb", "rpm", "appimage"],
     "icon": [
       "icons/32x32.png",
@@ -34,5 +35,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/franklin-beinteractive/be-mail/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFCNDkxRTYzM0E4MDE5QkEKUldTNkdZQTZZeDVKcTJYYWF6MXdka1JVazc0RkRwMTRKR3c3TC9BL0x1c3czdkN3UCtoQ241bEgK"
+    }
   }
 }

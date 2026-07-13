@@ -398,6 +398,13 @@ const dict = {
       "De huidige instellingen op deze pc worden overschreven door het gekozen bestand. Doorgaan?",
     backupImportAssignmentsBevestig:
       "Alle huidige assignments op deze pc worden vervangen door het gekozen bestand. Dit kan niet ongedaan worden gemaakt. Doorgaan?",
+    // ── Auto-updater ──
+    updateBeschikbaar: "Er is een update beschikbaar",
+    updateNuInstalleren: "Nu installeren en herstarten",
+    updateLater: "Later",
+    updateDownloaden: "Update downloaden…",
+    updateInstalleren: "Update installeren…",
+    updateMislukt: "Bijwerken mislukt - download de nieuwste versie handmatig.",
   },
   en: {
     appName: "BE-Mail",
@@ -794,6 +801,13 @@ const dict = {
       "The current settings on this PC will be overwritten by the chosen file. Continue?",
     backupImportAssignmentsBevestig:
       "All current assignments on this PC will be replaced by the chosen file. This cannot be undone. Continue?",
+    // ── Auto-updater ──
+    updateBeschikbaar: "An update is available",
+    updateNuInstalleren: "Install and restart now",
+    updateLater: "Later",
+    updateDownloaden: "Downloading update…",
+    updateInstalleren: "Installing update…",
+    updateMislukt: "Update failed - download the latest version manually.",
   },
 } as const;
 

@@ -1,0 +1,265 @@
+name: Release
+
+# Tag-gedreven release. Een tag zoals `v0.1.0` bouwt ondertekende bundels voor
+# alle drie de desktopplatforms en publiceert ze - samen met het updater-
+# manifest `latest.json` - naar de Releases van DEZE repo. De auto-updater
+# downloadt ze onauthenticatie, dus de repo moet publiek zijn.
+#
+# Vereiste repo-secrets:
+#   TAURI_SIGNING_PRIVATE_KEY          - private sleutel voor updater-signing
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD - het bijbehorende wachtwoord
+# (GITHUB_TOKEN is automatisch - geen PAT nodig, want we publiceren naar deze repo.)
+#
+# De git-tag is de bron van waarheid voor de versie: "Set version from tag"
+# stempelt vX.Y.Z in tauri.conf.json voor het bouwen.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# We publiceren naar DEZE repo, dus GITHUB_TOKEN heeft schrijfrechten nodig.
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.label }}
+    strategy:
+      # Toon per platform de fouten in plaats van de anderen te annuleren; de
+      # publish-job vereist toch dat alle vier de builds slagen.
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            label: darwin-aarch64
+            updater_key: darwin-aarch64
+            rust_target: aarch64-apple-darwin
+            tauri_args: "--target aarch64-apple-darwin --bundles app,dmg"
+            bundle_dir_target: aarch64-apple-darwin
+          - platform: macos-latest
+            label: darwin-x86_64
+            updater_key: darwin-x86_64
+            rust_target: x86_64-apple-darwin
+            tauri_args: "--target x86_64-apple-darwin --bundles app,dmg"
+            bundle_dir_target: x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            label: linux-x86_64
+            updater_key: linux-x86_64
+            rust_target: x86_64-unknown-linux-gnu
+            # AppImage is de enige Linux-indeling die de updater kan toepassen;
+            # ship .deb ernaast voor handmatige installatie (+ deb-self-update).
+            tauri_args: "--bundles appimage,deb"
+            bundle_dir_target: ""
+          - platform: windows-latest
+            label: windows-x86_64
+            updater_key: windows-x86_64
+            rust_target: x86_64-pc-windows-msvc
+            tauri_args: ""
+            bundle_dir_target: ""
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential curl wget file \
+            libxdo-dev libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev pkg-config patchelf
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Stempel de tagversie in tauri.conf.json zodat bundle-namen, de
+      # gecompileerde app-versie (de huidige-versie-check van de updater) en
+      # latest.json allemaal uit de tag komen. bash is ook op de Windows-runner.
+      - name: Set version from tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' bevat geen geldige semver-versie"; exit 1
+          fi
+          conf="src-tauri/tauri.conf.json"
+          jq --arg v "$version" '.version = $v' "$conf" > "$conf.tmp"
+          mv "$conf.tmp" "$conf"
+          echo "Versie gestempeld: $version"; jq -r '.version' "$conf"
+
+          # Windows: WiX (MSI) accepteert geen niet-numerieke pre-release-ID, dus
+          # bouw voor een pre-release-tag (met '-') alleen NSIS - de updater-
+          # indeling. Stabiele tags bouwen NSIS + MSI.
+          win_extra=""
+          if [[ "${{ matrix.platform }}" == windows-* ]]; then
+            if [[ "$version" == *-* ]]; then win_extra="--bundles nsis";
+            else win_extra="--bundles nsis,msi"; fi
+          fi
+          echo "WIN_EXTRA=$win_extra" >> "$GITHUB_ENV"
+
+      - name: Build signed bundles
+        run: npm run tauri -- build ${{ matrix.tauri_args }} ${{ env.WIN_EXTRA }}
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Stage release assets
+        shell: bash
+        env:
+          UPDATER_KEY: ${{ matrix.updater_key }}
+          BUNDLE_DIR_TARGET: ${{ matrix.bundle_dir_target }}
+        run: |
+          set -euo pipefail
+          base="src-tauri/target"
+          # Een cross --target build nest bundels onder target/<triple>/release;
+          # een host-build zet ze direct onder target/release.
+          if [ -n "$BUNDLE_DIR_TARGET" ]; then
+            bundle="$base/$BUNDLE_DIR_TARGET/release/bundle"
+          else
+            bundle="$base/release/bundle"
+          fi
+          echo "Bundle dir: $bundle"; ls -R "$bundle" || true
+          mkdir -p staging
+          shopt -s nullglob
+
+          # Updater-artifacts voor dit platform als `key|glob`-paren. Linux ship
+          # er TWEE: een .deb-installatie kan alleen met een .deb self-updaten,
+          # nooit met de AppImage (Tauri bakt het bundle-type in de binary).
+          case "$UPDATER_KEY" in
+            linux-x86_64)
+              entries=(
+                "linux-x86_64|$bundle/appimage/*.AppImage"
+                "linux-x86_64-deb|$bundle/deb/*.deb"
+              ) ;;
+            darwin-aarch64) entries=( "darwin-aarch64|$bundle/macos/*.app.tar.gz" ) ;;
+            darwin-x86_64)  entries=( "darwin-x86_64|$bundle/macos/*.app.tar.gz" ) ;;
+            windows-x86_64) entries=( "windows-x86_64|$bundle/nsis/*-setup.exe" ) ;;
+          esac
+
+          for entry in "${entries[@]}"; do
+            key="${entry%%|*}"
+            # Bewust ongequote: word-split + glob-expand het patroon (nullglob
+            # staat aan, dus geen match geeft een lege array die we opvangen).
+            cands=( ${entry#*|} )
+            if [ ${#cands[@]} -eq 0 ]; then
+              echo "::error::Geen updater-artifact gevonden voor $key in $bundle"; exit 1
+            fi
+            updater="${cands[0]}"
+            sig="${updater}.sig"
+            [ -f "$sig" ] || { echo "::error::Ontbrekende signature $sig"; exit 1; }
+
+            # Beide macOS-arches leveren een identiek genaamde .app.tar.gz die zou
+            # botsen in één release - geef elk een arch-unieke assetnaam. De bytes
+            # blijven gelijk, dus de inline-signature blijft geldig.
+            asset="$(basename "$updater")"
+            case "$key" in
+              darwin-aarch64) asset="BE-Mail_aarch64.app.tar.gz" ;;
+              darwin-x86_64)  asset="BE-Mail_x64.app.tar.gz" ;;
+            esac
+            cp "$updater" "staging/$asset"
+
+            # Fragment dat de publish-job gebruikt om latest.json samen te stellen.
+            # De signature-waarde is de letterlijke inhoud van het .sig-bestand
+            # (een URL/pad werkt NIET - zie de Tauri-updater-docs).
+            jq -n --arg key "$key" --arg asset "$asset" --rawfile sig "$sig" \
+              '{key:$key, asset:$asset, signature:$sig}' > "staging/fragment-$key.json"
+          done
+
+          # Handmatige installers - alles wat dit platform bouwde.
+          for f in "$bundle"/dmg/*.dmg "$bundle"/deb/*.deb "$bundle"/rpm/*.rpm \
+                   "$bundle"/appimage/*.AppImage "$bundle"/msi/*.msi \
+                   "$bundle"/nsis/*-setup.exe; do
+            cp "$f" "staging/$(basename "$f")"
+          done
+          echo "Staged:"; ls -la staging
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: assets-${{ matrix.label }}
+          path: staging
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Assemble latest.json + collect assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          echo "Tag=$tag version=$version"
+
+          mkdir -p upload
+          # Alle binaries (sla de fragment-json's over), ontdubbeld op bestandsnaam.
+          find dist -type f ! -name 'fragment-*.json' -print0 | while IFS= read -r -d '' f; do
+            cp -n "$f" "upload/$(basename "$f")"
+          done
+
+          platforms='{}'
+          for frag in dist/*/fragment-*.json; do
+            [ -e "$frag" ] || continue
+            key=$(jq -r .key "$frag")
+            asset=$(jq -r .asset "$frag")
+            sig=$(jq -r .signature "$frag")
+            url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/${asset}"
+            platforms=$(jq --arg k "$key" --arg s "$sig" --arg u "$url" \
+              '. + {($k): {signature:$s, url:$u}}' <<< "$platforms")
+          done
+
+          if [ "$(jq 'length' <<<"$platforms")" -eq 0 ]; then
+            echo "::error::Geen updater-fragmenten gevonden - alle builds faalden."; exit 1
+          fi
+          echo "Updater-platforms: $(jq -r 'keys|join(", ")' <<<"$platforms")"
+
+          pub_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          jq -n --arg v "$version" --arg d "$pub_date" --argjson p "$platforms" \
+            '{version:$v, notes:"Automatische release van BE-Mail.", pub_date:$d, platforms:$p}' \
+            > upload/latest.json
+          echo "=== latest.json ==="; cat upload/latest.json
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          # Een pre-release-tag (met '-', bv. v0.7.0-beta-1) wordt als GitHub-
+          # pre-release gepubliceerd, zodat `releases/latest` op de laatste
+          # stabiele build blijft wijzen en de updater geen beta aan stabiele
+          # gebruikers aanbiedt.
+          prerelease_flag=""
+          if [[ "$tag" == *-* ]]; then prerelease_flag="--prerelease"; fi
+          gh release create "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "BE-Mail $tag" \
+            --notes "Automatische release van BE-Mail $tag. Download hieronder een installer, of werk bij vanuit de app." \
+            $prerelease_flag \
+            upload/*
