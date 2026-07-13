@@ -20,6 +20,10 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
+        // Auto-updater + herstart na installatie. Endpoints en publieke sleutel
+        // staan in tauri.conf.json; de frontend stuurt de check/download aan.
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             // Achtergrond-poller voor nieuwe-mail-notificaties.
             notifier::start(app.handle().clone());

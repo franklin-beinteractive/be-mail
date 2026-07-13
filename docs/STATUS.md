@@ -3,10 +3,10 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-10 (leesvenster-toolbar opgeruimd: archiveerknop
-weg, Spam en gelezen/ongelezen als icoon, AI-antwoord ingekort tot ✨; nieuw:
-Ctrl+A vinkt alle mails in de lijst aan. Eerder: back-up/overzetten export+import
-naar .json voor instellingen en assignments apart)
+**Laatst bijgewerkt:** 2026-07-13 (release-pijplijn toegevoegd: GitHub Actions
+bouwt bij een `v*`-tag Windows/Linux/macOS-bundels en publiceert ze + de
+auto-updater naar deze repo; keyring per-OS gemaakt zodat alle platforms bouwen.
+Eerder: leesvenster-toolbar opgeruimd en Ctrl+A voor mailselectie)
 
 ## ✅ Af
 
@@ -191,6 +191,16 @@ naar .json voor instellingen en assignments apart)
   - **Model = één pc tegelijk, importeren overschrijft** (met bevestiging);
     geen samenvoeg-/conflictlogica. Accounts/tokens blijven bewust buiten de
     export (staan in config.json/keychain; op een nieuwe pc log je opnieuw in).
+- **Releases & auto-update (CI)**: GitHub Actions-workflow
+  (`.github/workflows/release.yml`) bouwt bij een `v*`-tag ondertekende bundels
+  voor Windows, Linux en macOS en publiceert ze + het `latest.json`-manifest
+  naar de Releases van deze (publieke) repo. In-app updater
+  (`tauri-plugin-updater` + `-process`; banner in `App.tsx`, hook in
+  `src/lib/update.ts`) checkt bij opstarten en elke 30 min, en installeert +
+  herstart op verzoek. `keyring` is nu per-OS (Windows/macOS/Linux) zodat alle
+  drie de platforms bouwen. **Eenmalig nog nodig** (zie plan/README): het
+  updater-sleutelpaar genereren, de secrets `TAURI_SIGNING_PRIVATE_KEY`
+  (+ `_PASSWORD`) zetten en de `pubkey` in `tauri.conf.json` invullen.
 
 ## 🔜 Volgende stappen (afgesproken volgorde)
 
