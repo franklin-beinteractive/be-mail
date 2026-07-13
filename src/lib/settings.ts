@@ -110,6 +110,10 @@ export interface UiSettings {
   hiddenFolders: string[];
   /** Tooltips (uitleg bij knoppen) tonen; standaard aan. */
   showTooltips: boolean;
+  /** Standaardopmaak voor uitgaande mail (opsteleditor + verzonden HTML). */
+  composeFontFamily: string;
+  composeFontSizePt: number;
+  composeFontColor: string;
   /** Zichtbare velden per bericht in de berichtenlijst. */
   listShowName: boolean;
   listShowEmail: boolean;
@@ -157,6 +161,15 @@ export const FONT_CHOICES = [
   "Courier New",
 ] as const;
 
+/** Puntgroottes voor de opmaak van uitgaande mail (Outlook-gebruikelijk). */
+export const COMPOSE_FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24] as const;
+
+/** Inline-CSS voor de standaardopmaak van uitgaande mail; gebruikt in de
+ *  opsteleditor en om het verzonden HTML-lichaam heen. */
+export function composeFontCss(s: UiSettings): string {
+  return `font-family:${s.composeFontFamily},sans-serif;font-size:${s.composeFontSizePt}pt;color:${s.composeFontColor}`;
+}
+
 export const defaultSettings: UiSettings = {
   theme: "light",
   fontScale: 1,
@@ -174,6 +187,9 @@ export const defaultSettings: UiSettings = {
   collapsedAccounts: [],
   hiddenFolders: [],
   showTooltips: true,
+  composeFontFamily: "Calibri",
+  composeFontSizePt: 11,
+  composeFontColor: "#000000",
   listShowName: true,
   listShowEmail: false,
   listShowSubject: true,

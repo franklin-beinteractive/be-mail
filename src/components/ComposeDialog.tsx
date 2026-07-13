@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
-import { signatureHtml } from "../lib/settings";
+import { composeFontCss, signatureHtml } from "../lib/settings";
 import type { AttachmentInput, ComposeInput, Person } from "../lib/types";
 import { fileSize } from "../lib/format";
 import RichTextEditor from "./RichTextEditor";
@@ -246,7 +246,11 @@ export default function ComposeDialog({
     const body = forSend
       ? extractInlineImages(editorHtml())
       : { html: editorHtml(), attachments: [] as AttachmentInput[] };
-    const bodyHtml = `<div>${body.html}</div>` + (quoted ? `<hr>${quoted}` : "");
+    // Standaardopmaak om het eigen tekstdeel heen; de geciteerde mail
+    // (onder de <hr>) behoudt zijn oorspronkelijke opmaak.
+    const bodyHtml =
+      `<div style="${composeFontCss(settings)}">${body.html}</div>` +
+      (quoted ? `<hr>${quoted}` : "");
     return {
       to: split(to),
       cc: split(cc),
@@ -488,6 +492,15 @@ export default function ComposeDialog({
             editorRef={editorRef}
             initialHtml={initialHtml}
             onChange={setHtml}
+            // Standaardopmaak uitgaande mail (Instellingen -> Mail). Witte
+            // achtergrond ook in donker thema: de gekozen tekstkleur is wat
+            // de ontvanger op een witte ondergrond te zien krijgt.
+            textStyle={{
+              fontFamily: settings.composeFontFamily,
+              fontSize: `${settings.composeFontSizePt}pt`,
+              color: settings.composeFontColor,
+              background: "#fff",
+            }}
             // @-vermelding: genoemde persoon automatisch aan "Aan" toevoegen.
             onMention={(addr) =>
               setTo((prev) =>

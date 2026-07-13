@@ -9,6 +9,7 @@ import { OPDR_MERGE_TAGS } from "../lib/opdrachten-mail";
 import { opdrachtenApi } from "../lib/opdrachten-api";
 import type { OpdrachtInstellingen } from "../lib/opdrachten-types";
 import {
+  COMPOSE_FONT_SIZES,
   defaultSettings,
   FONT_CHOICES,
   HIDEABLE_FOLDERS,
@@ -534,6 +535,60 @@ export default function SettingsView({
 
       {tab === "mail" && (
       <>
+      <section className="settings-block">
+        <h2>{t("composeFontTitle")}</h2>
+        <p className="muted small">{t("composeFontHint")}</p>
+        <div className="setting-row">
+          <span>{t("font")}</span>
+          <select
+            value={settings.composeFontFamily}
+            onChange={(e) => setSettings({ composeFontFamily: e.target.value })}
+          >
+            {FONT_CHOICES.map((f) => (
+              <option key={f} value={f} style={{ fontFamily: f }}>
+                {f}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="setting-row">
+          <span>{t("fontSize")}</span>
+          <select
+            value={settings.composeFontSizePt}
+            onChange={(e) => setSettings({ composeFontSizePt: Number(e.target.value) })}
+          >
+            {COMPOSE_FONT_SIZES.map((n) => (
+              <option key={n} value={n}>
+                {n} pt
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="setting-row">
+          <span>{t("fontColor")}</span>
+          <input
+            type="color"
+            value={settings.composeFontColor}
+            onChange={(e) => setSettings({ composeFontColor: e.target.value })}
+          />
+        </div>
+        {/* Voorbeeld op witte ondergrond: zo krijgt de ontvanger het te zien. */}
+        <p
+          style={{
+            fontFamily: settings.composeFontFamily,
+            fontSize: `${settings.composeFontSizePt}pt`,
+            color: settings.composeFontColor,
+            background: "#fff",
+            border: "1px solid var(--border)",
+            borderRadius: 6,
+            padding: "8px 12px",
+            margin: "4px 0 0",
+          }}
+        >
+          {t("composeFontSample")}
+        </p>
+      </section>
+
       <section className="settings-block">
         <h2>{t("folders")}</h2>
         <p className="muted small">{t("hideFoldersHint")}</p>

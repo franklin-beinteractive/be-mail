@@ -3,10 +3,11 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-13 (release-pijplijn toegevoegd: GitHub Actions
-bouwt bij een `v*`-tag Windows/Linux/macOS-bundels en publiceert ze + de
-auto-updater naar deze repo; keyring per-OS gemaakt zodat alle platforms bouwen.
-Eerder: leesvenster-toolbar opgeruimd en Ctrl+A voor mailselectie)
+**Laatst bijgewerkt:** 2026-07-10 (Instellingen -> E-mail: standaardopmaak voor
+uitgaande mail - lettertype, puntgrootte en tekstkleur; zichtbaar in de
+opsteleditor (witte ondergrond, WYSIWYG) en meegestuurd in de verzonden HTML.
+Eerder vandaag: typen-in-editor-bugfix (React 19/dangerouslySetInnerHTML),
+toolbar opgeruimd, Ctrl+A selecteert alle mails)
 
 ## ✅ Af
 

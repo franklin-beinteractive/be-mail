@@ -1,7 +1,7 @@
 // Herbruikbare rich-text editor (contentEditable + document.execCommand):
 // vet/cursief/onderstrepen, lijsten, links en afbeeldingen (als data-URI).
 // Gebruikt door het opstelvenster en de handtekeningen in Instellingen.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
 import type { Person } from "../lib/types";
@@ -15,6 +15,7 @@ export default function RichTextEditor({
   initialHtml,
   onChange,
   minHeight,
+  textStyle,
   onMention,
 }: {
   /** Optionele externe ref naar de editor-div (voor o.a. handtekening-wissel). */
@@ -23,17 +24,25 @@ export default function RichTextEditor({
   initialHtml: string;
   onChange: (html: string) => void;
   minHeight?: number;
+  /** Basisopmaak van de editor-tekst (lettertype/grootte/kleur). */
+  textStyle?: React.CSSProperties;
   /** Zet @-vermeldingen aan: bij een keuze wordt dit aangeroepen met het
    *  e-mailadres (het opstelvenster voegt de persoon dan toe aan Aan). */
   onMention?: (address: string) => void;
 }) {
   const { t, tip, notify } = useApp();
-  // Bevries de start-HTML: de editor-DOM is daarna de waarheid. Zou de prop
-  // live meebewegen (parent slaat onChange-waarde op), dan schrijft React de
-  // innerHTML opnieuw en springt de cursor naar het begin.
+  // Start-HTML eenmalig bij mount in de DOM zetten; daarna is de editor-DOM
+  // de waarheid en blijft React er volledig vanaf. Niet via
+  // dangerouslySetInnerHTML: React 19 schrijft die prop bij elke commit
+  // opnieuw (het {__html}-object is elke render nieuw), waardoor elke
+  // toetsaanslag direct werd teruggedraaid naar de startinhoud.
   const [frozenInitial] = useState(initialHtml);
   const innerRef = useRef<HTMLDivElement>(null);
   const ref = editorRef ?? innerRef;
+  useLayoutEffect(() => {
+    if (ref.current) ref.current.innerHTML = frozenInitial;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const imgInput = useRef<HTMLInputElement>(null);
   // Link invoegen: inline invoer + bewaarde selectie (de invoer steelt focus).
   const [linkOpen, setLinkOpen] = useState(false);
@@ -248,7 +257,7 @@ export default function RichTextEditor({
         <div
           ref={ref}
           className="editor"
-          style={minHeight ? { minHeight } : undefined}
+          style={{ ...(minHeight ? { minHeight } : undefined), ...textStyle }}
           contentEditable
           suppressContentEditableWarning
           onInput={() => {
@@ -268,7 +277,6 @@ export default function RichTextEditor({
               if (addr) applyMention(addr, p.displayName || addr);
             }
           }}
-          dangerouslySetInnerHTML={{ __html: frozenInitial }}
         />
         {mentions.length > 0 && (
           <span className="suggest-list mention-list">
