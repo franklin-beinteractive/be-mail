@@ -3,13 +3,43 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-10 (leesvenster-toolbar opgeruimd: archiveerknop
-weg, Spam en gelezen/ongelezen als icoon, AI-antwoord ingekort tot ✨; nieuw:
-Ctrl+A vinkt alle mails in de lijst aan. Eerder: back-up/overzetten export+import
-naar .json voor instellingen en assignments apart)
+**Laatst bijgewerkt:** 2026-07-13 (IMAP-accounts toegevoegd als tweede
+accounttype naast Office 365 - zie de bullet hieronder. Nog te doen:
+end-to-end verificatie op Windows met echte IMAP-/CalDAV-servers.)
 
 ## ✅ Af
 
+- **IMAP-accounts (2026-07-13, issue #5)**: naast Office 365 kun je nu ook
+  IMAP-accounts koppelen. Een IMAP-account is een tweede account-TYPE dat in de
+  bestaande multi-account-infrastructuur schuift.
+  - **Mail** via IMAP (lezen/mappen/gelezen/vlaggen/verplaatsen/verwijderen/
+    zoeken) + SMTP (verzenden, concepten), volledig over **rustls/ring** (geen
+    OpenSSL). Persistente IMAP-verbinding per account (hergebruikt, herverbindt
+    bij verval). Offline SQLite-cache + nieuwe-mail-notificaties werken ook voor
+    IMAP.
+  - **Agenda** via een aparte **CalDAV**-server, best-effort automatisch
+    gedetecteerd bij het toevoegen (of handmatige CalDAV-URL). Werkt voor
+    iCloud/Fastmail/cPanel/SabreDAV; **Gmail** (OAuth-only CalDAV) en
+    **Outlook.com** (geen CalDAV) krijgen geen agenda - de mail werkt daar wel.
+  - **Auth** = gebruikersnaam + (app-)wachtwoord over TLS; het wachtwoord staat
+    gechunkt in de OS-keychain (prefix `imap-secret`), raakt de webview nooit.
+    Geen XOAUTH2 in deze versie.
+  - **Architectuur**: nieuwe modules `backend.rs` (`enum Backend { Graph, Imap }`
+    + `enum Calendar { Graph, Caldav }`, dispatch op het enige seam
+    `commands.rs::client()`/`calendar()`), `imap.rs` (imap + lettre +
+    mail-parser), `caldav.rs` (reqwest + quick-xml + icalendar + rrule +
+    chrono-tz). De frontend verbergt Office-365-only functies (regels,
+    categorieen, afwezigheid, RSVP, blokkeren, gepland verzenden,
+    genodigden-autocomplete) per **actief** account; de Agenda-knop verdwijnt pas
+    als geen enkel account een agenda heeft.
+  - **Back-compat**: alle nieuwe config-velden zijn `#[serde(default)]`, dus
+    bestaande `config.json` (zonder `kind`/`imap`) laadt ongewijzigd als
+    Office365. 54 unit-tests groen; `cargo check`/`clippy` schoon; geen
+    aws-lc-rs/OpenSSL in de tree.
+  - **v1-beperkingen**: terugkerende CalDAV-afspraken kun je niet los
+    bewerken/slepen/verwijderen (hele-reeks-bescherming tegen dataverlies);
+    zoeken is per-map; gepland verzenden en genodigden-autocomplete zijn
+    O365-only. Zie `docs/IMAP-Accounts.md` en `docs/CalDAV-Calendar.md`.
 - **Fundering**: Tauri v2 + React/TS, OAuth2/PKCE-login, tokens gechunkt in
   OS-keychain (zie CLAUDE.md gotcha #1), config in `%APPDATA%\BE-Mail\`.
 - **Mail lezen**: mappen, berichtenlijst + paginering, HTML/platte tekst,

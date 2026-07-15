@@ -575,6 +575,33 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .inline-inputs { display: flex; gap: 8px; flex: 1; }
 .compose-body { width: 100%; resize: vertical; margin-top: 8px; line-height: 1.5; }
 
+/* Inline testresultaat + fout in het IMAP-formulier. */
+.test-ok {
+  margin: 10px 0 0;
+  color: #107c10;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+:root[data-theme="dark"] .test-ok { color: #6ccb6c; }
+.test-error {
+  margin: 10px 0 0;
+  color: var(--danger);
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+}
+/* Klein kentekenetiket ("IMAP" / "Office 365") bij een accountrij. */
+.kind-badge {
+  display: inline-block;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 7px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 /* Rich-text editor */
 .editor-toolbar {
   display: flex;

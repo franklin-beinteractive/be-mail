@@ -18,7 +18,10 @@ export default function EventDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const { t, notify } = useApp();
+  const { t, notify, capabilities } = useApp();
+  // Genodigden-autocomplete (Graph /me/people) alleen bij accounts die het
+  // ondersteunen; anders blijft vrij intypen werken.
+  const supportsPeople = capabilities ? capabilities.supportsPeople : true;
   const editing = !!event;
   const [subject, setSubject] = useState(event?.subject ?? "");
   const [date, setDate] = useState(event ? event.start.dateTime.slice(0, 10) : defaultDate);
@@ -44,6 +47,7 @@ export default function EventDialog({
 
   // Autoaanvullen: kort debouncen; stil falen (dan blijft los intypen werken).
   useEffect(() => {
+    if (!supportsPeople) return;
     const q = attQuery.trim();
     if (q.length < 2) {
       setSuggestions([]);
@@ -56,7 +60,7 @@ export default function EventDialog({
         .catch(() => setSuggestions([]));
     }, 300);
     return () => clearTimeout(h);
-  }, [attQuery]);
+  }, [attQuery, supportsPeople]);
 
   function addAttendee(address: string) {
     const a = address.trim();
@@ -184,6 +188,9 @@ export default function EventDialog({
                   }}
                   placeholder="naam of e-mailadres…"
                 />
+                {!supportsPeople && (
+                  <span className="muted small">{t("noContactSuggest")}</span>
+                )}
                 {suggestions.length > 0 && (
                   <div className="suggest-list">
                     {suggestions.map((p, i) => {

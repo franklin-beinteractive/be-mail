@@ -3,11 +3,14 @@
 //! nooit in de webview.
 
 mod auth;
+mod backend;
 mod cache;
+mod caldav;
 mod claude;
 mod commands;
 mod config;
 mod graph;
+mod imap;
 mod models;
 mod notifier;
 mod opdrachten;
@@ -21,6 +24,10 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            // Installeer de rustls-cryptoprovider (ring) expliciet als proces-default.
+            // Meerdere rustls-ingangen (IMAP + reqwest) delen anders geen provider en
+            // dat geeft runtime een "no process default CryptoProvider"-paniek.
+            let _ = rustls::crypto::ring::default_provider().install_default();
             // Achtergrond-poller voor nieuwe-mail-notificaties.
             notifier::start(app.handle().clone());
             // Opdrachten-module: eigen database + herinnerings-poller.
@@ -40,6 +47,9 @@ pub fn run() {
             commands::logout,
             commands::list_accounts,
             commands::set_active_account,
+            commands::add_imap_account,
+            commands::test_imap_connection,
+            commands::imap_presets_for,
             commands::list_all_folders,
             commands::get_account,
             commands::list_folders,

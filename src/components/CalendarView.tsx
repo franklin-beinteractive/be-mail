@@ -31,7 +31,10 @@ function addDays(d: Date, n: number): Date {
 }
 
 export default function CalendarView() {
-  const { t, settings, notify, confirm } = useApp();
+  const { t, settings, notify, confirm, capabilities } = useApp();
+  // Actief account zonder agenda (bv. een IMAP-account zonder CalDAV): geen
+  // events ophalen, lege staat tonen. Null = accounts nog niet geladen.
+  const hasCalendar = capabilities ? capabilities.hasCalendar : true;
   const [mode, setMode] = useState<ViewMode>("month");
   const [anchor, setAnchor] = useState(() => new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -69,12 +72,27 @@ export default function CalendarView() {
   }, [mode, anchor]);
 
   useEffect(() => {
+    // Wacht tot de accounts geladen zijn (geen flits met een foutmelding) en
+    // sla het ophalen over voor een agendaloos account.
+    if (!capabilities) return;
+    if (!hasCalendar) {
+      setEvents([]);
+      return;
+    }
     api
       .listEvents(isoLocal(range.start), isoLocal(range.end))
       .then(setEvents)
-      .catch((e) => notify(String(e), "error"));
+      .catch((e) => {
+        // Een "geen agenda"-fout van de kern is geen echte fout: toon de lege
+        // staat i.p.v. een rode melding.
+        if (/geen agenda|no calendar/i.test(String(e))) {
+          setEvents([]);
+          return;
+        }
+        notify(String(e), "error");
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range.start, range.end]);
+  }, [range.start, range.end, hasCalendar, capabilities]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
@@ -200,6 +218,15 @@ export default function CalendarView() {
     settings.lang === "nl"
       ? ["ma", "di", "wo", "do", "vr", "za", "zo"]
       : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  // Agendaloos account: alleen een lege staat, geen toolbar/roosters.
+  if (capabilities && !hasCalendar) {
+    return (
+      <div className="calendar">
+        <p className="empty">{t("noCalendarForAccount")}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="calendar">

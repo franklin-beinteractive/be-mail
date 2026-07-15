@@ -26,6 +26,7 @@ import type {
   AutoReplySettings,
   MessageRule,
 } from "../lib/types";
+import AddImapAccountDialog from "./AddImapAccountDialog";
 import RichTextEditor from "./RichTextEditor";
 import { PlusIcon, TrashIcon } from "./Icons";
 
@@ -46,13 +47,20 @@ export default function SettingsView({
   account,
   onLogout,
   onEditConnection,
+  onAccountsChanged,
 }: {
   account: Account | null;
   onLogout: () => void;
   onEditConnection: () => void;
+  /** App verversen (actief account/capabilities) na koppelen/ontkoppelen. */
+  onAccountsChanged?: () => void;
 }) {
-  const { t, tip, settings, setSettings, notify, confirm } = useApp();
+  const { t, tip, settings, setSettings, notify, confirm, capabilities } = useApp();
   const [tab, setTab] = useState<SettingsTab>("algemeen");
+  // IMAP-only actief account: verberg de Graph-only mailinstellingen.
+  const graphOnly = capabilities ? capabilities.graphOnly : true;
+  // "IMAP-account toevoegen"-dialoog open?
+  const [imapDialog, setImapDialog] = useState(false);
   // Notificatie-instelling leeft in config.json (de Rust-poller leest die).
   const [notifEnabled, setNotifEnabled] = useState(true);
   // Termijnen van de opdrachten-module (leven in opdrachten.db, niet in localStorage).
@@ -77,14 +85,25 @@ export default function SettingsView({
       .then((cfg) => setNotifEnabled(cfg?.notificationsEnabled ?? true))
       .catch(() => {});
     api.listAccounts().then(setAccInfo).catch(() => {});
+    api.claudeKeyStatus().then(setAiKeySet).catch(() => {});
+    opdrachtenApi.getInstellingen().then(setOpdrInst).catch(() => {});
+  }, []);
+
+  // Regels + afwezigheid zijn Graph-only: voor een IMAP-account niet ophalen
+  // (de secties worden dan ook niet getoond).
+  useEffect(() => {
+    if (!graphOnly) {
+      setRules([]);
+      setOof(null);
+      setOofBlocked(false);
+      return;
+    }
     api.listRules().then(setRules).catch(() => setRules([]));
     api
       .getAutoReply()
       .then(setOof)
       .catch(() => setOofBlocked(true));
-    api.claudeKeyStatus().then(setAiKeySet).catch(() => {});
-    opdrachtenApi.getInstellingen().then(setOpdrInst).catch(() => {});
-  }, []);
+  }, [graphOnly]);
 
   // ── Opdrachten: autoaanvullen-lijsten + mailteksten ──
 
@@ -207,11 +226,12 @@ export default function SettingsView({
     }
   }
 
-  async function addAccount() {
+  async function addOffice365() {
     setLinking(true);
     try {
       await api.login();
       setAccInfo(await api.listAccounts());
+      onAccountsChanged?.();
     } catch (e) {
       notify(String(e), "error");
     } finally {
@@ -219,11 +239,22 @@ export default function SettingsView({
     }
   }
 
+  async function imapAdded() {
+    setImapDialog(false);
+    try {
+      setAccInfo(await api.listAccounts());
+    } catch (e) {
+      notify(String(e), "error");
+    }
+    onAccountsChanged?.();
+  }
+
   async function removeAccount(id: string) {
     try {
       await api.logout(id);
       const info = await api.listAccounts();
       setAccInfo(info);
+      onAccountsChanged?.();
       if (info.accounts.length === 0) onLogout();
     } catch (e) {
       notify(String(e), "error");
@@ -370,8 +401,11 @@ export default function SettingsView({
         )}
         {accInfo.accounts.map((a) => (
           <div key={a.id} className="setting-row">
-            <span>
-              <strong>{a.displayName ?? a.mail}</strong>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <strong>{a.displayName ?? a.mail}</strong>{" "}
+              <span className={"kind-badge" + (a.kind === "imap" ? " imap" : "")}>
+                {a.kind === "imap" ? t("badgeImap") : t("badgeOffice365")}
+              </span>
               <br />
               <span className="muted small">
                 {a.mail}
@@ -383,9 +417,14 @@ export default function SettingsView({
             </button>
           </div>
         ))}
-        <button className="btn primary" onClick={addAccount} disabled={linking}>
-          <PlusIcon size={18} /> {t("addAccount")}
-        </button>
+        <div className="setting-row" style={{ gap: 8 }}>
+          <button className="btn primary" onClick={addOffice365} disabled={linking}>
+            <PlusIcon size={18} /> {t("badgeOffice365")}
+          </button>
+          <button className="btn" onClick={() => setImapDialog(true)} disabled={linking}>
+            <PlusIcon size={18} /> {t("badgeImap")}
+          </button>
+        </div>
       </section>
 
       <section className="settings-block">
@@ -581,6 +620,8 @@ export default function SettingsView({
         ))}
       </section>
 
+      {graphOnly && (
+        <>
       <section className="settings-block">
         <h2>{t("rules")}</h2>
         {rules !== null && rules.length === 0 && (
@@ -724,6 +765,8 @@ export default function SettingsView({
           </>
         )}
       </section>
+        </>
+      )}
 
       <section className="settings-block">
         <h2>{t("signatures")}</h2>
@@ -984,6 +1027,13 @@ export default function SettingsView({
       </>
       )}
       </div>
+
+      {imapDialog && (
+        <AddImapAccountDialog
+          onClose={() => setImapDialog(false)}
+          onAdded={imapAdded}
+        />
+      )}
     </div>
   );
 }

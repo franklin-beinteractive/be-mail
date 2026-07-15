@@ -12,6 +12,8 @@ import type {
   CalendarEvent,
   ComposeInput,
   EventInput,
+  ImapAccountInput,
+  ImapPreset,
   InlineImage,
   MailFolder,
   Message,
@@ -40,6 +42,16 @@ export const api = {
   listAccounts: () => invoke<AccountsInfo>("list_accounts"),
   setActiveAccount: (id: string) => invoke<void>("set_active_account", { id }),
   listAllFolders: () => invoke<AccountFolders[]>("list_all_folders"),
+  // IMAP/SMTP-account koppelen (+ optioneel CalDAV). Het wachtwoord gaat naar
+  // de keychain in de Rust-kern; de webview bewaart het nooit.
+  addImapAccount: (input: ImapAccountInput) =>
+    invoke<Account>("add_imap_account", { input }),
+  // Test IMAP + SMTP (en CalDAV indien opgegeven) zonder iets op te slaan.
+  testImapConnection: (input: ImapAccountInput) =>
+    invoke<void>("test_imap_connection", { input }),
+  // Voorinstellingen (host/poort/beveiliging) op basis van het e-maildomein.
+  imapPresetsFor: (email: string) =>
+    invoke<ImapPreset | null>("imap_presets_for", { email }),
 
   // Mail
   listFolders: () => invoke<MailFolder[]>("list_folders"),

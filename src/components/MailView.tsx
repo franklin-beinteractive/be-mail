@@ -148,9 +148,14 @@ function buildTree(list: MailFolder[], order: Record<string, string[]>): FolderT
 interface MailViewProps {
   /** Callback nadat vanuit een mail een opdracht-kaart is aangemaakt. */
   onOpdrachtAangemaakt?: (id: number) => void;
+  /** Meld een wissel van actief account aan de App (voor capability-gating). */
+  onActiveAccountChange?: (accountId: string) => void;
 }
 
-export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
+export default function MailView({
+  onOpdrachtAangemaakt,
+  onActiveAccountChange,
+}: MailViewProps = {}) {
   const { t, tip, settings, setSettings, notify, confirm } = useApp();
   // Multi-account: mappen per account; acties werken op het actieve account.
   const [accounts, setAccounts] = useState<StoredAccount[]>([]);
@@ -181,6 +186,13 @@ export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
         }
       : null;
   }, [accounts, activeId]);
+
+  // IMAP-account: Graph-only mailfuncties (RSVP, afzender blokkeren, categorieen,
+  // zoeken over alle mappen) verbergen.
+  const isImap = useMemo(
+    () => accounts.find((x) => x.id === activeId)?.kind === "imap",
+    [accounts, activeId]
+  );
 
   /** Wijzig alleen de mappen van het actieve account. */
   function patchActiveFolders(fn: (fs: MailFolder[]) => MailFolder[]) {
@@ -299,6 +311,7 @@ export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
         setAccounts(info.accounts);
         const active = info.active ?? info.accounts[0]?.id ?? "";
         setActiveId(active);
+        if (active) onActiveAccountChange?.(active);
         const groups = await api.listAllFolders();
         setAccountFolders(groups);
         const g = groups.find((x) => x.account.id === active);
@@ -319,6 +332,7 @@ export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
       if (accountId !== activeId) {
         await api.setActiveAccount(accountId);
         setActiveId(accountId);
+        onActiveAccountChange?.(accountId);
         setSearch("");
         setSearchResult(null);
       }
@@ -368,10 +382,12 @@ export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
       const seq = ++searchSeq.current;
       setLoading(true);
       try {
+        // IMAP kan niet over de hele mailbox zoeken: altijd op de huidige map.
+        const folderScoped = searchScope === "folder" || isImap;
         const page = await api.searchMessages(
           q,
           50,
-          searchScope === "folder" ? folderId ?? undefined : undefined
+          folderScoped ? folderId ?? undefined : undefined
         );
         if (seq !== searchSeq.current) return; // verouderd resultaat
         setSearchResult(page.messages);
@@ -384,7 +400,7 @@ export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
     }, 400);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, searchScope, folderId]);
+  }, [search, searchScope, folderId, isImap]);
 
   async function loadPage(from: number, replace: boolean) {
     if (!folderId) return;
@@ -1344,18 +1360,23 @@ export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
           <div className="search-scope">
             <div className="seg">
               <button
-                className={"seg-btn" + (searchScope === "all" ? " active" : "")}
+                className={"seg-btn" + (searchScope === "all" && !isImap ? " active" : "")}
                 onClick={() => setSearchScope("all")}
+                disabled={isImap}
+                title={isImap ? tip("searchImapFolderOnly") : undefined}
               >
                 {t("searchEverywhere")}
               </button>
               <button
-                className={"seg-btn" + (searchScope === "folder" ? " active" : "")}
+                className={"seg-btn" + (searchScope === "folder" || isImap ? " active" : "")}
                 onClick={() => setSearchScope("folder")}
               >
                 {t("searchThisFolder")}
               </button>
             </div>
+            {isImap && (
+              <span className="muted small">{t("searchImapFolderOnly")}</span>
+            )}
           </div>
         )}
         <div className="list-controls">
@@ -1657,13 +1678,15 @@ export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
               >
                 <SpamIcon size={18} />
               </button>
-              <button
-                className="btn"
-                onClick={() => blockSender(selected)}
-                title={tip("tipBlock")}
-              >
-                <BanIcon size={18} />
-              </button>
+              {!isImap && (
+                <button
+                  className="btn"
+                  onClick={() => blockSender(selected)}
+                  title={tip("tipBlock")}
+                >
+                  <BanIcon size={18} />
+                </button>
+              )}
               <button className="btn" onClick={() => toggleFlag(selected)} title={tip("tipFlag")}>
                 <FlagIcon size={18} />
               </button>
@@ -1747,7 +1770,7 @@ export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
                   <div className="muted small">
                     {longDateTime(selected.receivedDateTime, settings.lang)}
                   </div>
-                  {(selected.categories ?? []).length > 0 && (
+                  {!isImap && (selected.categories ?? []).length > 0 && (
                     <div className="cat-row">
                       {(selected.categories ?? []).map((c) => (
                         <span
@@ -1772,7 +1795,7 @@ export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
                   )}
                 </div>
                 {/* Rechts uitgelijnd op de afzenderregel. */}
-                {masterCats.length > 0 && (
+                {!isImap && masterCats.length > 0 && (
                   <select
                     className="cat-add"
                     value=""
@@ -1799,7 +1822,7 @@ export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
                 )}
               </div>
             </div>
-            {selected.odataType?.includes("eventMessageRequest") && (
+            {!isImap && selected.odataType?.includes("eventMessageRequest") && (
               <div className="rsvp-bar">
                 <span className="rsvp-label">{t("invitation")}:</span>
                 <button className="btn primary" onClick={() => rsvp(selected, "accept")}>
@@ -1869,15 +1892,17 @@ export default function MailView({ onOpdrachtAangemaakt }: MailViewProps = {}) {
           >
             {t("reportJunk")}
           </button>
-          <button
-            className="suggest-item"
-            onClick={() => {
-              void blockSender(ctxMenu.msg);
-              setCtxMenu(null);
-            }}
-          >
-            {t("blockSender")}
-          </button>
+          {!isImap && (
+            <button
+              className="suggest-item"
+              onClick={() => {
+                void blockSender(ctxMenu.msg);
+                setCtxMenu(null);
+              }}
+            >
+              {t("blockSender")}
+            </button>
+          )}
           <button
             className="suggest-item"
             onClick={() => {

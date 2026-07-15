@@ -6,11 +6,18 @@ export interface AppConfig {
   notificationsEnabled?: boolean;
 }
 
+/** Soort account: Office 365 (Graph) of IMAP/SMTP (+ optioneel CalDAV). */
+export type AccountKind = "office365" | "imap";
+
+/** Beveiliging van een IMAP-/SMTP-verbinding. */
+export type TlsMode = "implicitTls" | "startTls";
+
 export interface Account {
   id: string;
   displayName?: string | null;
   mail?: string | null;
   userPrincipalName?: string | null;
+  kind?: AccountKind;
 }
 
 /** Gekoppeld account zoals opgeslagen in de config (multi-account). */
@@ -18,11 +25,94 @@ export interface StoredAccount {
   id: string;
   mail?: string | null;
   displayName?: string | null;
+  kind?: AccountKind;
+  /** Afgeleid door de kern: heeft dit account een agenda? */
+  hasCalendar?: boolean;
+  /** Afgeleid door de kern: ondersteunt het genodigden-autocomplete? */
+  supportsPeople?: boolean;
 }
 
 export interface AccountsInfo {
   accounts: StoredAccount[];
   active?: string | null;
+}
+
+/** Opgeloste bijzondere mappen van een IMAP-account. */
+export interface SpecialFolders {
+  sent?: string | null;
+  drafts?: string | null;
+  junk?: string | null;
+  trash?: string | null;
+  archive?: string | null;
+  delimiter?: string | null;
+}
+
+/** CalDAV-agenda die bij een IMAP-account hoort (best-effort). */
+export interface CaldavSettings {
+  calendarUrl: string;
+  principalUrl?: string | null;
+  homeSetUrl?: string | null;
+  displayName?: string | null;
+  caldavHost?: string | null;
+  supportsExpand?: boolean;
+  discoveredAt?: number;
+  caldavUsername?: string | null;
+}
+
+/** IMAP-/SMTP-instellingen zoals opgeslagen (wachtwoord staat in de keychain). */
+export interface ImapSettings {
+  imapHost: string;
+  imapPort: number;
+  imapSecurity: TlsMode;
+  imapUsername: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecurity: TlsMode;
+  smtpUsername: string;
+  email: string;
+  saveToSent?: boolean;
+  folders?: SpecialFolders | null;
+  caldav?: CaldavSettings | null;
+}
+
+/** Invoer vanuit het "IMAP-account toevoegen"-formulier naar de Rust-kern. */
+export interface ImapAccountInput {
+  displayName?: string | null;
+  email: string;
+  password: string;
+  imapHost: string;
+  imapPort: number;
+  imapSecurity: TlsMode;
+  imapUsername: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecurity: TlsMode;
+  smtpUsername: string;
+  saveToSent?: boolean;
+  /** Handmatige CalDAV-URL; leeg = automatisch detecteren. */
+  caldavUrl?: string | null;
+}
+
+/** Voorinstellingen (host/poort) op basis van het e-maildomein. */
+export interface ImapPreset {
+  imapHost: string;
+  imapPort: number;
+  imapSecurity: TlsMode;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecurity: TlsMode;
+  /** Optionele hint, bv. dat Gmail/Microsoft een app-wachtwoord vereist. */
+  hint?: string | null;
+}
+
+/** Wat het actieve account wel/niet kan (voor UI-gating). */
+export interface Capabilities {
+  kind: AccountKind;
+  hasCalendar: boolean;
+  supportsPeople: boolean;
+  /** Graph-only mailfuncties (regels, categorieen, afwezigheid, rsvp, blokkeren,
+   * later-verzenden). Voor IMAP-accounts false. */
+  graphOnly: boolean;
 }
 
 export interface AccountFolders {

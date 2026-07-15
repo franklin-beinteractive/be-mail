@@ -2,7 +2,7 @@
 //! berichten via een systeemnotificatie én een "new-mail"-event richting de
 //! webview (zodat de lijst en de tellers meteen verversen).
 
-use crate::{auth, config, graph::GraphClient};
+use crate::{auth, backend::Backend, config};
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_notification::NotificationExt;
 
@@ -37,7 +37,7 @@ pub fn start(app: AppHandle) {
                 if !auth::is_logged_in(&acc.id) {
                     continue;
                 }
-                let Ok(client) = GraphClient::new(&cfg, &acc.id).await else { continue };
+                let Ok(client) = Backend::for_account(&cfg, acc).await else { continue };
                 // Well-known map "inbox"; 10 nieuwste is ruim genoeg per minuut.
                 let Ok(page) = client.list_messages("inbox", 10, 0, false, None).await else { continue };
                 let Some(newest) = page

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./lib/api";
 import { AppContext, type AppContextValue } from "./lib/ctx";
 import { translator } from "./lib/i18n";
@@ -8,7 +8,12 @@ import {
   saveSettings,
   type UiSettings,
 } from "./lib/settings";
-import type { Account, AppConfig } from "./lib/types";
+import type {
+  Account,
+  AppConfig,
+  Capabilities,
+  StoredAccount,
+} from "./lib/types";
 import SetupScreen from "./components/SetupScreen";
 import LoginScreen from "./components/LoginScreen";
 import MailView from "./components/MailView";
@@ -32,6 +37,10 @@ export default function App() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [account, setAccount] = useState<Account | null>(null);
+  // Gekoppelde accounts + het actieve account: nodig om functies te gaten
+  // (Agenda, genodigden, IMAP-only mailfuncties) en reactief mee te wisselen.
+  const [accounts, setAccounts] = useState<StoredAccount[]>([]);
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
   const [section, setSection] = useState<Section>("mail");
   const [toast, setToast] = useState<{ msg: string; kind: "info" | "error" } | null>(null);
   // Kaart die de opdrachten-sectie direct moet openen (mail → opdracht).
@@ -72,6 +81,18 @@ export default function App() {
     setConfirmReq(null);
   }
 
+  // Accounts + actief account ophalen; ook aanroepen na toevoegen/verwijderen/
+  // wisselen zodat de gating (Agenda, genodigden, IMAP-only) meebeweegt.
+  const refreshAccounts = useCallback(async () => {
+    try {
+      const info = await api.listAccounts();
+      setAccounts(info.accounts);
+      setActiveAccountId(info.active ?? info.accounts[0]?.id ?? null);
+    } catch {
+      // Stil: de rest van de app werkt ook zonder deze lijst.
+    }
+  }, []);
+
   const bootstrap = useCallback(async () => {
     setPhase("loading");
     try {
@@ -88,12 +109,13 @@ export default function App() {
       }
       const acc = await api.getAccount();
       setAccount(acc);
+      await refreshAccounts();
       setPhase("app");
     } catch (e) {
       notify(String(e), "error");
       setPhase("login");
     }
-  }, [notify]);
+  }, [notify, refreshAccounts]);
 
   useEffect(() => {
     bootstrap();
@@ -103,6 +125,7 @@ export default function App() {
     try {
       const acc = await api.getAccount();
       setAccount(acc);
+      await refreshAccounts();
       setSection("mail");
       setPhase("app");
     } catch (e) {
@@ -113,10 +136,49 @@ export default function App() {
   async function logout() {
     await api.logout().catch(() => {});
     setAccount(null);
+    setAccounts([]);
+    setActiveAccountId(null);
     setPhase("login");
   }
 
-  const ctx: AppContextValue = { t, tip, settings, setSettings, notify, confirm };
+  // Capabilities van het actieve account, met veilige fallbacks (de kern vult
+  // hasCalendar/supportsPeople mogelijk nog niet): een IMAP-account heeft geen
+  // agenda/genodigden tenzij expliciet aangegeven, een Office 365-account wel.
+  const capabilities: Capabilities | null = useMemo(() => {
+    const acc = accounts.find((a) => a.id === activeAccountId);
+    if (!acc) return null;
+    const isImap = acc.kind === "imap";
+    return {
+      kind: acc.kind ?? "office365",
+      hasCalendar: acc.hasCalendar ?? !isImap,
+      supportsPeople: acc.supportsPeople ?? !isImap,
+      graphOnly: !isImap,
+    };
+  }, [accounts, activeAccountId]);
+
+  // Agenda tonen zodra minstens één account een agenda heeft (een installatie
+  // met alleen een agendaloos IMAP-account verbergt Agenda; gemengd O365+IMAP
+  // houdt Agenda). Bij nog niet geladen accounts niet verbergen.
+  const anyHasCalendar =
+    accounts.length === 0 ||
+    accounts.some((a) => a.hasCalendar ?? a.kind !== "imap");
+
+  // Sta niet op de (verborgen) Agenda-sectie als geen enkel account een agenda
+  // heeft.
+  useEffect(() => {
+    if (!anyHasCalendar && section === "calendar") setSection("mail");
+  }, [anyHasCalendar, section]);
+
+  const ctx: AppContextValue = {
+    t,
+    tip,
+    settings,
+    setSettings,
+    notify,
+    confirm,
+    activeAccountId,
+    capabilities,
+  };
 
   return (
     <AppContext.Provider value={ctx}>
@@ -146,14 +208,16 @@ export default function App() {
                 <MailIcon size={24} />
                 <span>{t("mail")}</span>
               </button>
-              <button
-                className={"rail-btn" + (section === "calendar" ? " active" : "")}
-                onClick={() => setSection("calendar")}
-                title={tip("calendar")}
-              >
-                <CalendarIcon size={24} />
-                <span>{t("calendar")}</span>
-              </button>
+              {anyHasCalendar && (
+                <button
+                  className={"rail-btn" + (section === "calendar" ? " active" : "")}
+                  onClick={() => setSection("calendar")}
+                  title={tip("calendar")}
+                >
+                  <CalendarIcon size={24} />
+                  <span>{t("calendar")}</span>
+                </button>
+              )}
               <button
                 className={"rail-btn" + (section === "opdrachten" ? " active" : "")}
                 onClick={() => setSection("opdrachten")}
@@ -188,9 +252,10 @@ export default function App() {
                     setOpdrachtFocus(id);
                     setSection("opdrachten");
                   }}
+                  onActiveAccountChange={setActiveAccountId}
                 />
               )}
-              {section === "calendar" && <CalendarView />}
+              {section === "calendar" && anyHasCalendar && <CalendarView />}
               {section === "opdrachten" && (
                 <OpdrachtenView
                   focusKaartId={opdrachtFocus}
@@ -203,6 +268,7 @@ export default function App() {
                   account={account}
                   onLogout={logout}
                   onEditConnection={() => setPhase("setup")}
+                  onAccountsChanged={refreshAccounts}
                 />
               )}
             </main>
