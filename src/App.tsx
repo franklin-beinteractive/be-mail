@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "./lib/api";
 import { AppContext, type AppContextValue } from "./lib/ctx";
 import { translator } from "./lib/i18n";
+import { useAppUpdate } from "./lib/update";
 import {
   applySettings,
   loadSettings,
@@ -50,6 +51,9 @@ export default function App() {
   // Voor title-attributen: geen tooltip als de gebruiker ze uitzet.
   const tip = (k: Parameters<typeof t>[0]) =>
     settings.showTooltips ? t(k) : undefined;
+
+  // In-app auto-updater (controleert op nieuwe releases van deze repo).
+  const update = useAppUpdate();
 
   useEffect(() => applySettings(settings), [settings]);
 
@@ -290,6 +294,48 @@ export default function App() {
                 </button>
               </footer>
             </div>
+          </div>
+        )}
+
+        {update.status !== "idle" && (
+          <div
+            className={"update-banner" + (update.status === "error" ? " error" : "")}
+            role="status"
+          >
+            {update.status === "available" && (
+              <>
+                <span className="update-banner-text">
+                  {t("updateBeschikbaar")}
+                  {update.version ? ` (${update.version})` : ""}
+                </span>
+                <div className="update-banner-actions">
+                  <button className="btn primary" onClick={() => void update.install()}>
+                    {t("updateNuInstalleren")}
+                  </button>
+                  <button className="btn" onClick={update.dismiss}>
+                    {t("updateLater")}
+                  </button>
+                </div>
+              </>
+            )}
+            {update.status === "downloading" && (
+              <span className="update-banner-text">
+                {t("updateDownloaden")} {update.progress}%
+              </span>
+            )}
+            {update.status === "installing" && (
+              <span className="update-banner-text">{t("updateInstalleren")}</span>
+            )}
+            {update.status === "error" && (
+              <>
+                <span className="update-banner-text">{t("updateMislukt")}</span>
+                <div className="update-banner-actions">
+                  <button className="btn" onClick={update.dismiss}>
+                    {t("updateLater")}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 

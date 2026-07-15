@@ -73,6 +73,11 @@ const dict = {
     dark: "Donker",
     fontSize: "Tekstgrootte",
     font: "Lettertype",
+    composeFontTitle: "Opmaak uitgaande mail",
+    composeFontHint:
+      "Standaard lettertype, grootte en tekstkleur voor e-mails die u verstuurt.",
+    fontColor: "Tekstkleur",
+    composeFontSample: "Zo ziet uw e-mailtekst eruit.",
     help: "Help",
     highContrast: "Hoog contrast",
     language: "Taal",
@@ -426,6 +431,13 @@ const dict = {
       "De huidige instellingen op deze pc worden overschreven door het gekozen bestand. Doorgaan?",
     backupImportAssignmentsBevestig:
       "Alle huidige assignments op deze pc worden vervangen door het gekozen bestand. Dit kan niet ongedaan worden gemaakt. Doorgaan?",
+    // ── Auto-updater ──
+    updateBeschikbaar: "Er is een update beschikbaar",
+    updateNuInstalleren: "Nu installeren en herstarten",
+    updateLater: "Later",
+    updateDownloaden: "Update downloaden…",
+    updateInstalleren: "Update installeren…",
+    updateMislukt: "Bijwerken mislukt - download de nieuwste versie handmatig.",
   },
   en: {
     appName: "BE-Mail",
@@ -497,6 +509,10 @@ const dict = {
     dark: "Dark",
     fontSize: "Text size",
     font: "Font",
+    composeFontTitle: "Outgoing mail formatting",
+    composeFontHint: "Default font, size and text color for emails you send.",
+    fontColor: "Text color",
+    composeFontSample: "This is what your email text will look like.",
     help: "Help",
     highContrast: "High contrast",
     language: "Language",
@@ -850,6 +866,13 @@ const dict = {
       "The current settings on this PC will be overwritten by the chosen file. Continue?",
     backupImportAssignmentsBevestig:
       "All current assignments on this PC will be replaced by the chosen file. This cannot be undone. Continue?",
+    // ── Auto-updater ──
+    updateBeschikbaar: "An update is available",
+    updateNuInstalleren: "Install and restart now",
+    updateLater: "Later",
+    updateDownloaden: "Downloading update…",
+    updateInstalleren: "Installing update…",
+    updateMislukt: "Update failed - download the latest version manually.",
   },
 } as const;
 

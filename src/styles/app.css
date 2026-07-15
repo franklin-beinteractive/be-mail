@@ -1006,6 +1006,39 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .toast.info { background: var(--accent); color: #fff; }
 .toast.error { background: var(--danger); color: #fff; }
 
+/* ---------- Update-banner ---------- */
+.update-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: var(--shadow);
+  z-index: 200;
+  font-size: 0.9rem;
+}
+.update-banner.error { background: var(--danger); }
+.update-banner-text { font-weight: 600; }
+.update-banner-actions { display: flex; gap: 8px; }
+.update-banner .btn { padding: 5px 12px; font-size: 0.85rem; }
+.update-banner .btn.primary {
+  background: #fff;
+  color: var(--accent);
+  border-color: #fff;
+}
+.update-banner .btn:not(.primary) {
+  background: transparent;
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {
   .mail { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; }

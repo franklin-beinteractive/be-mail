@@ -4,8 +4,12 @@
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
 **Laatst bijgewerkt:** 2026-07-13 (IMAP-accounts toegevoegd als tweede
-accounttype naast Office 365 - zie de bullet hieronder. Nog te doen:
-end-to-end verificatie op Windows met echte IMAP-/CalDAV-servers.)
+accounttype naast Office 365 - zie de bullet hieronder. Nog te doen: end-to-end
+verificatie op Windows met echte IMAP-/CalDAV-servers. Eerder: Instellingen ->
+E-mail: standaardopmaak voor uitgaande mail - lettertype, puntgrootte en
+tekstkleur; zichtbaar in de opsteleditor (witte ondergrond, WYSIWYG) en
+meegestuurd in de verzonden HTML; typen-in-editor-bugfix (React 19/
+dangerouslySetInnerHTML), toolbar opgeruimd, Ctrl+A selecteert alle mails)
 
 ## ✅ Af
 
@@ -221,6 +225,16 @@ end-to-end verificatie op Windows met echte IMAP-/CalDAV-servers.)
   - **Model = één pc tegelijk, importeren overschrijft** (met bevestiging);
     geen samenvoeg-/conflictlogica. Accounts/tokens blijven bewust buiten de
     export (staan in config.json/keychain; op een nieuwe pc log je opnieuw in).
+- **Releases & auto-update (CI)**: GitHub Actions-workflow
+  (`.github/workflows/release.yml`) bouwt bij een `v*`-tag ondertekende bundels
+  voor Windows, Linux en macOS en publiceert ze + het `latest.json`-manifest
+  naar de Releases van deze (publieke) repo. In-app updater
+  (`tauri-plugin-updater` + `-process`; banner in `App.tsx`, hook in
+  `src/lib/update.ts`) checkt bij opstarten en elke 30 min, en installeert +
+  herstart op verzoek. `keyring` is nu per-OS (Windows/macOS/Linux) zodat alle
+  drie de platforms bouwen. **Eenmalig nog nodig** (zie plan/README): het
+  updater-sleutelpaar genereren, de secrets `TAURI_SIGNING_PRIVATE_KEY`
+  (+ `_PASSWORD`) zetten en de `pubkey` in `tauri.conf.json` invullen.
 
 ## 🔜 Volgende stappen (afgesproken volgorde)
 
