@@ -78,17 +78,20 @@ function RecipientInput({
   value,
   onChange,
   autoFocus = false,
+  suggest = true,
 }: {
   value: string;
   onChange: (v: string) => void;
   autoFocus?: boolean;
+  /** Autoaanvullen uit /me/people; uit voor accounts zonder ondersteuning. */
+  suggest?: boolean;
 }) {
   const [suggestions, setSuggestions] = useState<Person[]>([]);
   const [open, setOpen] = useState(false);
   const tail = value.split(/[,;]/).pop()?.trim() ?? "";
 
   useEffect(() => {
-    if (tail.length < 2 || tail.includes("@")) {
+    if (!suggest || tail.length < 2 || tail.includes("@")) {
       setSuggestions([]);
       return;
     }
@@ -102,7 +105,7 @@ function RecipientInput({
         .catch(() => setSuggestions([]));
     }, 300);
     return () => clearTimeout(h);
-  }, [tail]);
+  }, [tail, suggest]);
 
   function pick(addr: string) {
     const items = value
@@ -171,7 +174,11 @@ export default function ComposeDialog({
   /** In de leesvenster-kolom (geen modal-overlay); kruisje sluit. */
   inline?: boolean;
 }) {
-  const { t, tip, notify, settings } = useApp();
+  const { t, tip, notify, settings, capabilities } = useApp();
+  // IMAP-account: geen contact-autocomplete en geen server-side "later
+  // verzenden" (SMTP verstuurt meteen). Null = nog niet geladen: standaard aan.
+  const supportsPeople = capabilities ? capabilities.supportsPeople : true;
+  const canSchedule = capabilities ? capabilities.graphOnly : true;
 
   // Standaard-handtekening: per soort bericht; niet bij een heropend concept
   // (daar zit de handtekening al in de inhoud).
@@ -465,16 +472,21 @@ export default function ComposeDialog({
         <div className="dialog-body">
           <label className="row">
             <span>{t("to")}</span>
-            <RecipientInput value={to} onChange={setTo} autoFocus />
+            <RecipientInput value={to} onChange={setTo} autoFocus suggest={supportsPeople} />
           </label>
           <label className="row">
             <span>{t("cc")}</span>
-            <RecipientInput value={cc} onChange={setCc} />
+            <RecipientInput value={cc} onChange={setCc} suggest={supportsPeople} />
           </label>
           <label className="row">
             <span>{t("bcc")}</span>
-            <RecipientInput value={bcc} onChange={setBcc} />
+            <RecipientInput value={bcc} onChange={setBcc} suggest={supportsPeople} />
           </label>
+          {!supportsPeople && (
+            <p className="muted small" style={{ margin: "0 0 10px" }}>
+              {t("noContactSuggest")}
+            </p>
+          )}
           <label className="row">
             <span>{t("subject")}</span>
             <input value={subject} onChange={(e) => setSubject(e.target.value)} />
@@ -539,7 +551,7 @@ export default function ComposeDialog({
           )}
         </div>
 
-        {laterOpen && undoLeft === null && (
+        {canSchedule && laterOpen && undoLeft === null && (
           <div className="later-bar">
             <ClockIcon size={16} />
             <span>{t("sendLater")}:</span>
@@ -593,13 +605,15 @@ export default function ComposeDialog({
               ))}
             </select>
           )}
-          <button
-            className="btn"
-            onClick={() => setLaterOpen((v) => !v)}
-            title={tip("sendLater")}
-          >
-            <ClockIcon size={18} />
-          </button>
+          {canSchedule && (
+            <button
+              className="btn"
+              onClick={() => setLaterOpen((v) => !v)}
+              title={tip("sendLater")}
+            >
+              <ClockIcon size={18} />
+            </button>
+          )}
           <span className="spacer" />
           <button className="btn" onClick={closeAndSave}>
             {t("cancel")}

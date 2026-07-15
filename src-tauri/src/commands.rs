@@ -3,8 +3,10 @@
 //! belanden (in mensentaal, geen stacktraces).
 
 use crate::auth;
+use crate::backend::{Backend, Calendar};
 use crate::cache;
-use crate::config::{self, AppConfig, StoredAccount};
+use crate::caldav::CaldavClient;
+use crate::config::{self, AccountKind, AppConfig, StoredAccount};
 use crate::graph::GraphClient;
 use crate::models::*;
 use crate::token_store;
@@ -24,14 +26,63 @@ fn require_config() -> Result<AppConfig, String> {
     }
 }
 
-/// Graph-client voor het actieve account.
-async fn client() -> Result<GraphClient, String> {
+/// Backend (Graph of IMAP) voor het actieve account.
+async fn client() -> Result<Backend, String> {
     let cfg = require_config()?;
-    let account = cfg
+    let id = cfg
         .active_account
         .clone()
         .ok_or_else(|| "Niet ingelogd.".to_string())?;
-    GraphClient::new(&cfg, &account).await.map_err(|e| e.to_string())
+    let acc = cfg
+        .accounts
+        .iter()
+        .find(|a| a.id == id)
+        .ok_or_else(|| "Onbekend account.".to_string())?;
+    Backend::for_account(&cfg, acc).await
+}
+
+/// Agenda-backend voor het actieve account: Graph (Office 365) of CalDAV (IMAP
+/// met een ontdekte agenda). Een IMAP-account zonder CalDAV geeft een nette fout.
+async fn calendar() -> Result<Calendar, String> {
+    let cfg = require_config()?;
+    let id = cfg
+        .active_account
+        .clone()
+        .ok_or_else(|| "Niet ingelogd.".to_string())?;
+    let acc = cfg
+        .accounts
+        .iter()
+        .find(|a| a.id == id)
+        .ok_or_else(|| "Onbekend account.".to_string())?;
+    match acc.kind {
+        AccountKind::Office365 => {
+            let gc = GraphClient::new(&cfg, &acc.id)
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok(Calendar::Graph(gc))
+        }
+        AccountKind::Imap => {
+            let imap = acc
+                .imap
+                .as_ref()
+                .ok_or_else(|| "Dit account heeft geen agenda.".to_string())?;
+            let caldav = imap
+                .caldav
+                .as_ref()
+                .ok_or_else(|| "Dit account heeft geen agenda.".to_string())?;
+            let username = caldav
+                .caldav_username
+                .clone()
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or_else(|| imap.imap_username.clone());
+            let password = token_store::load_secret(&acc.id)
+                .map_err(|e| e.to_string())?
+                .ok_or_else(|| "Geen wachtwoord gevonden voor dit account.".to_string())?;
+            let client =
+                CaldavClient::new(caldav.calendar_url.clone(), username, password, caldav.supports_expand)?;
+            Ok(Calendar::Caldav(client))
+        }
+    }
 }
 
 // ---- Configuratie ----
@@ -76,9 +127,14 @@ pub fn set_notifications_enabled(enabled: bool) -> Result<(), String> {
 #[tauri::command]
 pub fn auth_status() -> bool {
     let Ok(Some(cfg)) = config::load() else { return false };
-    match &cfg.active_account {
-        Some(id) => auth::is_logged_in(id),
-        None => false,
+    let Some(id) = &cfg.active_account else { return false };
+    match cfg.accounts.iter().find(|a| &a.id == id) {
+        // IMAP: "ingelogd" = er staat een wachtwoord in de keychain.
+        Some(acc) if acc.kind == AccountKind::Imap => {
+            token_store::load_secret(id).map(|s| s.is_some()).unwrap_or(false)
+        }
+        // Office 365 (of nog geen account-record): OAuth-tokencheck.
+        _ => auth::is_logged_in(id),
     }
 }
 
@@ -95,11 +151,11 @@ pub async fn login() -> Result<Account, String> {
 
     let mut cfg = require_config()?;
     if !cfg.accounts.iter().any(|a| a.id == me.id) {
-        cfg.accounts.push(StoredAccount {
-            id: me.id.clone(),
-            mail: me.mail.clone().or_else(|| me.user_principal_name.clone()),
-            display_name: me.display_name.clone(),
-        });
+        cfg.accounts.push(StoredAccount::office365(
+            me.id.clone(),
+            me.mail.clone().or_else(|| me.user_principal_name.clone()),
+            me.display_name.clone(),
+        ));
     }
     cfg.active_account = Some(me.id.clone());
     config::save(&cfg).map_err(|e| e.to_string())?;
@@ -113,7 +169,19 @@ pub fn logout(account_id: Option<String>) -> Result<(), String> {
     let Some(id) = account_id.or_else(|| cfg.active_account.clone()) else {
         return Ok(());
     };
-    auth::logout(&id).map_err(|e| e.to_string())?;
+    // Het juiste geheim opruimen: IMAP-wachtwoord of OAuth-tokens.
+    let kind = cfg
+        .accounts
+        .iter()
+        .find(|a| a.id == id)
+        .map(|a| a.kind)
+        .unwrap_or(AccountKind::Office365);
+    match kind {
+        AccountKind::Imap => {
+            let _ = token_store::clear_secret(&id);
+        }
+        AccountKind::Office365 => auth::logout(&id).map_err(|e| e.to_string())?,
+    }
     let _ = cache::clear_account(&id); // geen mail achterlaten van een ontkoppeld account
     cfg.accounts.retain(|a| a.id != id);
     if cfg.active_account.as_deref() == Some(id.as_str()) {
@@ -137,7 +205,7 @@ pub fn list_accounts() -> Result<AccountsInfo, String> {
         });
     }
     Ok(AccountsInfo {
-        accounts: cfg.accounts,
+        accounts: cfg.accounts.iter().map(AccountInfo::from_stored).collect(),
         active: cfg.active_account,
     })
 }
@@ -153,6 +221,170 @@ pub fn set_active_account(id: String) -> Result<(), String> {
     config::save(&cfg).map_err(|e| e.to_string())
 }
 
+// ---- IMAP-accounts toevoegen/testen ----
+
+/// Bouwt `ImapSettings` uit de frontend-invoer (nog zonder mappen/CalDAV).
+fn imap_settings_from_input(input: &ImapAccountInput) -> (config::ImapSettings, String) {
+    let settings = config::ImapSettings {
+        imap_host: input.imap_host.trim().to_string(),
+        imap_port: input.imap_port,
+        imap_security: input.imap_security,
+        imap_username: input.imap_username.trim().to_string(),
+        smtp_host: input.smtp_host.trim().to_string(),
+        smtp_port: input.smtp_port,
+        smtp_security: input.smtp_security,
+        smtp_username: input.smtp_username.trim().to_string(),
+        email: input.email.trim().to_string(),
+        save_to_sent: input.save_to_sent.unwrap_or(true),
+        folders: None,
+        // CalDAV wordt pas na een geslaagde IMAP-verificatie ontdekt (zie
+        // add_imap_account); hier bewust nog geen agenda.
+        caldav: None,
+    };
+    (settings, input.password.clone())
+}
+
+/// Voegt een IMAP-account toe: verifieert IMAP-login + SMTP-handshake, lost de
+/// bijzondere mappen op, bewaart het wachtwoord in de keychain en maakt het account actief.
+#[tauri::command]
+pub async fn add_imap_account(input: ImapAccountInput) -> Result<Account, String> {
+    let mut cfg = require_config()?;
+    let (mut settings, password) = imap_settings_from_input(&input);
+
+    // Verbinding testen én de bijzondere mappen bepalen.
+    let folders = crate::imap::verify_imap_settings(settings.clone(), password.clone())
+        .await
+        .map_err(|e| e.to_string())?;
+    settings.folders = Some(folders);
+
+    // CalDAV-agenda best-effort ontdekken; faalt dit, dan krijgt het account
+    // gewoon geen agenda (geen harde fout bij het toevoegen).
+    if let Ok(Some(caldav)) = crate::caldav::discover(
+        input.email.trim(),
+        input.imap_host.trim(),
+        input.imap_username.trim(),
+        &password,
+        input.caldav_url.clone(),
+    )
+    .await
+    {
+        settings.caldav = Some(caldav);
+    }
+
+    let id = format!(
+        "imap:{}@{}",
+        input.imap_username.trim().to_lowercase(),
+        input.imap_host.trim().to_lowercase()
+    );
+    token_store::save_secret(&id, &password).map_err(|e| e.to_string())?;
+
+    let mail = Some(input.email.trim().to_string());
+    let display_name = input
+        .display_name
+        .as_ref()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    if let Some(acc) = cfg.accounts.iter_mut().find(|a| a.id == id) {
+        // Opnieuw koppelen: instellingen bijwerken.
+        acc.mail = mail.clone();
+        acc.display_name = display_name.clone();
+        acc.kind = AccountKind::Imap;
+        acc.imap = Some(settings);
+    } else {
+        cfg.accounts.push(StoredAccount::imap(
+            id.clone(),
+            mail.clone(),
+            display_name.clone(),
+            settings,
+        ));
+    }
+    cfg.active_account = Some(id.clone());
+    config::save(&cfg).map_err(|e| e.to_string())?;
+
+    Ok(Account {
+        id,
+        display_name: display_name.or_else(|| mail.clone()),
+        mail: mail.clone(),
+        user_principal_name: mail,
+    })
+}
+
+/// Test een IMAP-/SMTP-verbinding zonder iets op te slaan ("Verbinding testen").
+#[tauri::command]
+pub async fn test_imap_connection(input: ImapAccountInput) -> Result<(), String> {
+    let (settings, password) = imap_settings_from_input(&input);
+    crate::imap::verify_imap_settings(settings, password)
+        .await
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+/// Voorgestelde server-instellingen op basis van het e-maildomein (bekende providers
+/// hardcoded, anders een generieke gok). None als er geen domein te herleiden is.
+#[tauri::command]
+pub fn imap_presets_for(email: String) -> Result<Option<ImapPreset>, String> {
+    use config::TlsMode::{ImplicitTls, StartTls};
+    let domain = email
+        .rsplit('@')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_lowercase();
+    if domain.is_empty() {
+        return Ok(None);
+    }
+    let preset = match domain.as_str() {
+        "gmail.com" | "googlemail.com" => ImapPreset {
+            imap_host: "imap.gmail.com".into(),
+            imap_port: 993,
+            imap_security: ImplicitTls,
+            smtp_host: "smtp.gmail.com".into(),
+            smtp_port: 465,
+            smtp_security: ImplicitTls,
+            hint: Some(
+                "Gmail vereist een app-wachtwoord (met tweestapsverificatie); je gewone wachtwoord werkt niet.".into(),
+            ),
+        },
+        "outlook.com" | "hotmail.com" | "live.com" => ImapPreset {
+            imap_host: "outlook.office365.com".into(),
+            imap_port: 993,
+            imap_security: ImplicitTls,
+            smtp_host: "smtp.office365.com".into(),
+            smtp_port: 587,
+            smtp_security: StartTls,
+            hint: Some("Microsoft-accounts vereisen meestal een app-wachtwoord.".into()),
+        },
+        "icloud.com" | "me.com" => ImapPreset {
+            imap_host: "imap.mail.me.com".into(),
+            imap_port: 993,
+            imap_security: ImplicitTls,
+            smtp_host: "smtp.mail.me.com".into(),
+            smtp_port: 587,
+            smtp_security: StartTls,
+            hint: Some("iCloud vereist een app-wachtwoord (aan te maken op appleid.apple.com).".into()),
+        },
+        "fastmail.com" => ImapPreset {
+            imap_host: "imap.fastmail.com".into(),
+            imap_port: 993,
+            imap_security: ImplicitTls,
+            smtp_host: "smtp.fastmail.com".into(),
+            smtp_port: 465,
+            smtp_security: ImplicitTls,
+            hint: Some("Fastmail vereist een app-wachtwoord.".into()),
+        },
+        other => ImapPreset {
+            imap_host: format!("imap.{other}"),
+            imap_port: 993,
+            imap_security: ImplicitTls,
+            smtp_host: format!("smtp.{other}"),
+            smtp_port: 587,
+            smtp_security: StartTls,
+            hint: None,
+        },
+    };
+    Ok(Some(preset))
+}
+
 /// Mappen van álle gekoppelde accounts (voor de zijbalk). Accounts waarvan de
 /// sessie stuk is, komen terug met een lege mappenlijst i.p.v. een harde fout.
 #[tauri::command]
@@ -161,8 +393,8 @@ pub async fn list_all_folders() -> Result<Vec<AccountFolders>, String> {
     let mut out = Vec::new();
     for acc in &cfg.accounts {
         // Online: verse mappen + cache verversen; offline: uit de cache.
-        let folders = match GraphClient::new(&cfg, &acc.id).await {
-            Ok(gc) => match gc.list_folders().await {
+        let folders = match Backend::for_account(&cfg, acc).await {
+            Ok(be) => match be.list_folders().await {
                 Ok(f) => {
                     let _ = cache::save_folders(&acc.id, &f);
                     f
@@ -172,7 +404,7 @@ pub async fn list_all_folders() -> Result<Vec<AccountFolders>, String> {
             Err(_) => cache::load_folders(&acc.id).unwrap_or_default(),
         };
         out.push(AccountFolders {
-            account: acc.clone(),
+            account: AccountInfo::from_stored(acc),
             folders,
         });
     }
@@ -261,8 +493,10 @@ pub async fn list_messages(
                     if let Ok(cfg) = require_config() {
                         let (acc, fid) = (account.clone(), folder_id.clone());
                         tauri::async_runtime::spawn(async move {
-                            if let Ok(gc) = GraphClient::new(&cfg, &acc).await {
-                                let _ = gc.sync_folder_to_cache(&acc, &fid).await;
+                            if let Some(sa) = cfg.accounts.iter().find(|a| a.id == acc) {
+                                if let Ok(be) = Backend::for_account(&cfg, sa).await {
+                                    let _ = be.sync_folder_to_cache(&acc, &fid).await;
+                                }
                             }
                         });
                     }
@@ -346,13 +580,13 @@ pub async fn send_message(input: ComposeInput) -> Result<(), String> {
 /// Blokkeer een afzender (inbox-regel → Ongewenste e-mail).
 #[tauri::command]
 pub async fn block_sender(address: String) -> Result<(), String> {
-    client().await?.block_sender(&address).await.map_err(|e| e.to_string())
+    client().await?.graph()?.block_sender(&address).await.map_err(|e| e.to_string())
 }
 
 /// Antwoord op een vergaderuitnodiging: "accept" | "tentative" | "decline".
 #[tauri::command]
 pub async fn rsvp_message(message_id: String, response: String) -> Result<(), String> {
-    client().await?.rsvp(&message_id, &response).await.map_err(|e| e.to_string())
+    client().await?.graph()?.rsvp(&message_id, &response).await.map_err(|e| e.to_string())
 }
 
 // ---- Concepten ----
@@ -405,13 +639,14 @@ pub async fn move_message_returning(
 /// Inbox-regels (voor het regels-beheer in Instellingen).
 #[tauri::command]
 pub async fn list_rules() -> Result<Vec<MessageRule>, String> {
-    client().await?.list_rules().await.map_err(|e| e.to_string())
+    client().await?.graph()?.list_rules().await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn set_rule_enabled(rule_id: String, enabled: bool) -> Result<(), String> {
     client()
         .await?
+        .graph()?
         .set_rule_enabled(&rule_id, enabled)
         .await
         .map_err(|e| e.to_string())
@@ -421,6 +656,7 @@ pub async fn set_rule_enabled(rule_id: String, enabled: bool) -> Result<(), Stri
 pub async fn delete_rule(rule_id: String) -> Result<(), String> {
     client()
         .await?
+        .graph()?
         .delete_rule(&rule_id)
         .await
         .map_err(|e| e.to_string())
@@ -429,13 +665,14 @@ pub async fn delete_rule(rule_id: String) -> Result<(), String> {
 /// Afwezigheid / automatisch antwoord (vereist MailboxSettings-consent).
 #[tauri::command]
 pub async fn get_auto_reply() -> Result<AutoReplySettings, String> {
-    client().await?.get_auto_reply().await.map_err(|e| e.to_string())
+    client().await?.graph()?.get_auto_reply().await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn set_auto_reply(settings: AutoReplySettings) -> Result<(), String> {
     client()
         .await?
+        .graph()?
         .set_auto_reply(&settings)
         .await
         .map_err(|e| e.to_string())
@@ -444,7 +681,7 @@ pub async fn set_auto_reply(settings: AutoReplySettings) -> Result<(), String> {
 /// Master-categorieën (kleurlabels) van het postvak.
 #[tauri::command]
 pub async fn list_categories() -> Result<Vec<OutlookCategory>, String> {
-    client().await?.list_categories().await.map_err(|e| e.to_string())
+    client().await?.graph()?.list_categories().await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -454,6 +691,7 @@ pub async fn set_message_categories(
 ) -> Result<(), String> {
     client()
         .await?
+        .graph()?
         .set_message_categories(&message_id, &categories)
         .await
         .map_err(|e| e.to_string())
@@ -550,7 +788,7 @@ pub async fn ai_reply(
 
 #[tauri::command]
 pub async fn list_events(start: String, end: String) -> Result<Vec<Event>, String> {
-    client()
+    calendar()
         .await?
         .list_events(&start, &end)
         .await
@@ -559,18 +797,18 @@ pub async fn list_events(start: String, end: String) -> Result<Vec<Event>, Strin
 
 #[tauri::command]
 pub async fn create_event(input: EventInput) -> Result<Event, String> {
-    client().await?.create_event(&input).await.map_err(|e| e.to_string())
+    calendar().await?.create_event(&input).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn update_event(id: String, input: EventInput) -> Result<Event, String> {
-    client().await?.update_event(&id, &input).await.map_err(|e| e.to_string())
+    calendar().await?.update_event(&id, &input).await.map_err(|e| e.to_string())
 }
 
 /// Alleen de tijden verschuiven (slepen in de agenda).
 #[tauri::command]
 pub async fn update_event_times(id: String, start: String, end: String) -> Result<(), String> {
-    client()
+    calendar()
         .await?
         .update_event_times(&id, &start, &end)
         .await
@@ -579,10 +817,10 @@ pub async fn update_event_times(id: String, start: String, end: String) -> Resul
 
 #[tauri::command]
 pub async fn search_people(query: String) -> Result<Vec<Person>, String> {
-    client().await?.search_people(&query).await.map_err(|e| e.to_string())
+    calendar().await?.search_people(&query).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn delete_event(id: String) -> Result<(), String> {
-    client().await?.delete_event(&id).await.map_err(|e| e.to_string())
+    calendar().await?.delete_event(&id).await.map_err(|e| e.to_string())
 }

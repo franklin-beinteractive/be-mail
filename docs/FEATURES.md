@@ -21,6 +21,13 @@
 
 **Conclusie:** Graph API dekt mail + agenda + contacten in één API. IMAP/SMTP alleen overwegen als je bewust géén agenda via het protocol wilt.
 
+> **Update (2026-07-13, issue #5):** IMAP-accounts worden nu WEL ondersteund, náást
+> Office 365. Mail loopt via IMAP+SMTP; de agenda komt van een aparte **CalDAV**-server
+> (best-effort auto-detectie - lukt niet bij Gmail/Outlook.com). De hierboven geplande
+> **provider-abstractie** bestaat nu ook: `enum Backend { Graph, Imap }` voor mail en
+> `enum Calendar { Graph, Caldav }` voor agenda, met dispatch op één seam in
+> `commands.rs`. Zie `docs/IMAP-Accounts.md` en `docs/CalDAV-Calendar.md`.
+
 ### Architectuur-beslissingen (VASTGELEGD)
 - [x] **App-vorm**: **Desktop met Tauri** (Rust-core + webview). Geen Electron (te traag/zwaar).
 - [x] **Tech-stack**: **Rust (Tauri backend) + React + TypeScript (frontend)**. Onderhoudbaar, veel voorbeelden.

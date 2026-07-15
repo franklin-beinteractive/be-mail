@@ -3,6 +3,7 @@
 import { createContext, useContext } from "react";
 import type { TextKey } from "./i18n";
 import type { UiSettings } from "./settings";
+import type { Capabilities } from "./types";
 
 export interface AppContextValue {
   t: (k: TextKey) => string;
@@ -14,6 +15,11 @@ export interface AppContextValue {
   notify: (message: string, kind?: "info" | "error") => void;
   /** Eigen bevestigings-modal (geen browser-confirm). */
   confirm: (message: string) => Promise<boolean>;
+  /** Id van het actieve account (mailfuncties werken hierop). */
+  activeAccountId: string | null;
+  /** Wat het actieve account wel/niet kan (voor UI-gating). Null tot de
+   *  accounts geladen zijn. */
+  capabilities: Capabilities | null;
 }
 
 export const AppContext = createContext<AppContextValue | null>(null);

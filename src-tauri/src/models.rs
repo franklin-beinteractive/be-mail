@@ -248,11 +248,41 @@ pub struct Event {
     pub is_cancelled: Option<bool>,
 }
 
+/// Publiek accountoverzicht voor de frontend: alleen wat de UI nodig heeft, en
+/// bewust ZONDER de IMAP-host/gebruikersnaam/instellingen (die blijven in de
+/// Rust-kern). `kind` serialiseert als "office365"/"imap"; `hasCalendar` en
+/// `supportsPeople` sturen de gating in de UI (agenda-tab, genodigden-autocomplete).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountInfo {
+    pub id: String,
+    #[serde(default)]
+    pub mail: Option<String>,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    pub kind: crate::config::AccountKind,
+    pub has_calendar: bool,
+    pub supports_people: bool,
+}
+
+impl AccountInfo {
+    pub fn from_stored(a: &crate::config::StoredAccount) -> Self {
+        Self {
+            id: a.id.clone(),
+            mail: a.mail.clone(),
+            display_name: a.display_name.clone(),
+            kind: a.kind,
+            has_calendar: a.has_calendar(),
+            supports_people: a.supports_people(),
+        }
+    }
+}
+
 /// Mappen per gekoppeld account (voor de zijbalk).
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountFolders {
-    pub account: crate::config::StoredAccount,
+    pub account: AccountInfo,
     pub folders: Vec<MailFolder>,
 }
 
@@ -260,7 +290,7 @@ pub struct AccountFolders {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountsInfo {
-    pub accounts: Vec<crate::config::StoredAccount>,
+    pub accounts: Vec<AccountInfo>,
     pub active: Option<String>,
 }
 
@@ -315,6 +345,45 @@ pub struct ComposeInput {
     pub importance: Option<String>,
     #[serde(default)]
     pub attachments: Vec<AttachmentInput>,
+}
+
+/// Invoer voor het toevoegen/testen van een IMAP-account (vanuit de frontend).
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImapAccountInput {
+    #[serde(default)]
+    pub display_name: Option<String>,
+    pub email: String,
+    pub password: String,
+    pub imap_host: String,
+    pub imap_port: u16,
+    pub imap_security: crate::config::TlsMode,
+    pub imap_username: String,
+    pub smtp_host: String,
+    pub smtp_port: u16,
+    pub smtp_security: crate::config::TlsMode,
+    pub smtp_username: String,
+    /// Kopie in Verzonden bewaren (standaard aan als niet meegegeven).
+    #[serde(default)]
+    pub save_to_sent: Option<bool>,
+    /// Optionele handmatige CalDAV-URL (anders auto-detectie op het e-maildomein).
+    #[serde(default)]
+    pub caldav_url: Option<String>,
+}
+
+/// Voorgestelde IMAP-/SMTP-instellingen op basis van het e-maildomein.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImapPreset {
+    pub imap_host: String,
+    pub imap_port: u16,
+    pub imap_security: crate::config::TlsMode,
+    pub smtp_host: String,
+    pub smtp_port: u16,
+    pub smtp_security: crate::config::TlsMode,
+    /// Extra uitleg (bv. dat er een app-wachtwoord nodig is).
+    #[serde(default)]
+    pub hint: Option<String>,
 }
 
 /// Herhaalpatroon voor een afspraak (eenvoudig model; details zoals

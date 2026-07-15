@@ -32,6 +32,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-uti
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 # keyring staat als per-OS dependency onderaan: elk platform heeft zijn eigen
 # credential-backend (zie de [target.*.dependencies]-tabellen hieronder).
+# NB: Linux vereist runtime een Secret Service-daemon (gnome-keyring/KWallet).
 url = "2"
 base64 = "0.22"
 sha2 = "0.10"
@@ -44,6 +45,44 @@ dirs = "5"
 # Offline cache (mail lezen zonder netwerk); "bundled" compileert SQLite mee,
 # dus geen systeemafhankelijkheid.
 rusqlite = { version = "0.32", features = ["bundled"] }
+# --- IMAP-accounts (Fase 3/4) ---
+# Sync IMAP-client zonder eigen TLS (default-features uit = geen native-tls/OpenSSL);
+# we voeren zelf een rustls-stream aan, consistent met reqwest elders.
+imap = { version = "2", default-features = false }
+# rustls met ring (geen aws-lc-sys/NASM-buildvereiste op Windows); expliciete
+# provider in lib.rs voorkomt de "geen default CryptoProvider"-paniek.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+rustls-native-certs = "0.8"
+webpki-roots = "0.26"
+# RFC822/MIME-parser: fetched bericht -> Message-model.
+mail-parser = "0.11"
+# IMAP modified-UTF-7 mapnamen decoderen/encoderen (RFC 3501).
+utf7-imap = "0.3"
+# SMTP-verzending + MIME-opbouw. rustls met ring (geen aws-lc-rs/OpenSSL),
+# consistent met de rest van de build.
+lettre = { version = "0.11", default-features = false, features = [
+    "builder",
+    "smtp-transport",
+    "tokio1",
+    "tokio1-rustls",
+    "ring",
+    "webpki-roots",
+    "hostname",
+] }
+# --- CalDAV-agenda voor IMAP-accounts (Fase 5) ---
+# Alle pure-Rust (geen OpenSSL/aws-lc): HTTP loopt via reqwest (rustls/ring).
+# quick-xml: streaming parser voor de PROPFIND/REPORT multistatus-antwoorden.
+quick-xml = "0.41"
+# icalendar: opbouwen en parsen van VCALENDAR/VEVENT (.ics).
+icalendar = "0.17"
+# rrule: herhalingen client-side uitklappen als de server geen <C:expand> kan.
+rrule = "0.14"
+# chrono-tz: DST-correcte IANA-tijdzones (UTC <-> Europe/Amsterdam enz.).
+chrono-tz = "0.10"
+# uuid: verse UID's voor nieuwe .ics-bestanden.
+uuid = { version = "1", features = ["v4"] }
+# percent-encoding: veilige href-/URL-onderdelen bij CalDAV-PUT/DELETE.
+percent-encoding = "2"
 
 # Credential-store per platform. De token-chunking in token_store.rs is
 # backend-agnostisch (portable keyring::Entry-API) en werkt overal ongewijzigd.
