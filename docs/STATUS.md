@@ -3,17 +3,18 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-27 (issue #6: afzender-avatars; issue #4: tijdgrid in dag/werkweek/week;
-issue #3: agendaweergave wordt onthouden;
-issue #2: externe afbeeldingen tonen werkt weer - ophalen loopt nu via de
-Rust-kern i.p.v. de webview, zie de bullets hieronder. Eerder: IMAP-accounts
-toegevoegd als tweede
-accounttype naast Office 365 - zie de bullet hieronder. Nog te doen: end-to-end
-verificatie op Windows met echte IMAP-/CalDAV-servers. Eerder: Instellingen ->
-E-mail: standaardopmaak voor uitgaande mail - lettertype, puntgrootte en
-tekstkleur; zichtbaar in de opsteleditor (witte ondergrond, WYSIWYG) en
-meegestuurd in de verzonden HTML; typen-in-editor-bugfix (React 19/
-dangerouslySetInnerHTML), toolbar opgeruimd, Ctrl+A selecteert alle mails)
+**Laatst bijgewerkt:** 2026-07-27. Deze ronde: de GitHub-issues #2, #3, #4, #6,
+#7, #8, #10, #11, #12 en #13 opgelost, elk in een eigen commit (zie de bullets
+hieronder voor wat er per issue veranderde).
+
+**Nog te doen / open punten**
+- Visuele controle in de draaiende app van #6, #7, #10, #11, #12 en #13; die
+  zijn gebouwd terwijl het werkstation vergrendeld was, dus alleen
+  typecheck/build/unittests zijn gedaan.
+- De KQL die het uitgebreide zoeken (#13) bouwt is nog niet tegen de echte
+  Graph-API aan gehouden.
+- End-to-end verificatie op Windows met echte IMAP-/CalDAV-servers (staat al
+  langer open, sinds de IMAP-accounts).
 
 ## ✅ Af
 
