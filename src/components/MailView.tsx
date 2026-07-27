@@ -26,6 +26,7 @@ import {
   shortDate,
 } from "../lib/format";
 import { HIDEABLE_FOLDERS, signatureHtml, type AiSkill } from "../lib/settings";
+import Avatar from "./Avatar";
 import ComposeDialog, { type ComposeInitial } from "./ComposeDialog";
 import {
   ArchiveIcon,
@@ -1545,6 +1546,13 @@ export default function MailView({
                   onChange={(e) => toggleCheck(m.id, e.target.checked)}
                   aria-label={m.subject ?? ""}
                 />
+                {settings.listShowAvatar && (
+                  <Avatar
+                    name={senderName(m.from?.emailAddress)}
+                    address={senderAddress(m.from?.emailAddress)}
+                    size={30}
+                  />
+                )}
                 <div className="msg-main">
                   <div className="msg-top">
                     <span className="msg-from">
@@ -1813,6 +1821,11 @@ export default function MailView({
             <div className="reader-head">
               <h2>{selected.subject || "(geen onderwerp)"}</h2>
               <div className="reader-meta">
+                <Avatar
+                  name={senderName(selected.from?.emailAddress)}
+                  address={senderAddress(selected.from?.emailAddress)}
+                  size={40}
+                />
                 <div className="reader-meta-main">
                   <strong>{senderName(selected.from?.emailAddress)}</strong>{" "}
                   <span className="muted">

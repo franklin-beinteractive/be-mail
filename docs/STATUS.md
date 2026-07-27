@@ -3,7 +3,7 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-27 (issue #4: tijdgrid in dag/werkweek/week;
+**Laatst bijgewerkt:** 2026-07-27 (issue #6: afzender-avatars; issue #4: tijdgrid in dag/werkweek/week;
 issue #3: agendaweergave wordt onthouden;
 issue #2: externe afbeeldingen tonen werkt weer - ophalen loopt nu via de
 Rust-kern i.p.v. de webview, zie de bullets hieronder. Eerder: IMAP-accounts
@@ -17,6 +17,12 @@ dangerouslySetInnerHTML), toolbar opgeruimd, Ctrl+A selecteert alle mails)
 
 ## ✅ Af
 
+- **Afzender-avatars (2026-07-27, issue #6)**: rond bolletje met initialen en
+  een vaste kleur per afzender, in de berichtenlijst en boven een geopend
+  bericht. Uit te zetten via Instellingen -> Berichtenlijst. Bewust geen foto's
+  uit Graph: `/users/{id}/photo` vraagt `User.ReadBasic.All` (tenant-brede admin
+  consent) en werkt niet voor externe afzenders of IMAP-accounts. Wil je toch
+  echte foto's, dan is dat een aparte beslissing over die scope.
 - **Tijdgrid in dag/werkweek/week (2026-07-27, issue #4)**: die weergaven
   toonden per dag een platte lijst met chips, zonder tijd-as - je zag niet
   wanneer of hoe lang iets duurde. Nu een Outlook-achtig rooster: uren links,

@@ -379,6 +379,20 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   padding: 0;
 }
 .msg-main { flex: 1; min-width: 0; }
+
+/* Afzender-avatar (initialen). Zelfde bolletje in de lijst en het leesvenster. */
+.avatar {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
 .msg-top { display: flex; justify-content: space-between; gap: 8px; }
 .msg-from { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg-from-email { color: var(--text-muted); font-size: 0.82rem; font-weight: 400; }
@@ -434,7 +448,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   justify-content: space-between;
   gap: 12px;
 }
-.reader-meta-main { min-width: 0; }
+/* flex:1 zodat de avatar links tegen de afzenderregel blijft plakken en de
+   categoriekiezer rechts blijft staan (space-between op de container). */
+.reader-meta-main { flex: 1; min-width: 0; }
 .reader-meta .cat-add { flex-shrink: 0; }
 .warn {
   margin-top: 8px;

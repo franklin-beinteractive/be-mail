@@ -121,6 +121,7 @@ export interface UiSettings {
   composeFontSizePt: number;
   composeFontColor: string;
   /** Zichtbare velden per bericht in de berichtenlijst. */
+  listShowAvatar: boolean;
   listShowName: boolean;
   listShowEmail: boolean;
   listShowSubject: boolean;
@@ -197,6 +198,7 @@ export const defaultSettings: UiSettings = {
   composeFontFamily: "Calibri",
   composeFontSizePt: 11,
   composeFontColor: "#000000",
+  listShowAvatar: true,
   listShowName: true,
   listShowEmail: false,
   listShowSubject: true,

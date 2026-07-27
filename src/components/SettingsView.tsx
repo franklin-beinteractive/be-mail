@@ -658,6 +658,7 @@ export default function SettingsView({
         <p className="muted small">{t("mailListHint")}</p>
         {(
           [
+            ["listShowAvatar", t("listFieldAvatar")],
             ["listShowName", t("listFieldName")],
             ["listShowEmail", t("listFieldEmail")],
             ["listShowSubject", t("listFieldSubject")],
