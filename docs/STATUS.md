@@ -17,6 +17,15 @@ dangerouslySetInnerHTML), toolbar opgeruimd, Ctrl+A selecteert alle mails)
 
 ## ✅ Af
 
+- **Conversatie als losse kaarten (2026-07-27, issue #11)**: het leesvenster
+  toonde één bericht; de rest van de conversatie zag je alleen uitgeklapt in de
+  lijst. Nu krijgt elk bericht uit de conversatie een eigen kaart, het geopende
+  volledig en de andere ingeklapt op één regel (avatar, afzender, datum,
+  voorbeeld); klikken opent zo'n bericht. Het scrollgebied is nu `.thread` in
+  plaats van `.reader-body`. **Beperking:** de conversatie komt uit de geladen
+  lijst, dus eigen antwoorden uit Verzonden items zitten er niet bij zolang je
+  in Postvak IN kijkt. Cross-folder ophalen kan met een Graph-filter op
+  `conversationId`, maar is bewust niet in deze stap meegenomen.
 - **Hover-acties in de berichtenlijst (2026-07-27, issue #10)**: bij hover (en
   bij toetsenbordfocus) verschijnen rechts in de rij vier knoppen: archiveren,
   gelezen/ongelezen, vlag en verwijderen. Ze liggen als overlay over de datum,

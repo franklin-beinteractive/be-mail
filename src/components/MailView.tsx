@@ -1176,6 +1176,21 @@ export default function MailView({
     return order;
   }, [shown]);
 
+  /** De conversatie rond het geopende bericht, oudste eerst. Bevat alleen wat
+   *  in de lijst geladen is: eigen antwoorden uit Verzonden items zitten er
+   *  dus niet bij zolang je in Postvak IN kijkt. */
+  const convo = useMemo(() => {
+    if (!selected) return [];
+    const key = selected.conversationId || selected.id;
+    const items = shown.filter((m) => (m.conversationId || m.id) === key);
+    if (!items.some((m) => m.id === selected.id)) items.push(selected);
+    return items.sort(
+      (a, b) =>
+        new Date(a.receivedDateTime ?? 0).getTime() -
+        new Date(b.receivedDateTime ?? 0).getTime()
+    );
+  }, [selected, shown]);
+
   function toggleThread(key: string) {
     setExpandedThreads((prev) => {
       const next = new Set(prev);
@@ -1924,7 +1939,34 @@ export default function MailView({
         {!selected ? (
           <div className="reader-empty">{t("selectMessage")}</div>
         ) : (
-          <>
+          <div className="thread">
+            {/* Elk bericht uit de conversatie is een eigen kaart. Alleen het
+                geopende bericht toont de volledige inhoud; de rest staat
+                ingeklapt op volgorde van tijd (Outlook-stijl). */}
+            {convo.map((cm) =>
+              cm.id !== selected.id ? (
+                <button
+                  key={cm.id}
+                  className={"thread-card collapsed" + (cm.isRead ? "" : " unread")}
+                  onClick={() => openMessage(cm)}
+                >
+                  <Avatar
+                    name={senderName(cm.from?.emailAddress)}
+                    address={senderAddress(cm.from?.emailAddress)}
+                    size={28}
+                  />
+                  <span className="tc-main">
+                    <span className="tc-top">
+                      <span className="tc-from">{senderName(cm.from?.emailAddress)}</span>
+                      <span className="tc-date">
+                        {shortDate(cm.receivedDateTime, settings.lang)}
+                      </span>
+                    </span>
+                    <span className="tc-preview">{cm.bodyPreview}</span>
+                  </span>
+                </button>
+              ) : (
+                <article key={cm.id} className="thread-card open">
             <div className="reader-head">
               <h2>{selected.subject || "(geen onderwerp)"}</h2>
               <div className="reader-meta">
@@ -2040,7 +2082,10 @@ export default function MailView({
               onClick={onBodyClick}
               dangerouslySetInnerHTML={{ __html: bodyHtml }}
             />
-          </>
+                </article>
+              )
+            )}
+          </div>
         )}
           </>
         )}

@@ -456,6 +456,52 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   flex-wrap: wrap;
 }
 .move-select { padding: 7px 8px; }
+/* Conversatie: elk bericht een eigen kaart, met de kaarten als scrollgebied.
+   Het geopende bericht toont alles; de rest staat ingeklapt op één regel. */
+.thread {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--bg-sunken);
+}
+.thread-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-raised);
+}
+.thread-card.open { display: flex; flex-direction: column; min-height: 0; }
+/* In een kaart groeit de body mee; scrollen doet .thread. */
+.thread .reader-body { flex: none; overflow: visible; }
+.thread-card.collapsed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.thread-card.collapsed:hover { background: var(--bg-sunken); }
+.thread-card.collapsed:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tc-main { flex: 1; min-width: 0; }
+.tc-top { display: flex; justify-content: space-between; gap: 8px; }
+.tc-from { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thread-card.collapsed.unread .tc-from { font-weight: 700; }
+.tc-date { color: var(--text-muted); font-size: 0.8rem; flex-shrink: 0; }
+.tc-preview {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .reader-head { padding: 16px 20px 8px; }
 .reader-head h2 { margin: 0 0 8px; }
 /* Links de afzender-info, rechts (op de afzenderregel) de categorie-select. */
