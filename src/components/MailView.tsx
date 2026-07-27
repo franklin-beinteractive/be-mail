@@ -25,7 +25,12 @@ import {
   senderName,
   shortDate,
 } from "../lib/format";
-import { HIDEABLE_FOLDERS, signatureHtml, type AiSkill } from "../lib/settings";
+import {
+  HIDEABLE_FOLDERS,
+  signatureHtml,
+  type AiSkill,
+  type QuickAction,
+} from "../lib/settings";
 import Avatar from "./Avatar";
 import ComposeDialog, { type ComposeInitial } from "./ComposeDialog";
 import {
@@ -38,6 +43,7 @@ import {
   ComposeIcon,
   EditIcon,
   FlagIcon,
+  FolderIcon,
   ForwardIcon,
   MailIcon,
   MailOpenIcon,
@@ -48,6 +54,7 @@ import {
   ReplyIcon,
   SearchIcon,
   SpamIcon,
+  TagIcon,
   TrashIcon,
 } from "./Icons";
 
@@ -721,6 +728,36 @@ export default function MailView({
     try {
       await api.archiveMessage(m.id);
       dropFromLists(m.id);
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  /** Snelle actie uit de instellingen op het geopende bericht toepassen:
+   *  verplaatsen naar een map of een categorie toekennen. */
+  async function runQuickAction(m: Message, qa: QuickAction) {
+    if (qa.kind === "category") {
+      // Categorieën bestaan alleen in Office 365; bij IMAP is er niets te zetten.
+      if (isImap) {
+        notify(t("quickActionNoCategories"), "error");
+        return;
+      }
+      await toggleCategory(m, qa.target);
+      return;
+    }
+    const target = folders.find(
+      (f) => (f.displayName ?? "").trim().toLowerCase() === qa.target.trim().toLowerCase()
+    );
+    if (!target) {
+      notify(`${t("quickActionNoFolder")}: ${qa.target}`, "error");
+      return;
+    }
+    if (target.id === folderId) return; // staat er al
+    try {
+      await api.moveMessage(m.id, target.id);
+      dropFromLists(m.id);
+      notify(`${t("move")} ✓`, "info");
+      void reloadAllFolders();
     } catch (e) {
       notify(String(e), "error");
     }
@@ -1699,6 +1736,24 @@ export default function MailView({
               >
                 <OpdrachtenIcon size={18} /> {t("maakOpdracht")}
               </button>
+              {/* Eigen snelle acties (Instellingen -> Snelle acties). */}
+              {settings.quickActions
+                .filter((qa) => !(isImap && qa.kind === "category"))
+                .map((qa) => (
+                  <button
+                    key={qa.id}
+                    className="btn"
+                    onClick={() => void runQuickAction(selected, qa)}
+                    title={
+                      qa.kind === "move"
+                        ? `${t("moveTo")}: ${qa.target}`
+                        : `${t("category")}: ${qa.target}`
+                    }
+                  >
+                    {qa.kind === "move" ? <FolderIcon size={18} /> : <TagIcon size={18} />}{" "}
+                    {qa.target}
+                  </button>
+                ))}
               {settings.aiSkills.length > 0 && (
                 <select
                   className="ai-reply"

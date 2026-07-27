@@ -35,6 +35,20 @@ export interface AiSkill {
   prompt: string;
 }
 
+/**
+ * Snelle actie boven een geopend bericht: in één klik verplaatsen naar een map
+ * of een categorie toekennen.
+ *
+ * `target` is de NAAM van de map/categorie, geen id: mapid's verschillen per
+ * account, dus met een naam blijft dezelfde knop werken als je van account
+ * wisselt. Bestaat de map niet in het actieve account, dan zegt de app dat.
+ */
+export interface QuickAction {
+  id: string;
+  kind: "move" | "category";
+  target: string;
+}
+
 /** Persoon voor het autoaanvullen op een opdracht-kaart (uitvoerder/planner). */
 export interface OpdrachtPersoon {
   id: string;
@@ -126,6 +140,8 @@ export interface UiSettings {
   listShowEmail: boolean;
   listShowSubject: boolean;
   listShowPreview: boolean;
+  /** Snelle acties boven een geopend bericht (verplaatsen/labelen). */
+  quickActions: QuickAction[];
   /** AI-antwoordstijlen (skills) voor Claude. */
   aiSkills: AiSkill[];
   /** Autoaanvullen-lijsten voor de opdrachten-module. */
@@ -203,6 +219,7 @@ export const defaultSettings: UiSettings = {
   listShowEmail: false,
   listShowSubject: true,
   listShowPreview: true,
+  quickActions: [],
   aiSkills: [
     {
       id: "zakelijk",

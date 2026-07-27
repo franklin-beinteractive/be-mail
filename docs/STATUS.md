@@ -17,6 +17,13 @@ dangerouslySetInnerHTML), toolbar opgeruimd, Ctrl+A selecteert alle mails)
 
 ## ✅ Af
 
+- **Snelle acties (2026-07-27, issue #7)**: eigen knoppen boven een geopend
+  bericht, in te stellen via Instellingen -> E-mail -> Snelle acties. Twee
+  soorten: verplaatsen naar een map en een categorie toekennen. De actie
+  bewaart de **naam** van de map/categorie, niet het id: mapid's verschillen
+  per account, dus zo werkt dezelfde knop in elk account dat die map heeft
+  (bestaat hij niet, dan zegt de app dat). Categorie-acties verbergen zich bij
+  IMAP-accounts, want die kennen geen categorieën.
 - **Afzender-avatars (2026-07-27, issue #6)**: rond bolletje met initialen en
   een vaste kleur per afzender, in de berichtenlijst en boven een geopend
   bericht. Uit te zetten via Instellingen -> Berichtenlijst. Bewust geen foto's

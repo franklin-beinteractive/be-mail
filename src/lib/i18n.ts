@@ -139,6 +139,14 @@ const dict = {
     hideFoldersHint:
       "Vink uit welke standaardmappen je niet in de mappenlijst wilt zien.",
     mailList: "Berichtenlijst",
+    quickActions: "Snelle acties",
+    quickActionsHint:
+      "Knoppen boven een geopend bericht. Verplaatsen werkt op mapnaam, dus dezelfde knop werkt in elk account met die map.",
+    quickActionNoFolder: "Deze map bestaat niet in dit account",
+    quickActionNoCategories: "Categorieën werken alleen bij Office 365-accounts",
+    moveTo: "Verplaatsen naar",
+    choose: "Kies",
+    add: "Toevoegen",
     mailListHint: "Kies wat je per bericht in de lijst wilt zien.",
     searchEverywhere: "Alle mappen",
     searchThisFolder: "Deze map",
@@ -576,6 +584,14 @@ const dict = {
     hideFoldersHint:
       "Untick the default folders you don't want to see in the folder list.",
     mailList: "Message list",
+    quickActions: "Quick actions",
+    quickActionsHint:
+      "Buttons above an open message. Moving works by folder name, so the same button works in any account that has that folder.",
+    quickActionNoFolder: "This folder does not exist in this account",
+    quickActionNoCategories: "Categories only work on Office 365 accounts",
+    moveTo: "Move to",
+    choose: "Choose",
+    add: "Add",
     mailListHint: "Choose what to show for each message in the list.",
     searchEverywhere: "All folders",
     searchThisFolder: "This folder",
