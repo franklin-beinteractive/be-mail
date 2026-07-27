@@ -549,7 +549,9 @@ export default function CalendarView() {
                   {dayLayouts[i].map((p) => (
                     <button
                       key={p.ev.id}
-                      className="tg-event"
+                      // Korter dan een uur: alles op één regel met puntjes.
+                      // Anders snijdt de blokrand door de tweede tekstregel.
+                      className={"tg-event" + (p.height < HOUR_H ? " tight" : "")}
                       style={{
                         top: p.top,
                         height: p.height,

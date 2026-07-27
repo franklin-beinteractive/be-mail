@@ -12,12 +12,16 @@ Tauri-IPC afgevangen door nepdata; daarbij kwamen twee foutjes in het
 zoekformulier boven water (tweede datumveld liep buiten de kolom, knop erfde de
 placeholder-tekst "Zoeken..."), beide hersteld.
 
+Daarna in de draaiende app tegen de echte Graph-API bevestigd: het uitgebreide
+zoeken (#13) met `from` + `hasAttachment` + `received>=` gecombineerd, en het
+opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
+
 **Nog te doen / open punten**
-- Wat alleen de echte kern kan bewijzen: de KQL van het uitgebreide zoeken
-  (#13) tegen de echte Graph-API, het daadwerkelijk wegschrijven van een .eml
-  (#12), en snooze die een niet-actief account wekt (#8).
-- Overlappende afspraken en de hele-dag-strook van het tijdgrid (#4) zijn nog
-  niet met echte agenda-data gezien; de indeling zelf is wel unit-getest.
+- Overlappende afspraken (naast elkaar) en de hele-dag-strook van het tijdgrid
+  (#4): in de agenda staat geen data die dit uitlokt. De indeling is wel
+  unit-getest; visueel bevestigen vraagt twee tijdelijke testafspraken.
+- Snooze die een niet-actief account wekt (#8): er is maar één account
+  gekoppeld, dus het scenario is niet na te spelen.
 - End-to-end verificatie op Windows met echte IMAP-/CalDAV-servers (staat al
   langer open, sinds de IMAP-accounts).
 

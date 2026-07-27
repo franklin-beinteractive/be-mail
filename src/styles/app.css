@@ -1096,6 +1096,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   box-shadow: inset -2px 0 0 var(--bg);
 }
 .tg-event:hover { background: color-mix(in srgb, var(--accent) 30%, var(--bg)); }
+/* Lage blokken: één regel met ellipsis in plaats van een doorgesneden regel. */
+.tg-event.tight { white-space: nowrap; text-overflow: ellipsis; }
 .tg-event-time { font-weight: 700; }
 .tg-event-loc { display: block; color: var(--text-muted); }
 
