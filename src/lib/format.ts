@@ -61,45 +61,129 @@ export function timeOnly(iso?: string | null): string {
   return m ? `${m[1]}:${m[2]}` : "";
 }
 
-/**
- * Maakt e-mail-HTML veilig voor weergave. Blokkeert scripts en optioneel
- * externe afbeeldingen (tracking-pixels) tot de gebruiker ze wil zien.
- * `inlineImages` (cid → data-URI) vult ingesloten afbeeldingen in: de browser
- * kan `src="cid:…"` zelf niet laden, dus zonder deze map blijven ze kapot.
- */
-export function sanitizeEmail(
-  html: string,
-  allowImages: boolean,
-  inlineImages?: Record<string, string>
-): string {
-  const clean = DOMPurify.sanitize(html, {
+/** Scripts eruit, opmaak erin. Eén plek zodat weergave en URL-inventarisatie
+ *  gegarandeerd naar dezelfde HTML kijken. */
+function purify(html: string): string {
+  return DOMPurify.sanitize(html, {
     FORBID_TAGS: ["script", "style", "iframe", "object", "embed", "form"],
     FORBID_ATTR: ["onerror", "onload", "onclick"],
     ALLOW_DATA_ATTR: false,
   });
-  const hasInline = !!inlineImages && Object.keys(inlineImages).length > 0;
-  if (allowImages && !hasInline) return clean;
-  const doc = new DOMParser().parseFromString(clean, "text/html");
+}
+
+const EXTERNAL = /^https?:/i;
+/** `url(...)` in een inline style; groep 1 = de URL zonder quotes. */
+const CSS_URL = /url\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s]*))\s*\)/gi;
+
+/** Loopt door alles wat een externe afbeelding kan laden: `<img src>`,
+ *  `<img srcset>`, het legacy `background`-attribuut en `url(...)` in een
+ *  inline style. `fn` krijgt de URL en geeft de vervanging terug, of `null`
+ *  om de verwijzing te verwijderen. */
+function eachExternalRef(
+  doc: Document,
+  fn: (url: string) => string | null
+): boolean {
   let changed = false;
-  doc.querySelectorAll("img").forEach((img) => {
+
+  doc.querySelectorAll<HTMLImageElement>("img").forEach((img) => {
     const src = img.getAttribute("src") || "";
-    const cid = /^cid:(.+)$/i.exec(src)?.[1];
-    if (cid) {
-      const key = decodeSafe(cid).replace(/^<|>$/g, "");
-      const data = inlineImages?.[key];
-      if (data) {
-        img.setAttribute("src", data);
-        changed = true;
+    if (EXTERNAL.test(src)) {
+      const next = fn(src);
+      if (next) img.setAttribute("src", next);
+      else {
+        img.removeAttribute("src");
+        img.setAttribute("alt", "🔒");
       }
-      return; // ingesloten afbeelding: nooit als "extern" blokkeren
+      changed = true;
     }
-    if (!allowImages && /^https?:/i.test(src)) {
-      img.removeAttribute("src");
-      img.setAttribute("alt", "🔒");
+    // srcset zou de src overrulen en is altijd extern: weg ermee.
+    if (img.hasAttribute("srcset")) {
+      img.removeAttribute("srcset");
       changed = true;
     }
   });
+
+  doc.querySelectorAll("[background]").forEach((el) => {
+    const bg = el.getAttribute("background") || "";
+    if (!EXTERNAL.test(bg)) return;
+    const next = fn(bg);
+    if (next) el.setAttribute("background", next);
+    else el.removeAttribute("background");
+    changed = true;
+  });
+
+  doc.querySelectorAll("[style]").forEach((el) => {
+    const style = el.getAttribute("style") || "";
+    if (!/url\(/i.test(style)) return;
+    const next = style.replace(CSS_URL, (whole, dq, sq, bare) => {
+      const url = (dq ?? sq ?? bare ?? "").trim();
+      if (!EXTERNAL.test(url)) return whole;
+      const repl = fn(url);
+      // Geen vervanging? "none" laat de rest van de shorthand heel
+      // (`background: #fff url(x) no-repeat` → `background: #fff none no-repeat`).
+      return repl ? `url("${repl.replace(/"/g, "%22")}")` : "none";
+    });
+    if (next !== style) {
+      el.setAttribute("style", next);
+      changed = true;
+    }
+  });
+
+  return changed;
+}
+
+/**
+ * Maakt e-mail-HTML veilig voor weergave. Blokkeert scripts en - tot de
+ * gebruiker ze wil zien - externe afbeeldingen (tracking-pixels).
+ *
+ * `inlineImages` (cid → data-URI) vult ingesloten afbeeldingen in: de webview
+ * kan `src="cid:…"` zelf niet laden, dus zonder deze map blijven ze kapot.
+ * `remoteImages` (externe URL → data-URI) doet hetzelfde voor externe
+ * afbeeldingen: de CSP verbiedt de webview om externe URL's op te halen, dus
+ * die worden door de Rust-kern gehaald (zie `api.fetchRemoteImage`). Een URL
+ * die nog niet in de map staat, blijft leeg - hij is nog onderweg of mislukt.
+ */
+export function sanitizeEmail(
+  html: string,
+  allowImages: boolean,
+  inlineImages?: Record<string, string>,
+  remoteImages?: Record<string, string>
+): string {
+  const clean = purify(html);
+  const doc = new DOMParser().parseFromString(clean, "text/html");
+  let changed = false;
+
+  // Ingesloten (cid:) afbeeldingen: nooit "extern", altijd invullen.
+  doc.querySelectorAll("img").forEach((img) => {
+    const src = img.getAttribute("src") || "";
+    const cid = /^cid:(.+)$/i.exec(src)?.[1];
+    if (!cid) return;
+    const key = decodeSafe(cid).replace(/^<|>$/g, "");
+    const data = inlineImages?.[key];
+    if (data) {
+      img.setAttribute("src", data);
+      changed = true;
+    }
+  });
+
+  changed =
+    eachExternalRef(doc, (url) =>
+      allowImages ? remoteImages?.[url] ?? null : null
+    ) || changed;
+
   return changed ? doc.body.innerHTML : clean;
+}
+
+/** Alle externe afbeeldings-URL's in een bericht (ontdubbeld), zodat de
+ *  Rust-kern precies die kan ophalen zodra de gebruiker toestemming geeft. */
+export function externalImageUrls(html: string): string[] {
+  const doc = new DOMParser().parseFromString(purify(html), "text/html");
+  const urls = new Set<string>();
+  eachExternalRef(doc, (url) => {
+    urls.add(url);
+    return null; // niets vervangen; we inventariseren alleen
+  });
+  return [...urls];
 }
 
 function decodeSafe(s: string): string {
@@ -111,7 +195,7 @@ function decodeSafe(s: string): string {
 }
 
 export function hasExternalImages(html: string): boolean {
-  return /<img[^>]+src=["']https?:/i.test(html);
+  return externalImageUrls(html).length > 0;
 }
 
 /**

@@ -16,6 +16,7 @@ import type {
   StoredAccount,
 } from "../lib/types";
 import {
+  externalImageUrls,
   fileSize,
   htmlToText,
   longDateTime,
@@ -237,6 +238,13 @@ export default function MailView({
   const [downloading, setDownloading] = useState<string | null>(null);
   // Ingesloten (cid:) afbeeldingen van het geopende bericht: cid → data-URI.
   const [inlineImages, setInlineImages] = useState<Record<string, string>>({});
+  // Externe afbeeldingen na toestemming: originele URL → data-URI (opgehaald
+  // door de Rust-kern; de webview mag externe URL's niet zelf laden).
+  const [remoteImages, setRemoteImages] = useState<Record<string, string>>({});
+  const [loadingImages, setLoadingImages] = useState(false);
+  // Volgnummer: laadt er nog een ouder bericht terwijl je doorklikt, dan mogen
+  // die afbeeldingen niet in het nieuwe bericht belanden.
+  const imageSeq = useRef(0);
   // Categorieën (kleurlabels): masterlijst van het postvak; leeg zonder
   // MailboxSettings-consent (de UI verschijnt dan gewoon niet).
   const [masterCats, setMasterCats] = useState<OutlookCategory[]>([]);
@@ -428,6 +436,9 @@ export default function MailView({
     setAllowImages(false);
     setAttachments([]);
     setInlineImages({});
+    setRemoteImages({});
+    setLoadingImages(false);
+    imageSeq.current++;
     try {
       const full = await api.getMessage(m.id);
       if (full.isDraft) {
@@ -1140,13 +1151,53 @@ export default function MailView({
       return `<pre class="plain">${selected.body.content
         .replace(/</g, "&lt;")}</pre>`;
     }
-    return sanitizeEmail(selected.body.content, allowImages, inlineImages);
-  }, [selected, allowImages, inlineImages]);
+    return sanitizeEmail(
+      selected.body.content,
+      allowImages,
+      inlineImages,
+      remoteImages
+    );
+  }, [selected, allowImages, inlineImages, remoteImages]);
 
-  const externalBlocked =
-    selected?.body?.contentType?.toLowerCase() !== "text" &&
-    !allowImages &&
-    /<img[^>]+src=["']https?:/i.test(selected?.body?.content ?? "");
+  // Externe afbeeldingen in het geopende bericht (alleen HTML-berichten).
+  const externalUrls = useMemo(() => {
+    if (!selected?.body) return [];
+    if (selected.body.contentType?.toLowerCase() === "text") return [];
+    return externalImageUrls(selected.body.content);
+  }, [selected]);
+
+  const externalBlocked = !allowImages && externalUrls.length > 0;
+
+  /** Toestemming voor externe afbeeldingen: haal ze via de Rust-kern op en
+   *  vul ze als data-URI in. Rechtstreeks laden kan niet (CSP) en zou het
+   *  IP-adres en cookies van de gebruiker aan trackers prijsgeven. */
+  async function showExternalImages() {
+    setAllowImages(true);
+    if (externalUrls.length === 0) return;
+    const seq = ++imageSeq.current;
+    setLoadingImages(true);
+    // Handjevol tegelijk: een nieuwsbrief met 40 afbeeldingen mag de app niet
+    // laten stotteren, maar één voor één duurt te lang.
+    const queue = [...externalUrls];
+    const worker = async () => {
+      while (queue.length > 0 && seq === imageSeq.current) {
+        const url = queue.shift()!;
+        try {
+          const data = await api.fetchRemoteImage(url);
+          if (seq === imageSeq.current) {
+            // Per afbeelding invullen: ze verschijnen zo een voor een.
+            setRemoteImages((prev) => ({ ...prev, [url]: data }));
+          }
+        } catch {
+          // Kapotte of onbereikbare afbeelding: overslaan, geen foutmelding.
+        }
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(4, queue.length) }, worker)
+    );
+    if (seq === imageSeq.current) setLoadingImages(false);
+  }
 
   function onBodyClick(e: React.MouseEvent) {
     const a = (e.target as HTMLElement).closest("a");
@@ -1858,11 +1909,12 @@ export default function MailView({
             {externalBlocked && (
               <div className="images-bar">
                 {t("externalImagesBlocked")}{" "}
-                <button className="btn ghost" onClick={() => setAllowImages(true)}>
+                <button className="btn ghost" onClick={showExternalImages}>
                   {t("showImages")}
                 </button>
               </div>
             )}
+            {loadingImages && <div className="images-bar">{t("loadingImages")}</div>}
             <div
               className="reader-body"
               onClick={onBodyClick}

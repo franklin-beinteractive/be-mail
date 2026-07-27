@@ -43,6 +43,7 @@ const dict = {
     selectMessage: "Selecteer een bericht om te lezen.",
     showImages: "Externe afbeeldingen tonen",
     externalImagesBlocked: "Externe afbeeldingen zijn geblokkeerd voor je veiligheid.",
+    loadingImages: "Externe afbeeldingen laden…",
     externalSender: "Let op: externe afzender",
     login: "Inloggen met Office 365",
     loginHint:
@@ -479,6 +480,7 @@ const dict = {
     selectMessage: "Select a message to read.",
     showImages: "Show external images",
     externalImagesBlocked: "External images are blocked for your safety.",
+    loadingImages: "Loading external images…",
     externalSender: "Note: external sender",
     login: "Sign in with Office 365",
     loginHint:

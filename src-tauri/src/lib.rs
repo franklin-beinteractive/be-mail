@@ -77,6 +77,7 @@ pub fn run() {
             commands::send_draft,
             commands::list_attachments,
             commands::inline_images,
+            commands::fetch_remote_image,
             commands::download_attachment,
             commands::move_message_returning,
             commands::list_rules,

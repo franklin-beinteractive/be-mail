@@ -111,6 +111,9 @@ export const api = {
   // Inline (cid:) afbeeldingen met inhoud, voor weergave in het leesvenster.
   inlineImages: (messageId: string) =>
     invoke<InlineImage[]>("inline_images", { messageId }),
+  // Externe afbeelding ophalen als data-URI. De webview mag externe URL's niet
+  // zelf laden (CSP), dus dit loopt via de Rust-kern - pas na toestemming.
+  fetchRemoteImage: (url: string) => invoke<string>("fetch_remote_image", { url }),
   // Verplaatst en geeft het verplaatste bericht terug (nieuw id; voor snoozen).
   moveMessageReturning: (messageId: string, destinationId: string) =>
     invoke<Message>("move_message_returning", { messageId, destinationId }),
