@@ -707,6 +707,32 @@ pub async fn inline_images(message_id: String) -> Result<Vec<InlineImage>, Strin
         .map_err(|e| e.to_string())
 }
 
+/// Zet een uitgesteld bericht terug in Postvak IN (ongelezen) van het opgegeven
+/// account.
+///
+/// Bewust met een expliciet account-id in plaats van het actieve account: de
+/// snooze-wekker moet berichten op tijd terugzetten, ook in een account waar je
+/// op dat moment niet in werkt. Verplaatsen + ongelezen zetten zit in één
+/// command zodat de wekker maar één keer hoeft te wachten op de verbinding.
+#[tauri::command]
+pub async fn wake_snoozed(account_id: String, message_id: String) -> Result<(), String> {
+    let cfg = require_config()?;
+    let acc = cfg
+        .accounts
+        .iter()
+        .find(|a| a.id == account_id)
+        .ok_or_else(|| "Onbekend account.".to_string())?;
+    let be = Backend::for_account(&cfg, acc).await?;
+    let moved = be
+        .move_message_returning(&message_id, "inbox")
+        .await
+        .map_err(|e| e.to_string())?;
+    // Ongelezen zetten is een nettigheid; mislukt dat, dan staat het bericht
+    // er nog steeds - geen reden om de wekker te laten falen.
+    let _ = be.set_read(&moved.id, false).await;
+    Ok(())
+}
+
 /// Haalt één externe (http/https) afbeelding op en geeft die terug als data-URI.
 ///
 /// De webview mag door de CSP geen externe URL's laden (zie tauri.conf.json).

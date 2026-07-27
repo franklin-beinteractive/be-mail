@@ -114,6 +114,10 @@ export const api = {
   // Externe afbeelding ophalen als data-URI. De webview mag externe URL's niet
   // zelf laden (CSP), dus dit loopt via de Rust-kern - pas na toestemming.
   fetchRemoteImage: (url: string) => invoke<string>("fetch_remote_image", { url }),
+  // Uitgesteld bericht terugzetten in Postvak IN van een specifiek account
+  // (de wekker moet ook niet-actieve accounts kunnen wekken).
+  wakeSnoozed: (accountId: string, messageId: string) =>
+    invoke<void>("wake_snoozed", { accountId, messageId }),
   // Verplaatst en geeft het verplaatste bericht terug (nieuw id; voor snoozen).
   moveMessageReturning: (messageId: string, destinationId: string) =>
     invoke<Message>("move_message_returning", { messageId, destinationId }),

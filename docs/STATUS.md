@@ -17,6 +17,14 @@ dangerouslySetInnerHTML), toolbar opgeruimd, Ctrl+A selecteert alle mails)
 
 ## ✅ Af
 
+- **Snooze wekt nu ook niet-actieve accounts (2026-07-27, issue #8)**: het
+  uitstellen zelf bestond al (later vandaag / morgenochtend / volgende week +
+  eigen datum en tijd), maar de wekker keek alleen naar het **actieve** account.
+  Wie in account B werkte, kreeg een uitgesteld bericht uit account A niet terug
+  op het afgesproken moment. De wekker loopt nu over alle accounts via het
+  nieuwe command `wake_snoozed` (expliciet account-id, verplaatst naar Postvak
+  IN en zet ongelezen); het beeld ververst alleen als het actieve account
+  wijzigde.
 - **Snelle acties (2026-07-27, issue #7)**: eigen knoppen boven een geopend
   bericht, in te stellen via Instellingen -> E-mail -> Snelle acties. Twee
   soorten: verplaatsen naar een map en een categorie toekennen. De actie

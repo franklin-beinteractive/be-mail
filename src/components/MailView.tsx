@@ -636,28 +636,30 @@ export default function MailView({
     }
   }
 
-  // Wekker: uitgestelde berichten van het actieve account terugzetten in
-  // Postvak IN (ongelezen) zodra hun tijd voorbij is.
+  // Wekker: uitgestelde berichten terugzetten in Postvak IN (ongelezen) zodra
+  // hun tijd voorbij is. Over ALLE accounts, niet alleen het actieve: anders
+  // blijft een bericht liggen zolang je in een ander account werkt, terwijl de
+  // gebruiker een tijdstip heeft afgesproken.
   useEffect(() => {
     if (!activeId) return;
     async function wake() {
       const all = loadSnoozes();
-      const due = all.filter(
-        (s) => s.accountId === activeId && new Date(s.due).getTime() <= Date.now()
-      );
+      const now = Date.now();
+      const due = all.filter((s) => new Date(s.due).getTime() <= now);
       if (!due.length) return;
+      // Meteen uit de lijst halen: anders probeert de volgende tik het opnieuw.
       saveSnoozes(all.filter((s) => !due.includes(s)));
-      let any = false;
+      let activeWoken = false;
       for (const s of due) {
         try {
-          const moved = await api.moveMessageReturning(s.id, "inbox");
-          await api.setRead(moved.id, false).catch(() => {});
-          any = true;
+          await api.wakeSnoozed(s.accountId, s.id);
+          if (s.accountId === activeId) activeWoken = true;
         } catch {
           // Bericht is intussen handmatig verplaatst/verwijderd: vergeten.
         }
       }
-      if (any) {
+      // Alleen het beeld verversen als er iets in het zichtbare account wijzigde.
+      if (activeWoken) {
         void reloadAllFolders();
         reloadListRef.current();
       }
