@@ -212,6 +212,19 @@ impl Backend {
             Backend::Imap(i) => i.download_attachment(message_id, attachment_id).await,
         }
     }
+    /// Uitgebreid zoeken met losse velden; elke backend vertaalt het zelf.
+    pub async fn search_advanced(
+        &self,
+        query: &SearchQuery,
+        top: u32,
+        folder_id: Option<&str>,
+    ) -> Result<MessagesPage> {
+        match self {
+            Backend::Graph(g) => g.search_advanced(query, top, folder_id).await,
+            Backend::Imap(i) => i.search_advanced(query, top, folder_id).await,
+        }
+    }
+
     /// Het hele bericht als .eml naar Downloads; geeft het opgeslagen pad terug.
     pub async fn download_message(&self, message_id: &str) -> Result<String> {
         match self {

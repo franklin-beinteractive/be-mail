@@ -134,6 +134,45 @@ pub struct MessageHeader {
     pub value: Option<String>,
 }
 
+/// Uitgebreid zoeken: losse velden in plaats van één zoekregel.
+///
+/// Bewust gestructureerd en niet als kant-en-klare zoekstring: Graph wil KQL
+/// (`from:… AND subject:…`) en IMAP wil zijn eigen SEARCH-syntax. Elke backend
+/// vertaalt dit zelf, zodat hetzelfde formulier voor beide accounttypen werkt.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SearchQuery {
+    /// Vrije trefwoorden (onderwerp + inhoud).
+    pub text: Option<String>,
+    pub from: Option<String>,
+    pub to: Option<String>,
+    pub cc: Option<String>,
+    pub subject: Option<String>,
+    /// Datumgrenzen als "JJJJ-MM-DD"; beide inclusief.
+    pub since: Option<String>,
+    pub until: Option<String>,
+    /// None = alles, Some(true) = alleen gelezen, Some(false) = alleen ongelezen.
+    pub is_read: Option<bool>,
+    /// Alleen berichten met bijlagen. IMAP kan hier niet op zoeken.
+    pub has_attachments: Option<bool>,
+}
+
+impl SearchQuery {
+    /// Leeg formulier: dan is er niets te zoeken.
+    pub fn is_empty(&self) -> bool {
+        let blank = |s: &Option<String>| s.as_deref().map(str::trim).unwrap_or("").is_empty();
+        blank(&self.text)
+            && blank(&self.from)
+            && blank(&self.to)
+            && blank(&self.cc)
+            && blank(&self.subject)
+            && blank(&self.since)
+            && blank(&self.until)
+            && self.is_read.is_none()
+            && self.has_attachments != Some(true)
+    }
+}
+
 /// Eén pagina berichten voor de frontend.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

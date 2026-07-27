@@ -81,6 +81,7 @@ pub fn run() {
             commands::wake_snoozed,
             commands::download_attachment,
             commands::download_message,
+            commands::search_advanced,
             commands::move_message_returning,
             commands::list_rules,
             commands::set_rule_enabled,

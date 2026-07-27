@@ -307,6 +307,43 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 .list-search input { border: none; background: transparent; flex: 1; padding: 6px 0; }
 .list-search input:focus-visible { outline: none; }
+/* Pijltje dat het uitgebreide zoekformulier open- en dichtklapt. */
+.search-adv-toggle {
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+}
+.search-adv-toggle:hover { background: var(--bg-sunken); color: var(--text); }
+.search-adv-toggle.active { color: var(--accent); transform: rotate(180deg); }
+
+/* Uitgebreid zoeken: label links, veld rechts (zoals Outlook). */
+.search-adv {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-sunken);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.adv-row {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+.adv-row > span:first-child { color: var(--text-muted); }
+.adv-row input[type="text"], .adv-row input:not([type]), .adv-row select { width: 100%; }
+.adv-row input[type="checkbox"] { justify-self: start; width: 16px; height: 16px; }
+.adv-dates { display: flex; gap: 6px; }
+.adv-dates input { flex: 1; min-width: 0; }
+.adv-buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 2px; }
+
 /* Kruisje om het zoekveld te legen; alleen zichtbaar als er iets ingevuld is. */
 .search-clear {
   display: flex;

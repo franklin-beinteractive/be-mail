@@ -13,6 +13,7 @@ import type {
   Message,
   OutlookCategory,
   Recipient,
+  SearchQuery,
   StoredAccount,
 } from "../lib/types";
 import {
@@ -235,6 +236,9 @@ export default function MailView({
   const [searchResult, setSearchResult] = useState<Message[] | null>(null);
   // Zoekbereik: hele mailbox of alleen de geopende map.
   const [searchScope, setSearchScope] = useState<"all" | "folder">("all");
+  // Uitgebreid zoeken: paneel open/dicht en de ingevulde velden.
+  const [advOpen, setAdvOpen] = useState(false);
+  const [adv, setAdv] = useState<SearchQuery>({});
   // Volgnummer tegen verouderde zoekresultaten (trage respons die een
   // nieuwere overschrijft).
   const searchSeq = useRef(0);
@@ -418,6 +422,36 @@ export default function MailView({
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, searchScope, folderId, isImap]);
+
+  /** Uitgebreid zoeken uitvoeren. Het snelle zoekvak wordt geleegd zodat de
+   *  twee elkaars resultaten niet overschrijven. */
+  async function runAdvancedSearch() {
+    const seq = ++searchSeq.current;
+    setSearch("");
+    setLoading(true);
+    try {
+      const folderScoped = searchScope === "folder" || isImap;
+      const page = await api.searchAdvanced(
+        adv,
+        50,
+        folderScoped ? folderId ?? undefined : undefined
+      );
+      if (seq !== searchSeq.current) return;
+      setSearchResult(page.messages);
+      setChecked(new Set());
+    } catch (e) {
+      if (seq === searchSeq.current) notify(String(e), "error");
+    } finally {
+      if (seq === searchSeq.current) setLoading(false);
+    }
+  }
+
+  function clearAdvancedSearch() {
+    setAdv({});
+    searchSeq.current++;
+    setSearchResult(null);
+    setChecked(new Set());
+  }
 
   async function loadPage(from: number, replace: boolean) {
     if (!folderId) return;
@@ -1475,7 +1509,93 @@ export default function MailView({
               <CloseIcon size={16} />
             </button>
           )}
+          <button
+            type="button"
+            className={"search-adv-toggle" + (advOpen ? " active" : "")}
+            onClick={() => setAdvOpen((v) => !v)}
+            title={tip("advancedSearch")}
+            aria-label={t("advancedSearch")}
+            aria-expanded={advOpen}
+          >
+            <ChevronDown size={16} />
+          </button>
         </div>
+        {advOpen && (
+          <div className="search-adv">
+            {(
+              [
+                ["from", t("from")],
+                ["to", t("to")],
+                ["cc", "CC"],
+                ["subject", t("subject")],
+                ["text", t("keywords")],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="adv-row">
+                <span>{label}</span>
+                <input
+                  value={adv[key] ?? ""}
+                  onChange={(e) => setAdv((p) => ({ ...p, [key]: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void runAdvancedSearch();
+                  }}
+                />
+              </label>
+            ))}
+            <label className="adv-row">
+              <span>{t("date")}</span>
+              <span className="adv-dates">
+                <input
+                  type="date"
+                  value={adv.since ?? ""}
+                  onChange={(e) => setAdv((p) => ({ ...p, since: e.target.value }))}
+                />
+                <input
+                  type="date"
+                  value={adv.until ?? ""}
+                  onChange={(e) => setAdv((p) => ({ ...p, until: e.target.value }))}
+                />
+              </span>
+            </label>
+            <label className="adv-row">
+              <span>{t("readState")}</span>
+              <select
+                value={adv.isRead == null ? "" : adv.isRead ? "read" : "unread"}
+                onChange={(e) =>
+                  setAdv((p) => ({
+                    ...p,
+                    isRead: e.target.value === "" ? null : e.target.value === "read",
+                  }))
+                }
+              >
+                <option value="">{t("all")}</option>
+                <option value="read">{t("markRead")}</option>
+                <option value="unread">{t("markUnread")}</option>
+              </select>
+            </label>
+            {/* IMAP kent geen zoekcriterium voor bijlagen; dan niet aanbieden. */}
+            {!isImap && (
+              <label className="adv-row">
+                <span>{t("attachments")}</span>
+                <input
+                  type="checkbox"
+                  checked={adv.hasAttachments ?? false}
+                  onChange={(e) =>
+                    setAdv((p) => ({ ...p, hasAttachments: e.target.checked }))
+                  }
+                />
+              </label>
+            )}
+            <div className="adv-buttons">
+              <button className="btn primary" onClick={() => void runAdvancedSearch()}>
+                {t("search")}
+              </button>
+              <button className="btn" onClick={clearAdvancedSearch}>
+                {t("clearFilters")}
+              </button>
+            </div>
+          </div>
+        )}
         {search.trim() !== "" && (
           <div className="search-scope">
             <div className="seg">

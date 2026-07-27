@@ -17,6 +17,14 @@ dangerouslySetInnerHTML), toolbar opgeruimd, Ctrl+A selecteert alle mails)
 
 ## ✅ Af
 
+- **Uitgebreid zoeken (2026-07-27, issue #13)**: pijltje naast het zoekvak
+  klapt een formulier open met Van, Aan, CC, Onderwerp, Trefwoorden, datum van/
+  tot, leesstatus en "heeft bijlagen" - zoals het Outlook-paneel uit de issue.
+  De velden gaan **gestructureerd** naar de kern (`SearchQuery`), niet als
+  kant-en-klare zoekstring: Graph vertaalt naar KQL (`from:…  AND received>=…`),
+  IMAP naar SEARCH-criteria (`FROM "…" SINCE 1-Jan-2026`). Zoeken op bijlagen
+  kan IMAP niet (geen criterium daarvoor); dat vinkje verschijnt daar niet.
+  Einddatum is inclusief, ook bij IMAP (BEFORE is exclusief, dus +1 dag).
 - **Bericht opslaan als .eml (2026-07-27, issue #12)**: knop in de leesbalk
   slaat het hele bericht (incl. headers en bijlagen) op in de Downloads-map.
   `.eml` omdat dat de ruwe MIME is en in elke mailclient opent. Graph levert

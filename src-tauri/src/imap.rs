@@ -339,9 +339,63 @@ impl ImapClient {
         ))
     }
 
+    /// Uitgebreid zoeken, vertaald naar IMAP SEARCH-criteria (RFC 3501).
+    /// Losse criteria achter elkaar zijn een impliciete AND.
+    ///
+    /// Zoeken op bijlagen kan IMAP niet: er is geen HASATTACHMENT-criterium en
+    /// alle bodies ophalen om te tellen zou de mailbox leegtrekken. Dat vinkje
+    /// wordt hier genegeerd; de UI verbergt het bij IMAP-accounts.
+    pub async fn search_advanced(
+        &self,
+        q: &SearchQuery,
+        top: u32,
+        folder_id: Option<&str>,
+    ) -> Result<MessagesPage> {
+        let mut crit: Vec<String> = Vec::new();
+        let mut field = |name: &str, value: &Option<String>| {
+            if let Some(v) = value.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+                crit.push(format!("{name} {}", imap_quote(v)));
+            }
+        };
+        field("FROM", &q.from);
+        field("TO", &q.to);
+        field("CC", &q.cc);
+        field("SUBJECT", &q.subject);
+        field("TEXT", &q.text);
+        if let Some(d) = q.since.as_deref().and_then(imap_date) {
+            crit.push(format!("SINCE {d}"));
+        }
+        if let Some(d) = q.until.as_deref().and_then(|s| next_day(s)).as_deref().and_then(imap_date)
+        {
+            // BEFORE is exclusief; een dag erbij maakt de einddatum inclusief.
+            crit.push(format!("BEFORE {d}"));
+        }
+        match q.is_read {
+            Some(true) => crit.push("SEEN".to_string()),
+            Some(false) => crit.push("UNSEEN".to_string()),
+            None => {}
+        }
+        if crit.is_empty() {
+            crit.push("ALL".to_string());
+        }
+        self.search_raw(crit.join(" "), top, folder_id).await
+    }
+
     pub async fn search_messages(
         &self,
         query: &str,
+        top: u32,
+        folder_id: Option<&str>,
+    ) -> Result<MessagesPage> {
+        self.search_raw(format!("TEXT {}", imap_quote(query)), top, folder_id)
+            .await
+    }
+
+    /// Voert een kant-en-klare SEARCH-expressie uit en bouwt er berichten van.
+    /// Gedeeld door het eenvoudige en het uitgebreide zoeken.
+    async fn search_raw(
+        &self,
+        criteria: String,
         top: u32,
         folder_id: Option<&str>,
     ) -> Result<MessagesPage> {
@@ -349,16 +403,14 @@ impl ImapClient {
             Some(f) => self.resolve_mailbox(f),
             None => "INBOX".to_string(),
         };
-        let query = query.to_string();
         self.with_session(move |session| {
             let mb = session
                 .select(&mailbox)
                 .map_err(|e| anyhow::anyhow!(translate(&e)))?;
             let uidvalidity = mb.uid_validity.unwrap_or(0);
 
-            let q = format!("TEXT {}", imap_quote(&query));
             let found = session
-                .uid_search(&q)
+                .uid_search(&criteria)
                 .map_err(|e| anyhow::anyhow!(translate(&e)))?;
             let mut uids: Vec<u32> = found.into_iter().collect();
             uids.sort_unstable();
@@ -1254,6 +1306,30 @@ fn imap_quote(s: &str) -> String {
 }
 
 /// Haalt tekens uit een bestandsnaam die op Windows niet mogen (en padscheiders).
+/// "2026-07-27" -> "27-Jul-2026", het datumformaat van IMAP SEARCH (RFC 3501).
+/// Geeft None bij een onbruikbare datum, zodat het criterium dan wegvalt in
+/// plaats van de hele zoekopdracht te laten mislukken.
+fn imap_date(ymd: &str) -> Option<String> {
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let d = chrono::NaiveDate::parse_from_str(ymd.trim(), "%Y-%m-%d").ok()?;
+    use chrono::Datelike;
+    Some(format!(
+        "{}-{}-{}",
+        d.day(),
+        MONTHS[(d.month() - 1) as usize],
+        d.year()
+    ))
+}
+
+/// Eén dag later ("2026-07-27" -> "2026-07-28"), om een inclusieve einddatum
+/// om te zetten naar het exclusieve BEFORE van IMAP.
+fn next_day(ymd: &str) -> Option<String> {
+    let d = chrono::NaiveDate::parse_from_str(ymd.trim(), "%Y-%m-%d").ok()?;
+    Some(d.succ_opt()?.format("%Y-%m-%d").to_string())
+}
+
 fn sanitize_filename(name: &str) -> String {
     let cleaned: String = name
         .chars()
@@ -1629,4 +1705,32 @@ pub async fn verify_imap_settings(
         bail!("De SMTP-server accepteerde de testverbinding niet (controleer host/poort/beveiliging).");
     }
     Ok(folders)
+}
+
+// =====================================================================
+// Tests
+// =====================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn imap_date_gebruikt_rfc3501_formaat() {
+        assert_eq!(imap_date("2026-07-27").as_deref(), Some("27-Jul-2026"));
+        assert_eq!(imap_date("2026-01-01").as_deref(), Some("1-Jan-2026"));
+        assert_eq!(imap_date("2026-12-31").as_deref(), Some("31-Dec-2026"));
+        // Onbruikbare invoer laat het criterium wegvallen i.p.v. te falen.
+        assert_eq!(imap_date("rommel"), None);
+        assert_eq!(imap_date(""), None);
+    }
+
+    #[test]
+    fn next_day_maakt_einddatum_inclusief() {
+        assert_eq!(next_day("2026-07-27").as_deref(), Some("2026-07-28"));
+        // Maand- en jaargrens (2026 is geen schrikkeljaar).
+        assert_eq!(next_day("2026-02-28").as_deref(), Some("2026-03-01"));
+        assert_eq!(next_day("2026-12-31").as_deref(), Some("2027-01-01"));
+        assert_eq!(next_day("geen datum"), None);
+    }
 }

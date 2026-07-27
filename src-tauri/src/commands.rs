@@ -839,6 +839,28 @@ fn sniff_image_mime(bytes: &[u8]) -> Option<&'static str> {
     None
 }
 
+/// Uitgebreid zoeken (losse velden). Een leeg formulier geeft niets terug in
+/// plaats van de hele mailbox.
+#[tauri::command]
+pub async fn search_advanced(
+    query: SearchQuery,
+    top: Option<u32>,
+    folder_id: Option<String>,
+) -> Result<MessagesPage, String> {
+    if query.is_empty() {
+        return Ok(MessagesPage {
+            messages: Vec::new(),
+            has_more: false,
+            from_cache: false,
+        });
+    }
+    client()
+        .await?
+        .search_advanced(&query, top.unwrap_or(50), folder_id.as_deref())
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Slaat een heel bericht op als .eml in de Downloads-map; geeft het pad terug.
 #[tauri::command]
 pub async fn download_message(message_id: String) -> Result<String, String> {

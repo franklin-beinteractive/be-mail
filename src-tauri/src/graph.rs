@@ -365,6 +365,66 @@ impl GraphClient {
     /// Doorzoekt de mailbox via Graph `$search`; met `folder_id` alleen die map,
     /// anders alle mappen. Let op: `$search` mag niet met `$orderby`
     /// gecombineerd worden - Graph sorteert zelf op relevantie.
+    /// Uitgebreid zoeken: de losse velden worden één KQL-expressie voor
+    /// `$search`. Graph kent `from:`, `to:`, `cc:`, `subject:`, `hasAttachment:`,
+    /// `isRead:` en `received>=` / `received<=`.
+    pub async fn search_advanced(
+        &self,
+        q: &SearchQuery,
+        top: u32,
+        folder_id: Option<&str>,
+    ) -> Result<MessagesPage> {
+        let mut parts: Vec<String> = Vec::new();
+        let mut field = |name: &str, value: &Option<String>| {
+            if let Some(v) = value.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+                parts.push(format!("{name}:{}", kql_value(v)));
+            }
+        };
+        field("from", &q.from);
+        field("to", &q.to);
+        field("cc", &q.cc);
+        field("subject", &q.subject);
+        if let Some(v) = q.text.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
+            parts.push(kql_value(v));
+        }
+        if let Some(d) = q.since.as_deref().map(str::trim).filter(|d| !d.is_empty()) {
+            parts.push(format!("received>={d}"));
+        }
+        if let Some(d) = q.until.as_deref().map(str::trim).filter(|d| !d.is_empty()) {
+            parts.push(format!("received<={d}"));
+        }
+        if let Some(read) = q.is_read {
+            parts.push(format!("isRead:{read}"));
+        }
+        if q.has_attachments == Some(true) {
+            parts.push("hasAttachment:true".to_string());
+        }
+        let kql = parts.join(" AND ");
+
+        let top_s = top.to_string();
+        let url = match folder_id {
+            Some(id) => format!("{BASE}/me/mailFolders/{id}/messages"),
+            None => format!("{BASE}/me/messages"),
+        };
+        let resp = self
+            .http
+            .get(url)
+            .bearer_auth(&self.token)
+            .query(&[
+                ("$search", format!("\"{kql}\"").as_str()),
+                ("$select", MSG_SELECT),
+                ("$top", top_s.as_str()),
+            ])
+            .send()
+            .await?;
+        let list: GraphList<Message> = self.parse(resp).await?;
+        Ok(MessagesPage {
+            has_more: list.next_link.is_some(),
+            messages: list.value,
+            from_cache: false,
+        })
+    }
+
     pub async fn search_messages(
         &self,
         query: &str,
@@ -989,6 +1049,18 @@ fn recurrence_json(rec: &crate::models::RecurrenceInput, start: &str) -> Option<
     Some(json!({ "pattern": pattern, "range": range }))
 }
 
+/// Waarde voor een KQL-veld. Meerdere woorden moeten tussen enkele quotes,
+/// anders leest Graph alleen het eerste woord als waarde. De hele expressie
+/// zit al in dubbele quotes, dus die halen we hier weg.
+fn kql_value(v: &str) -> String {
+    let clean = v.replace('"', " ");
+    if clean.contains(char::is_whitespace) {
+        format!("'{}'", clean.replace('\'', " "))
+    } else {
+        clean
+    }
+}
+
 /// Minimale projectie: alleen het onderwerp, voor de bestandsnaam van een .eml.
 #[derive(serde::Deserialize)]
 struct MessageSubject {
@@ -1054,5 +1126,24 @@ fn short(text: &str) -> String {
         format!("{cut}…")
     } else {
         t.to_string()
+    }
+}
+
+// =====================================================================
+// Tests
+// =====================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn kql_value_quote_alleen_bij_spaties() {
+        // Eén woord: onveranderd, anders zou Graph de quotes meezoeken.
+        assert_eq!(kql_value("bart@x.nl"), "bart@x.nl");
+        // Meerdere woorden moeten samen als één waarde gelezen worden.
+        assert_eq!(kql_value("Bart van Esch"), "'Bart van Esch'");
+        // Dubbele quotes zouden de omhullende $search="..." breken.
+        assert_eq!(kql_value("zeg \"hallo\""), "'zeg  hallo '");
     }
 }

@@ -21,6 +21,7 @@ import type {
   MessagesPage,
   OutlookCategory,
   Person,
+  SearchQuery,
 } from "./types";
 
 export const api = {
@@ -93,6 +94,14 @@ export const api = {
   // Zonder folderId: hele mailbox; met folderId: alleen die map.
   searchMessages: (query: string, top = 50, folderId?: string) =>
     invoke<MessagesPage>("search_messages", {
+      query,
+      top,
+      folderId: folderId ?? null,
+    }),
+  // Uitgebreid zoeken: losse velden; de Rust-kern vertaalt ze naar KQL (Graph)
+  // of IMAP SEARCH.
+  searchAdvanced: (query: SearchQuery, top = 50, folderId?: string) =>
+    invoke<MessagesPage>("search_advanced", {
       query,
       top,
       folderId: folderId ?? null,
