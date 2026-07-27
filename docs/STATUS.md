@@ -7,12 +7,17 @@
 #7, #8, #10, #11, #12 en #13 opgelost, elk in een eigen commit (zie de bullets
 hieronder voor wat er per issue veranderde).
 
+De opmaak van #6, #7, #10, #11 en #13 is nagelopen in een browser met de
+Tauri-IPC afgevangen door nepdata; daarbij kwamen twee foutjes in het
+zoekformulier boven water (tweede datumveld liep buiten de kolom, knop erfde de
+placeholder-tekst "Zoeken..."), beide hersteld.
+
 **Nog te doen / open punten**
-- Visuele controle in de draaiende app van #6, #7, #10, #11, #12 en #13; die
-  zijn gebouwd terwijl het werkstation vergrendeld was, dus alleen
-  typecheck/build/unittests zijn gedaan.
-- De KQL die het uitgebreide zoeken (#13) bouwt is nog niet tegen de echte
-  Graph-API aan gehouden.
+- Wat alleen de echte kern kan bewijzen: de KQL van het uitgebreide zoeken
+  (#13) tegen de echte Graph-API, het daadwerkelijk wegschrijven van een .eml
+  (#12), en snooze die een niet-actief account wekt (#8).
+- Overlappende afspraken en de hele-dag-strook van het tijdgrid (#4) zijn nog
+  niet met echte agenda-data gezien; de indeling zelf is wel unit-getest.
 - End-to-end verificatie op Windows met echte IMAP-/CalDAV-servers (staat al
   langer open, sinds de IMAP-accounts).
 

@@ -1588,7 +1588,7 @@ export default function MailView({
             )}
             <div className="adv-buttons">
               <button className="btn primary" onClick={() => void runAdvancedSearch()}>
-                {t("search")}
+                {t("searchNow")}
               </button>
               <button className="btn" onClick={clearAdvancedSearch}>
                 {t("clearFilters")}

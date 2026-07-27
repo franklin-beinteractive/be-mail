@@ -340,8 +340,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .adv-row > span:first-child { color: var(--text-muted); }
 .adv-row input[type="text"], .adv-row input:not([type]), .adv-row select { width: 100%; }
 .adv-row input[type="checkbox"] { justify-self: start; width: 16px; height: 16px; }
-.adv-dates { display: flex; gap: 6px; }
-.adv-dates input { flex: 1; min-width: 0; }
+/* Twee datumvelden naast elkaar passen niet in een smalle lijstkolom; native
+   date-inputs hebben een eigen minimumbreedte. Laat ze dan afbreken. */
+.adv-dates { display: flex; flex-wrap: wrap; gap: 6px; }
+.adv-dates input { flex: 1 1 120px; min-width: 0; }
 .adv-buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 2px; }
 
 /* Kruisje om het zoekveld te legen; alleen zichtbaar als er iets ingevuld is. */
