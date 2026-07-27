@@ -17,6 +17,10 @@ dangerouslySetInnerHTML), toolbar opgeruimd, Ctrl+A selecteert alle mails)
 
 ## ✅ Af
 
+- **Hover-acties in de berichtenlijst (2026-07-27, issue #10)**: bij hover (en
+  bij toetsenbordfocus) verschijnen rechts in de rij vier knoppen: archiveren,
+  gelezen/ongelezen, vlag en verwijderen. Ze liggen als overlay over de datum,
+  zodat de rij niet verspringt. Verwijderen vraagt bevestiging, net als elders.
 - **Snooze wekt nu ook niet-actieve accounts (2026-07-27, issue #8)**: het
   uitstellen zelf bestond al (later vandaag / morgenochtend / volgende week +
   eigen datum en tijd), maar de wekker keek alleen naar het **actieve** account.

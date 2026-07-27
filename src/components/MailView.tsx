@@ -1650,6 +1650,56 @@ export default function MailView({
                     <div className="msg-preview">{m.bodyPreview}</div>
                   )}
                 </div>
+                {/* Contextacties bij hover (en bij toetsenbordfocus), zoals
+                    Outlook. stopPropagation: een klik hierop mag het bericht
+                    niet openen. */}
+                <div className="msg-actions">
+                  {[
+                    {
+                      key: "archive",
+                      label: t("archive"),
+                      hint: tip("tipArchive"),
+                      icon: <ArchiveIcon size={16} />,
+                      run: () => void archive(m),
+                    },
+                    {
+                      key: "read",
+                      label: m.isRead ? t("markUnread") : t("markRead"),
+                      hint: tip(m.isRead ? "markUnread" : "markRead"),
+                      icon: m.isRead ? <MailIcon size={16} /> : <MailOpenIcon size={16} />,
+                      run: () => void toggleRead(m),
+                    },
+                    {
+                      key: "flag",
+                      label: t("flag"),
+                      hint: tip("tipFlag"),
+                      icon: <FlagIcon size={16} />,
+                      run: () => void toggleFlag(m),
+                    },
+                    {
+                      key: "delete",
+                      label: t("delete"),
+                      hint: tip("tipDelete"),
+                      icon: <TrashIcon size={16} />,
+                      run: () => void remove(m),
+                    },
+                  ].map((a) => (
+                    <button
+                      key={a.key}
+                      className={"icon-btn" + (a.key === "delete" ? " danger" : "")}
+                      // hint volgt de tooltip-instelling; het label is er altijd
+                      // voor schermlezers.
+                      title={a.hint}
+                      aria-label={a.label}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        a.run();
+                      }}
+                    >
+                      {a.icon}
+                    </button>
+                  ))}
+                </div>
               </div>
             );
             return (

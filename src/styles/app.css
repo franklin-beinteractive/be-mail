@@ -366,7 +366,25 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   cursor: pointer;
   border-left: 3px solid transparent;
 }
+.msg { position: relative; }
 .msg:hover { background: var(--bg-sunken); }
+
+/* Contextacties rechts in de rij; verschijnen bij hover of toetsenbordfocus en
+   dekken de datum af, zodat de rij niet verspringt (Outlook doet hetzelfde). */
+.msg-actions {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+  display: none;
+  gap: 1px;
+  padding-left: 14px;
+  background: linear-gradient(to right, transparent, var(--bg-sunken) 14px);
+}
+.msg:hover .msg-actions,
+.msg:focus-within .msg-actions { display: flex; }
+.msg-actions .icon-btn { padding: 4px; color: var(--text-muted); }
+.msg-actions .icon-btn:hover { background: var(--bg-raised); color: var(--text); }
+.msg-actions .icon-btn.danger:hover { color: var(--danger); }
 .msg.active { background: var(--bg-sunken); border-left-color: var(--accent); }
 .msg.unread { border-left-color: var(--unread); }
 .msg.unread .msg-from, .msg.unread .msg-subject { font-weight: 700; }
