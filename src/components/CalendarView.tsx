@@ -1,5 +1,5 @@
 // Agenda: maand-, week- en lijstweergave.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
 import type { CalendarEvent } from "../lib/types";
@@ -29,6 +29,108 @@ function addDays(d: Date, n: number): Date {
   return r;
 }
 
+// ---- Tijdgrid (dag/werkweek/week) ----
+
+/** Hoogte van één uur in px; moet gelijk zijn aan --hour-h in app.css. */
+const HOUR_H = 48;
+const DAY_MINUTES = 24 * 60;
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+/** Kortste blokhoogte in minuten: een afspraak van 5 minuten blijft leesbaar. */
+const MIN_SLOT = 20;
+
+/** Minuten sinds middernacht uit een Graph-dateTime ("2026-07-27T09:30:00"). */
+function minutesOfDay(dt: string): number {
+  const m = /T(\d{2}):(\d{2})/.exec(dt);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : 0;
+}
+
+/** Eindtijd in minuten binnen de startdag; loopt de afspraak door naar de
+ *  volgende dag, dan knippen we af op middernacht. */
+function endMinutesInDay(ev: CalendarEvent): number {
+  if (ev.end.dateTime.slice(0, 10) > ev.start.dateTime.slice(0, 10)) return DAY_MINUTES;
+  return minutesOfDay(ev.end.dateTime);
+}
+
+/** Positie van één afspraak in de dagkolom; maten in px (verticaal) en
+ *  procenten van de kolombreedte (horizontaal). */
+export interface PlacedEvent {
+  ev: CalendarEvent;
+  top: number;
+  height: number;
+  left: number;
+  width: number;
+}
+
+/**
+ * Plaatst de afspraken van één dag in het tijdgrid: verticaal op starttijd met
+ * de hoogte van de duur, en overlappende afspraken naast elkaar (zoals
+ * Outlook). Afspraken die elkaar niet raken krijgen allemaal de volle breedte.
+ */
+export function layoutDay(events: CalendarEvent[]): PlacedEvent[] {
+  interface Slot {
+    ev: CalendarEvent;
+    s: number;
+    e: number;
+  }
+  const slots: Slot[] = events
+    .map((ev) => {
+      const s = Math.min(minutesOfDay(ev.start.dateTime), DAY_MINUTES);
+      const e = Math.min(Math.max(endMinutesInDay(ev), s + MIN_SLOT), DAY_MINUTES);
+      return { ev, s, e };
+    })
+    // Op starttijd; bij gelijke start de langste eerst (die wordt de linker kolom).
+    .sort((a, b) => a.s - b.s || b.e - a.e);
+
+  const out: PlacedEvent[] = [];
+  // Een "tros" is een groep afspraken die elkaar (indirect) overlappen; de
+  // breedte wordt per tros bepaald, zodat een losse afspraak verderop op de
+  // dag niet smaller wordt door een dubbele boeking in de ochtend.
+  let cluster: Slot[] = [];
+  let clusterEnd = -1;
+
+  const flush = () => {
+    const colEnds: number[] = []; // eindtijd per kolom binnen deze tros
+    const colOf = new Map<Slot, number>();
+    for (const it of cluster) {
+      let c = colEnds.findIndex((end) => end <= it.s);
+      if (c === -1) {
+        c = colEnds.length;
+        colEnds.push(it.e);
+      } else {
+        colEnds[c] = it.e;
+      }
+      colOf.set(it, c);
+    }
+    const n = colEnds.length || 1;
+    for (const it of cluster) {
+      const c = colOf.get(it) ?? 0;
+      out.push({
+        ev: it.ev,
+        top: (it.s / 60) * HOUR_H,
+        height: ((it.e - it.s) / 60) * HOUR_H,
+        left: (c / n) * 100,
+        width: 100 / n,
+      });
+    }
+    cluster = [];
+    clusterEnd = -1;
+  };
+
+  for (const it of slots) {
+    if (cluster.length > 0 && it.s >= clusterEnd) flush();
+    cluster.push(it);
+    clusterEnd = Math.max(clusterEnd, it.e);
+  }
+  if (cluster.length > 0) flush();
+  return out;
+}
+
+/** Minuten sinds middernacht, nu. */
+function nowMinutes(): number {
+  const n = new Date();
+  return n.getHours() * 60 + n.getMinutes();
+}
+
 export default function CalendarView() {
   const { t, settings, setSettings, notify, confirm, capabilities } = useApp();
   // Actief account zonder agenda (bv. een IMAP-account zonder CalDAV): geen
@@ -43,13 +145,17 @@ export default function CalendarView() {
   const setMode = (m: ViewMode) => setSettings({ calendarView: m });
   const [anchor, setAnchor] = useState(() => new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [creating, setCreating] = useState<string | null>(null);
+  // Nieuwe afspraak: dag + (in het tijdgrid) de aangeklikte begintijd.
+  const [creating, setCreating] = useState<{ date: string; time?: string } | null>(null);
   const [editing, setEditing] = useState<CalendarEvent | null>(null);
   const [detail, setDetail] = useState<CalendarEvent | null>(null);
   // Slepen van een afspraak naar een andere dag.
   const [dragEventId, setDragEventId] = useState<string | null>(null);
   const [dropDay, setDropDay] = useState<string | null>(null);
   const locale = settings.lang === "nl" ? "nl-NL" : "en-GB";
+  // Tijdgrid: scrollpositie bijsturen en de "nu"-lijn elke minuut verzetten.
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [nowMin, setNowMin] = useState(nowMinutes);
 
   const range = useMemo(() => {
     if (mode === "week") {
@@ -109,6 +215,45 @@ export default function CalendarView() {
     }
     return map;
   }, [events]);
+
+  // ---- Tijdgrid (dag/werkweek/week) ----
+  const isTimeGrid = mode === "day" || mode === "workweek" || mode === "week";
+  const dayCount = mode === "week" ? 7 : mode === "workweek" ? 5 : 1;
+  const days = useMemo(
+    () => Array.from({ length: dayCount }, (_, i) => addDays(range.start, i)),
+    [range.start, dayCount]
+  );
+  /** Per dag: de afspraken met een tijd, al ingedeeld in het grid. */
+  const dayLayouts = useMemo(
+    () =>
+      days.map((d) => layoutDay((byDay.get(ymd(d)) ?? []).filter((e) => !e.isAllDay))),
+    [days, byDay]
+  );
+  /** Hele-dag-afspraken horen niet in het tijdgrid maar in de strook erboven. */
+  const allDayRows = useMemo(
+    () => days.map((d) => (byDay.get(ymd(d)) ?? []).filter((e) => e.isAllDay)),
+    [days, byDay]
+  );
+  const hasAllDay = allDayRows.some((r) => r.length > 0);
+
+  // Bij 24 uur in beeld staat de werkdag onderaan: scroll naar de eerste
+  // afspraak (of 08:00 op een lege dag) zodra de weergave of periode wijzigt.
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el || !isTimeGrid) return;
+    const starts = dayLayouts.flat().map((p) => p.top);
+    const first = starts.length > 0 ? Math.min(...starts) : 8 * HOUR_H;
+    // De vastgezette kop bedekt tijdens het scrollen precies zijn eigen hoogte,
+    // dus scrollTop komt overeen met de bovenste zichtbare regel in het rooster.
+    el.scrollTop = Math.max(0, first - 24);
+  }, [isTimeGrid, dayLayouts]);
+
+  // "Nu"-lijn: elke minuut verzetten.
+  useEffect(() => {
+    if (!isTimeGrid) return;
+    const h = setInterval(() => setNowMin(nowMinutes()), 60_000);
+    return () => clearInterval(h);
+  }, [isTimeGrid]);
 
   function move(dir: number) {
     const d = new Date(anchor);
@@ -236,7 +381,7 @@ export default function CalendarView() {
   return (
     <div className="calendar">
       <div className="cal-toolbar">
-        <button className="btn primary" onClick={() => setCreating(ymd(anchor))}>
+        <button className="btn primary" onClick={() => setCreating({ date: ymd(anchor) })}>
           <PlusIcon size={18} /> {t("newEvent")}
         </button>
         <button className="btn" onClick={() => setAnchor(new Date())}>
@@ -294,7 +439,7 @@ export default function CalendarView() {
                   (key === today ? " today" : "") +
                   (dropDay === key ? " drop-target" : "")
                 }
-                onDoubleClick={() => setCreating(key)}
+                onDoubleClick={() => setCreating({ date: key })}
                 {...dayDropProps(key)}
               >
                 <div className="cell-num">{d.getDate()}</div>
@@ -320,53 +465,115 @@ export default function CalendarView() {
         </div>
       )}
 
-      {(mode === "week" || mode === "workweek" || mode === "day") && (
-        <div
-          className="week-grid"
-          style={{
-            gridTemplateColumns: `repeat(${
-              mode === "week" ? 7 : mode === "workweek" ? 5 : 1
-            }, 1fr)`,
-          }}
-        >
-          {Array.from({ length: mode === "week" ? 7 : mode === "workweek" ? 5 : 1 }).map(
-            (_, i) => {
-              const d = addDays(range.start, i);
+      {isTimeGrid && (
+        <div className="time-grid" ref={gridRef} style={{ "--days": dayCount } as React.CSSProperties}>
+          {/* Dagkoppen (+ hele-dag-strook) blijven staan tijdens het scrollen. */}
+          <div className="tg-sticky">
+            <div className="tg-row tg-head">
+              <div className="tg-gutter" />
+              {days.map((d) => {
+                const key = ymd(d);
+                return (
+                  <div
+                    key={key}
+                    className={"tg-dayhead" + (key === today ? " today" : "")}
+                    onDoubleClick={() => setCreating({ date: key })}
+                  >
+                    <span className="dow">{weekdayNames[(d.getDay() + 6) % 7]}</span>
+                    <span className="week-num">{d.getDate()}</span>
+                  </div>
+                );
+              })}
+            </div>
+            {hasAllDay && (
+              <div className="tg-row tg-allday">
+                <div className="tg-gutter tg-allday-label">{t("allDay")}</div>
+                {days.map((d, i) => {
+                  const key = ymd(d);
+                  return (
+                    <div
+                      key={key}
+                      className={"tg-allday-cell" + (dropDay === key ? " drop-target" : "")}
+                      {...dayDropProps(key)}
+                    >
+                      {allDayRows[i].map((e) => (
+                        <button
+                          key={e.id}
+                          className="chip block"
+                          onClick={() => setDetail(e)}
+                          {...chipDragProps(e)}
+                        >
+                          {e.subject || "(-)"}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="tg-row tg-body" style={{ height: 24 * HOUR_H }}>
+            <div className="tg-gutter tg-hours">
+              {HOURS.map((h) => (
+                <div key={h} className="tg-hour">
+                  <span>{String(h).padStart(2, "0")}</span>
+                </div>
+              ))}
+            </div>
+            {days.map((d, i) => {
               const key = ymd(d);
-              const dayEvents = byDay.get(key) ?? [];
               return (
                 <div
                   key={key}
                   className={
-                    "week-col" +
+                    "tg-col" +
                     (key === today ? " today" : "") +
                     (dropDay === key ? " drop-target" : "")
                   }
                   {...dayDropProps(key)}
                 >
-                  <div className="week-head" onDoubleClick={() => setCreating(key)}>
-                    <span className="dow">{weekdayNames[(d.getDay() + 6) % 7]}</span>
-                    <span className="week-num">{d.getDate()}</span>
-                  </div>
-                  <div className="week-events">
-                    {dayEvents.map((e) => (
-                      <button
-                        key={e.id}
-                        className="chip block"
-                        onClick={() => setDetail(e)}
-                        {...chipDragProps(e)}
-                      >
-                        {!e.isAllDay && (
-                          <span className="chip-time">{timeOnly(e.start.dateTime)}</span>
-                        )}{" "}
-                        {e.subject || "(-)"}
-                      </button>
-                    ))}
-                  </div>
+                  {HOURS.map((h) => (
+                    <div
+                      key={h}
+                      className="tg-slot"
+                      // Dubbelklik op een uur: nieuwe afspraak op dat tijdstip.
+                      onDoubleClick={() =>
+                        setCreating({ date: key, time: `${String(h).padStart(2, "0")}:00` })
+                      }
+                    />
+                  ))}
+                  {key === today && (
+                    <div className="tg-now" style={{ top: (nowMin / 60) * HOUR_H }} />
+                  )}
+                  {dayLayouts[i].map((p) => (
+                    <button
+                      key={p.ev.id}
+                      className="tg-event"
+                      style={{
+                        top: p.top,
+                        height: p.height,
+                        left: `${p.left}%`,
+                        width: `${p.width}%`,
+                      }}
+                      onClick={() => setDetail(p.ev)}
+                      title={p.ev.subject || "(-)"}
+                      {...chipDragProps(p.ev)}
+                    >
+                      <span className="tg-event-time">{timeOnly(p.ev.start.dateTime)}</span>{" "}
+                      <span className="tg-event-title">{p.ev.subject || "(-)"}</span>
+                      {/* Locatie krijgt een eigen regel, dus alleen tonen als
+                          het blok minstens een uur hoog is; korter wordt het
+                          toch afgekapt. */}
+                      {p.height >= HOUR_H && p.ev.location?.displayName && (
+                        <span className="tg-event-loc">{p.ev.location.displayName}</span>
+                      )}
+                    </button>
+                  ))}
                 </div>
               );
-            }
-          )}
+            })}
+          </div>
         </div>
       )}
 
@@ -398,7 +605,8 @@ export default function CalendarView() {
 
       {creating && (
         <EventDialog
-          defaultDate={creating}
+          defaultDate={creating.date}
+          defaultStartTime={creating.time}
           onClose={() => setCreating(null)}
           onSaved={reload}
         />

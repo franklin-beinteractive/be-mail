@@ -3,7 +3,8 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-27 (issue #3: agendaweergave wordt onthouden;
+**Laatst bijgewerkt:** 2026-07-27 (issue #4: tijdgrid in dag/werkweek/week;
+issue #3: agendaweergave wordt onthouden;
 issue #2: externe afbeeldingen tonen werkt weer - ophalen loopt nu via de
 Rust-kern i.p.v. de webview, zie de bullets hieronder. Eerder: IMAP-accounts
 toegevoegd als tweede
@@ -16,6 +17,14 @@ dangerouslySetInnerHTML), toolbar opgeruimd, Ctrl+A selecteert alle mails)
 
 ## ✅ Af
 
+- **Tijdgrid in dag/werkweek/week (2026-07-27, issue #4)**: die weergaven
+  toonden per dag een platte lijst met chips, zonder tijd-as - je zag niet
+  wanneer of hoe lang iets duurde. Nu een Outlook-achtig rooster: uren links,
+  blokken op starttijd met de hoogte van de duur, overlappende afspraken naast
+  elkaar, een aparte strook voor hele-dag-afspraken, een rode "nu"-lijn en een
+  beginpositie bij de eerste afspraak van de periode. Dubbelklikken op een uur
+  opent een nieuwe afspraak op dat tijdstip (`EventDialog` kreeg daarvoor
+  `defaultStartTime`). De indeling zit in `layoutDay()` in `CalendarView.tsx`.
 - **Agendaweergave wordt onthouden (2026-07-27, issue #3)**: dag/werkweek/week/
   maand/lijst stond in lokale state van `CalendarView`, en dat component wordt
   ontkoppeld zodra je naar Mail gaat - de keuze sprong dus telkens terug naar

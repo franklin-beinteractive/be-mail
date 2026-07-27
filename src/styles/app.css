@@ -871,23 +871,114 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   white-space: nowrap;
 }
 .chip:hover { background: color-mix(in srgb, var(--accent) 28%, transparent); }
-.cell.drop-target, .week-col.drop-target { outline: 2px dashed var(--accent); outline-offset: -2px; }
+.cell.drop-target, .tg-allday-cell.drop-target { outline: 2px dashed var(--accent); outline-offset: -2px; }
 .chip.block { white-space: normal; }
 .chip-time { font-weight: 700; }
 .more { font-size: 0.72rem; color: var(--text-muted); padding-left: 4px; }
 
-.week-grid { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); overflow: auto; }
-.week-col { border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-.week-head {
-  text-align: center;
-  padding: 8px;
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
+/* Tijdgrid (dag/werkweek/week): uren links, afspraken op hun plek in de dag.
+   --hour-h moet gelijk blijven aan HOUR_H in CalendarView.tsx. */
+.time-grid {
+  --hour-h: 48px;
+  --gutter: 56px;
+  flex: 1;
+  overflow: auto;
+  position: relative;
 }
-.week-head .dow { border: none; }
+.tg-row {
+  display: grid;
+  grid-template-columns: var(--gutter) repeat(var(--days), minmax(0, 1fr));
+}
+/* Dagkoppen + hele-dag-strook blijven bovenaan staan tijdens het scrollen. */
+.tg-sticky { position: sticky; top: 0; z-index: 2; background: var(--bg); }
+.tg-head { border-bottom: 1px solid var(--border); }
+.tg-dayhead { text-align: center; padding: 8px; cursor: pointer; }
+.tg-dayhead .dow { border: none; }
 .week-num { display: block; font-size: 1.2rem; font-weight: 600; }
-.week-col.today .week-num { color: var(--accent); }
-.week-events { padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+.tg-dayhead.today .week-num { color: var(--accent); }
+
+.tg-allday { border-bottom: 1px solid var(--border); background: var(--bg-sunken); }
+.tg-allday-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  padding: 4px 6px;
+  text-align: right;
+}
+.tg-allday-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px;
+  min-height: 24px;
+  border-left: 1px solid var(--border);
+}
+
+.tg-gutter { border-right: 1px solid var(--border); }
+.tg-hours { position: relative; }
+.tg-hour {
+  height: var(--hour-h);
+  position: relative;
+  text-align: right;
+  padding-right: 6px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+/* Het label hoort bij de LIJN erboven, dus een halve regel omhoog. */
+.tg-hour span { position: relative; top: -0.55em; }
+.tg-hour:first-child span { visibility: hidden; }
+
+.tg-col { position: relative; border-left: 1px solid var(--border); }
+.tg-col.today { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+.tg-col.drop-target { outline: 2px dashed var(--accent); outline-offset: -2px; }
+.tg-slot { height: var(--hour-h); border-top: 1px solid var(--border); }
+/* Halfuurlijn: subtieler dan de uurlijn, net als in Outlook. */
+.tg-slot::after {
+  content: "";
+  display: block;
+  height: calc(var(--hour-h) / 2);
+  border-bottom: 1px dotted color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.tg-now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 2px solid var(--danger);
+  z-index: 1;
+  pointer-events: none;
+}
+.tg-now::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+.tg-event {
+  position: absolute;
+  z-index: 1;
+  overflow: hidden;
+  text-align: left;
+  padding: 1px 5px;
+  font-size: 0.76rem;
+  line-height: 1.25;
+  border: none;
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg));
+  color: var(--text);
+  cursor: pointer;
+  /* Smalle marge rechts zodat naast elkaar staande afspraken los ogen. */
+  box-shadow: inset -2px 0 0 var(--bg);
+}
+.tg-event:hover { background: color-mix(in srgb, var(--accent) 30%, var(--bg)); }
+.tg-event-time { font-weight: 700; }
+.tg-event-loc { display: block; color: var(--text-muted); }
 
 .agenda-list { flex: 1; overflow-y: auto; padding: 12px 16px; }
 .agenda-item {
