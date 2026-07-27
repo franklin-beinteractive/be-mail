@@ -69,6 +69,17 @@ afbeeldingen worden daarom na expliciete toestemming door de Rust-kern
 opgehaald (`commands::fetch_remote_image`) en als `data:`-URI ingevuld door
 `sanitizeEmail()` in `src/lib/format.ts`.
 
+### 6. Poort 1420 blijft op Windows soms bezet na een dev-sessie
+
+Vite draait met `strictPort: true` omdat `devUrl` in `tauri.conf.json` vast op
+`http://localhost:1420` staat: uitwijken naar een andere poort kan dus niet.
+Breekt een dev-sessie hard af, dan overleeft `node.exe` op Windows regelmatig
+het sluiten van de npm-wrapper en faalt de volgende start met *"Port 1420 is
+already in use"*. `scripts/free-dev-port.mjs` draait als npm-`predev` (dus ook
+via `tauri dev`) en ruimt zo'n achtergebleven **vite** op. Houdt iets anders de
+poort bezet, dan stopt het script daar bewust niets: het meldt wat het is en
+geeft exitcode 1.
+
 ## Werkwijze / voorkeuren
 
 - Houd project-specifieke Claude-config (dit bestand, skills, docs) **in de repo**,
