@@ -365,8 +365,7 @@ impl ImapClient {
         if let Some(d) = q.since.as_deref().and_then(imap_date) {
             crit.push(format!("SINCE {d}"));
         }
-        if let Some(d) = q.until.as_deref().and_then(|s| next_day(s)).as_deref().and_then(imap_date)
-        {
+        if let Some(d) = q.until.as_deref().and_then(next_day).as_deref().and_then(imap_date) {
             // BEFORE is exclusief; een dag erbij maakt de einddatum inclusief.
             crit.push(format!("BEFORE {d}"));
         }
