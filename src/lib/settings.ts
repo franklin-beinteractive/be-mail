@@ -5,6 +5,10 @@ import type { Lang } from "./i18n";
 
 export type Theme = "light" | "dark";
 
+/** Weergaven van de agenda, in de volgorde van de keuzeknoppen. */
+export const CALENDAR_VIEWS = ["day", "workweek", "week", "month", "list"] as const;
+export type CalendarViewMode = (typeof CALENDAR_VIEWS)[number];
+
 /** Handtekening. Nieuwe bewerkingen vullen `html` (wysiwyg, incl. afbeeldingen
  *  als data-URI); `text` is de oude platte-tekst-opslag en blijft de fallback. */
 export interface Signature {
@@ -110,6 +114,8 @@ export interface UiSettings {
   hiddenFolders: string[];
   /** Tooltips (uitleg bij knoppen) tonen; standaard aan. */
   showTooltips: boolean;
+  /** Laatst gekozen agendaweergave; onthouden over herstarts heen. */
+  calendarView: CalendarViewMode;
   /** Standaardopmaak voor uitgaande mail (opsteleditor + verzonden HTML). */
   composeFontFamily: string;
   composeFontSizePt: number;
@@ -187,6 +193,7 @@ export const defaultSettings: UiSettings = {
   collapsedAccounts: [],
   hiddenFolders: [],
   showTooltips: true,
+  calendarView: "month",
   composeFontFamily: "Calibri",
   composeFontSizePt: 11,
   composeFontColor: "#000000",

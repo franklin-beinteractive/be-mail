@@ -3,9 +3,10 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-27 (issue #2: externe afbeeldingen tonen werkt
-weer - ophalen loopt nu via de Rust-kern i.p.v. de webview, zie de bullet
-hieronder. Eerder: IMAP-accounts toegevoegd als tweede
+**Laatst bijgewerkt:** 2026-07-27 (issue #3: agendaweergave wordt onthouden;
+issue #2: externe afbeeldingen tonen werkt weer - ophalen loopt nu via de
+Rust-kern i.p.v. de webview, zie de bullets hieronder. Eerder: IMAP-accounts
+toegevoegd als tweede
 accounttype naast Office 365 - zie de bullet hieronder. Nog te doen: end-to-end
 verificatie op Windows met echte IMAP-/CalDAV-servers. Eerder: Instellingen ->
 E-mail: standaardopmaak voor uitgaande mail - lettertype, puntgrootte en
@@ -15,6 +16,12 @@ dangerouslySetInnerHTML), toolbar opgeruimd, Ctrl+A selecteert alle mails)
 
 ## ✅ Af
 
+- **Agendaweergave wordt onthouden (2026-07-27, issue #3)**: dag/werkweek/week/
+  maand/lijst stond in lokale state van `CalendarView`, en dat component wordt
+  ontkoppeld zodra je naar Mail gaat - de keuze sprong dus telkens terug naar
+  maand. Staat nu als `calendarView` in `UiSettings` (localStorage), naast de
+  andere onthouden UI-staat. Geverifieerd in de echte app: Week blijft staan na
+  Mail → Agenda en na een herstart.
 - **Externe afbeeldingen tonen (2026-07-27, issue #2)**: de knop "Externe
   afbeeldingen tonen" deed niets - de CSP van de webview
   (`img-src 'self' data: asset: blob:`) staat geen externe URL's toe, dus de

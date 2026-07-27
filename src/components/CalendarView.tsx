@@ -4,10 +4,9 @@ import { api } from "../lib/api";
 import { useApp } from "../lib/ctx";
 import type { CalendarEvent } from "../lib/types";
 import { timeOnly } from "../lib/format";
+import { CALENDAR_VIEWS, type CalendarViewMode as ViewMode } from "../lib/settings";
 import EventDialog from "./EventDialog";
 import { ChevronLeft, ChevronRight, CloseIcon, EditIcon, PlusIcon, TrashIcon } from "./Icons";
-
-type ViewMode = "month" | "week" | "workweek" | "day" | "list";
 
 function ymd(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -31,11 +30,17 @@ function addDays(d: Date, n: number): Date {
 }
 
 export default function CalendarView() {
-  const { t, settings, notify, confirm, capabilities } = useApp();
+  const { t, settings, setSettings, notify, confirm, capabilities } = useApp();
   // Actief account zonder agenda (bv. een IMAP-account zonder CalDAV): geen
   // events ophalen, lege staat tonen. Null = accounts nog niet geladen.
   const hasCalendar = capabilities ? capabilities.hasCalendar : true;
-  const [mode, setMode] = useState<ViewMode>("month");
+  // De weergave staat in de instellingen, niet in lokale state: dit component
+  // wordt ontkoppeld zodra je naar Mail gaat, en dan zou de keuze verdampen.
+  // Onbekende waarde (oude of handmatig aangepaste opslag) → terug naar maand.
+  const mode = CALENDAR_VIEWS.includes(settings.calendarView)
+    ? settings.calendarView
+    : "month";
+  const setMode = (m: ViewMode) => setSettings({ calendarView: m });
   const [anchor, setAnchor] = useState(() => new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [creating, setCreating] = useState<string | null>(null);
@@ -246,7 +251,7 @@ export default function CalendarView() {
         <h2 className="cal-title">{title}</h2>
         <span className="spacer" />
         <div className="seg">
-          {(["day", "workweek", "week", "month", "list"] as ViewMode[]).map((m) => (
+          {CALENDAR_VIEWS.map((m) => (
             <button
               key={m}
               className={"seg-btn" + (mode === m ? " active" : "")}
