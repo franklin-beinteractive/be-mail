@@ -839,6 +839,16 @@ fn sniff_image_mime(bytes: &[u8]) -> Option<&'static str> {
     None
 }
 
+/// Slaat een heel bericht op als .eml in de Downloads-map; geeft het pad terug.
+#[tauri::command]
+pub async fn download_message(message_id: String) -> Result<String, String> {
+    client()
+        .await?
+        .download_message(&message_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Downloadt een bijlage naar de Downloads-map; geeft het opgeslagen pad terug.
 #[tauri::command]
 pub async fn download_attachment(

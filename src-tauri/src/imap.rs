@@ -429,6 +429,17 @@ impl ImapClient {
         Ok(out)
     }
 
+    /// Slaat het hele bericht op als .eml in de Downloads-map. IMAP levert de
+    /// ruwe RFC822-bytes rechtstreeks, dus die gaan ongewijzigd naar het bestand.
+    pub async fn download_message(&self, message_id: &str) -> Result<String> {
+        let (mailbox, uidvalidity, uid) = parse_id(message_id)?;
+        let raw = self.fetch_raw(mailbox, uidvalidity, uid).await?;
+        let subject = mail_parser::MessageParser::default()
+            .parse(&raw[..])
+            .and_then(|p| p.subject().map(str::to_string));
+        crate::graph::write_eml(subject.as_deref(), &raw)
+    }
+
     pub async fn download_attachment(
         &self,
         message_id: &str,

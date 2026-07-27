@@ -538,6 +538,35 @@ impl GraphClient {
         Ok(path.to_string_lossy().into_owned())
     }
 
+    /// Slaat het hele bericht op als .eml (ruwe MIME) in de Downloads-map en
+    /// geeft het pad terug. Graph levert de MIME via `/$value`; .eml opent in
+    /// Outlook, Thunderbird en de meeste mailclients.
+    pub async fn download_message(&self, message_id: &str) -> Result<String> {
+        let subject: MessageSubject = self
+            .get_json(&format!("{BASE}/me/messages/{message_id}?$select=subject"))
+            .await
+            .unwrap_or(MessageSubject { subject: None });
+
+        let resp = self
+            .http
+            .get(format!("{BASE}/me/messages/{message_id}/$value"))
+            .bearer_auth(&self.token)
+            .send()
+            .await
+            .context("Netwerkfout richting Office 365")?;
+        let status = resp.status();
+        if !status.is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            bail!("Office 365 gaf een fout (HTTP {status}): {}", short(&text));
+        }
+        let bytes = resp
+            .bytes()
+            .await
+            .context("Kon het bericht niet lezen")?;
+
+        write_eml(subject.subject.as_deref(), &bytes)
+    }
+
     /// Inline (cid:) afbeeldingen van een bericht, met inhoud als base64.
     /// De HTML-body verwijst met `src="cid:<contentId>"` naar deze bijlagen;
     /// de frontend zet ze om naar data-URI's zodat ze echt zichtbaar zijn.
@@ -958,6 +987,26 @@ fn recurrence_json(rec: &crate::models::RecurrenceInput, start: &str) -> Option<
     };
 
     Some(json!({ "pattern": pattern, "range": range }))
+}
+
+/// Minimale projectie: alleen het onderwerp, voor de bestandsnaam van een .eml.
+#[derive(serde::Deserialize)]
+struct MessageSubject {
+    #[serde(default)]
+    subject: Option<String>,
+}
+
+/// Schrijft ruwe MIME als .eml in Downloads en geeft het pad terug. Gedeeld
+/// door Graph en IMAP zodat beide dezelfde naamgeving gebruiken.
+pub fn write_eml(subject: Option<&str>, bytes: &[u8]) -> Result<String> {
+    let dir = dirs::download_dir()
+        .ok_or_else(|| anyhow::anyhow!("Kon de Downloads-map niet vinden"))?;
+    let base = subject.map(str::trim).filter(|s| !s.is_empty()).unwrap_or("bericht");
+    // Lange onderwerpen afkappen: Windows-paden zijn begrensd.
+    let base: String = base.chars().take(80).collect();
+    let path = unique_path(&dir, &format!("{}.eml", sanitize_filename(&base)));
+    std::fs::write(&path, bytes).context("Kon het bericht niet opslaan in Downloads")?;
+    Ok(path.to_string_lossy().into_owned())
 }
 
 /// Haalt tekens uit een bestandsnaam die op Windows niet mogen (en padscheiders).

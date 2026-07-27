@@ -17,6 +17,12 @@ dangerouslySetInnerHTML), toolbar opgeruimd, Ctrl+A selecteert alle mails)
 
 ## ✅ Af
 
+- **Bericht opslaan als .eml (2026-07-27, issue #12)**: knop in de leesbalk
+  slaat het hele bericht (incl. headers en bijlagen) op in de Downloads-map.
+  `.eml` omdat dat de ruwe MIME is en in elke mailclient opent. Graph levert
+  die via `/$value`, IMAP via de bytes die er toch al zijn; beide schrijven via
+  dezelfde `write_eml()` zodat de naamgeving gelijk is (onderwerp, afgekapt op
+  80 tekens, met oplopend volgnummer bij dubbele namen).
 - **Conversatie als losse kaarten (2026-07-27, issue #11)**: het leesvenster
   toonde één bericht; de rest van de conversatie zag je alleen uitgeklapt in de
   lijst. Nu krijgt elk bericht uit de conversatie een eigen kaart, het geopende

@@ -212,6 +212,13 @@ impl Backend {
             Backend::Imap(i) => i.download_attachment(message_id, attachment_id).await,
         }
     }
+    /// Het hele bericht als .eml naar Downloads; geeft het opgeslagen pad terug.
+    pub async fn download_message(&self, message_id: &str) -> Result<String> {
+        match self {
+            Backend::Graph(g) => g.download_message(message_id).await,
+            Backend::Imap(i) => i.download_message(message_id).await,
+        }
+    }
     pub async fn inline_images(&self, message_id: &str) -> Result<Vec<InlineImage>> {
         match self {
             Backend::Graph(g) => g.inline_images(message_id).await,

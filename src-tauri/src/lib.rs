@@ -80,6 +80,7 @@ pub fn run() {
             commands::fetch_remote_image,
             commands::wake_snoozed,
             commands::download_attachment,
+            commands::download_message,
             commands::move_message_returning,
             commands::list_rules,
             commands::set_rule_enabled,

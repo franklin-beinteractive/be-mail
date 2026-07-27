@@ -41,6 +41,7 @@ import {
   ChevronRight,
   CloseIcon,
   ComposeIcon,
+  DownloadIcon,
   EditIcon,
   FlagIcon,
   FolderIcon,
@@ -713,6 +714,19 @@ export default function MailView({
       refreshFolderUnread(next ? -1 : 1);
     } catch (e) {
       notify(String(e), "error");
+    }
+  }
+
+  /** Hele bericht als .eml in Downloads (te openen in elke mailclient). */
+  async function downloadMessage(m: Message) {
+    setDownloading(m.id);
+    try {
+      const path = await api.downloadMessage(m.id);
+      notify(`${t("messageSaved")}: ${path}`, "info");
+    } catch (e) {
+      notify(String(e), "error");
+    } finally {
+      setDownloading(null);
     }
   }
 
@@ -1877,6 +1891,15 @@ export default function MailView({
                 title={tip("tipRead")}
               >
                 {selected.isRead ? <MailIcon size={18} /> : <MailOpenIcon size={18} />}
+              </button>
+              <button
+                className="btn"
+                onClick={() => void downloadMessage(selected)}
+                disabled={downloading === selected.id}
+                title={tip("tipDownloadMessage")}
+                aria-label={t("downloadMessage")}
+              >
+                <DownloadIcon size={18} />
               </button>
               <span className="snooze-wrap">
                 <button

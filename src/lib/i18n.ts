@@ -139,6 +139,9 @@ const dict = {
     hideFoldersHint:
       "Vink uit welke standaardmappen je niet in de mappenlijst wilt zien.",
     mailList: "Berichtenlijst",
+    downloadMessage: "Bericht opslaan",
+    messageSaved: "Bericht opgeslagen als .eml",
+    tipDownloadMessage: "Het hele bericht opslaan als .eml in Downloads",
     quickActions: "Snelle acties",
     quickActionsHint:
       "Knoppen boven een geopend bericht. Verplaatsen werkt op mapnaam, dus dezelfde knop werkt in elk account met die map.",
@@ -584,6 +587,9 @@ const dict = {
     hideFoldersHint:
       "Untick the default folders you don't want to see in the folder list.",
     mailList: "Message list",
+    downloadMessage: "Save message",
+    messageSaved: "Message saved as .eml",
+    tipDownloadMessage: "Save the whole message as .eml in Downloads",
     quickActions: "Quick actions",
     quickActionsHint:
       "Buttons above an open message. Moving works by folder name, so the same button works in any account that has that folder.",
