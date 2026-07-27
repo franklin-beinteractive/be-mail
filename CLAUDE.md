@@ -57,6 +57,29 @@ de oude map en faalt de build met *"failed to read plugin permissions … Het sy
 kan het opgegeven pad niet vinden (os error 3)"* (het pad verwijst dan naar de oude
 mapnaam). **Fix:** `cargo clean` in `src-tauri/`, daarna opnieuw bouwen.
 
+### 5. De webview laadt nooit zelf externe URL's (CSP)
+
+De CSP in `src-tauri/tauri.conf.json` staat bij `img-src` alleen `'self' data:
+asset: blob:` toe. Een `<img src="https://…">` in een e-mail blijft dus kapot,
+hoe goed de sanitizer ook meewerkt - dat was de oorzaak van issue #2. Verruim de
+CSP **niet**: dan zou een tracking-pixel (ook via `background`-attributen en
+`url(...)` in inline styles, die de "afbeeldingen tonen"-knop omzeilen) direct
+het IP-adres, de user-agent en cookies van de gebruiker zien. Externe
+afbeeldingen worden daarom na expliciete toestemming door de Rust-kern
+opgehaald (`commands::fetch_remote_image`) en als `data:`-URI ingevuld door
+`sanitizeEmail()` in `src/lib/format.ts`.
+
+### 6. Poort 1420 blijft op Windows soms bezet na een dev-sessie
+
+Vite draait met `strictPort: true` omdat `devUrl` in `tauri.conf.json` vast op
+`http://localhost:1420` staat: uitwijken naar een andere poort kan dus niet.
+Breekt een dev-sessie hard af, dan overleeft `node.exe` op Windows regelmatig
+het sluiten van de npm-wrapper en faalt de volgende start met *"Port 1420 is
+already in use"*. `scripts/free-dev-port.mjs` draait als npm-`predev` (dus ook
+via `tauri dev`) en ruimt zo'n achtergebleven **vite** op. Houdt iets anders de
+poort bezet, dan stopt het script daar bewust niets: het meldt wat het is en
+geeft exitcode 1.
+
 ## Werkwijze / voorkeuren
 
 - Houd project-specifieke Claude-config (dit bestand, skills, docs) **in de repo**,
@@ -66,3 +89,8 @@ mapnaam). **Fix:** `cargo clean` in `src-tauri/`, daarna opnieuw bouwen.
   afgeronde feature. (`docs/FEATURES.md` is de wensenlijst, geen status.)
 - **Geen em dash ("—") in teksten**: gebruik een gewone "-". Geldt voor
   UI-teksten, docs, comments en commit-berichten.
+- **Alles wat naar GitHub gaat is Engels**: commit-berichten, tags en
+  release-notes, `README.md`, issues, pull requests en labels. Ook als het
+  gesprek in het Nederlands gaat. Blijft Nederlands: de app-UI (via `i18n.ts`),
+  de code-comments en de interne werkdocumenten (`CLAUDE.md`, `docs/STATUS.md`,
+  `docs/FEATURES.md` en de overige docs).

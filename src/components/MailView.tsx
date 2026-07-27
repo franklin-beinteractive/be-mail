@@ -13,9 +13,11 @@ import type {
   Message,
   OutlookCategory,
   Recipient,
+  SearchQuery,
   StoredAccount,
 } from "../lib/types";
 import {
+  externalImageUrls,
   fileSize,
   htmlToText,
   longDateTime,
@@ -24,7 +26,13 @@ import {
   senderName,
   shortDate,
 } from "../lib/format";
-import { HIDEABLE_FOLDERS, signatureHtml, type AiSkill } from "../lib/settings";
+import {
+  HIDEABLE_FOLDERS,
+  signatureHtml,
+  type AiSkill,
+  type QuickAction,
+} from "../lib/settings";
+import Avatar from "./Avatar";
 import ComposeDialog, { type ComposeInitial } from "./ComposeDialog";
 import {
   ArchiveIcon,
@@ -34,8 +42,10 @@ import {
   ChevronRight,
   CloseIcon,
   ComposeIcon,
+  DownloadIcon,
   EditIcon,
   FlagIcon,
+  FolderIcon,
   ForwardIcon,
   MailIcon,
   MailOpenIcon,
@@ -46,6 +56,7 @@ import {
   ReplyIcon,
   SearchIcon,
   SpamIcon,
+  TagIcon,
   TrashIcon,
 } from "./Icons";
 
@@ -225,6 +236,9 @@ export default function MailView({
   const [searchResult, setSearchResult] = useState<Message[] | null>(null);
   // Zoekbereik: hele mailbox of alleen de geopende map.
   const [searchScope, setSearchScope] = useState<"all" | "folder">("all");
+  // Uitgebreid zoeken: paneel open/dicht en de ingevulde velden.
+  const [advOpen, setAdvOpen] = useState(false);
+  const [adv, setAdv] = useState<SearchQuery>({});
   // Volgnummer tegen verouderde zoekresultaten (trage respons die een
   // nieuwere overschrijft).
   const searchSeq = useRef(0);
@@ -237,6 +251,13 @@ export default function MailView({
   const [downloading, setDownloading] = useState<string | null>(null);
   // Ingesloten (cid:) afbeeldingen van het geopende bericht: cid → data-URI.
   const [inlineImages, setInlineImages] = useState<Record<string, string>>({});
+  // Externe afbeeldingen na toestemming: originele URL → data-URI (opgehaald
+  // door de Rust-kern; de webview mag externe URL's niet zelf laden).
+  const [remoteImages, setRemoteImages] = useState<Record<string, string>>({});
+  const [loadingImages, setLoadingImages] = useState(false);
+  // Volgnummer: laadt er nog een ouder bericht terwijl je doorklikt, dan mogen
+  // die afbeeldingen niet in het nieuwe bericht belanden.
+  const imageSeq = useRef(0);
   // Categorieën (kleurlabels): masterlijst van het postvak; leeg zonder
   // MailboxSettings-consent (de UI verschijnt dan gewoon niet).
   const [masterCats, setMasterCats] = useState<OutlookCategory[]>([]);
@@ -402,6 +423,36 @@ export default function MailView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, searchScope, folderId, isImap]);
 
+  /** Uitgebreid zoeken uitvoeren. Het snelle zoekvak wordt geleegd zodat de
+   *  twee elkaars resultaten niet overschrijven. */
+  async function runAdvancedSearch() {
+    const seq = ++searchSeq.current;
+    setSearch("");
+    setLoading(true);
+    try {
+      const folderScoped = searchScope === "folder" || isImap;
+      const page = await api.searchAdvanced(
+        adv,
+        50,
+        folderScoped ? folderId ?? undefined : undefined
+      );
+      if (seq !== searchSeq.current) return;
+      setSearchResult(page.messages);
+      setChecked(new Set());
+    } catch (e) {
+      if (seq === searchSeq.current) notify(String(e), "error");
+    } finally {
+      if (seq === searchSeq.current) setLoading(false);
+    }
+  }
+
+  function clearAdvancedSearch() {
+    setAdv({});
+    searchSeq.current++;
+    setSearchResult(null);
+    setChecked(new Set());
+  }
+
   async function loadPage(from: number, replace: boolean) {
     if (!folderId) return;
     setLoading(true);
@@ -428,6 +479,9 @@ export default function MailView({
     setAllowImages(false);
     setAttachments([]);
     setInlineImages({});
+    setRemoteImages({});
+    setLoadingImages(false);
+    imageSeq.current++;
     try {
       const full = await api.getMessage(m.id);
       if (full.isDraft) {
@@ -617,28 +671,30 @@ export default function MailView({
     }
   }
 
-  // Wekker: uitgestelde berichten van het actieve account terugzetten in
-  // Postvak IN (ongelezen) zodra hun tijd voorbij is.
+  // Wekker: uitgestelde berichten terugzetten in Postvak IN (ongelezen) zodra
+  // hun tijd voorbij is. Over ALLE accounts, niet alleen het actieve: anders
+  // blijft een bericht liggen zolang je in een ander account werkt, terwijl de
+  // gebruiker een tijdstip heeft afgesproken.
   useEffect(() => {
     if (!activeId) return;
     async function wake() {
       const all = loadSnoozes();
-      const due = all.filter(
-        (s) => s.accountId === activeId && new Date(s.due).getTime() <= Date.now()
-      );
+      const now = Date.now();
+      const due = all.filter((s) => new Date(s.due).getTime() <= now);
       if (!due.length) return;
+      // Meteen uit de lijst halen: anders probeert de volgende tik het opnieuw.
       saveSnoozes(all.filter((s) => !due.includes(s)));
-      let any = false;
+      let activeWoken = false;
       for (const s of due) {
         try {
-          const moved = await api.moveMessageReturning(s.id, "inbox");
-          await api.setRead(moved.id, false).catch(() => {});
-          any = true;
+          await api.wakeSnoozed(s.accountId, s.id);
+          if (s.accountId === activeId) activeWoken = true;
         } catch {
           // Bericht is intussen handmatig verplaatst/verwijderd: vergeten.
         }
       }
-      if (any) {
+      // Alleen het beeld verversen als er iets in het zichtbare account wijzigde.
+      if (activeWoken) {
         void reloadAllFolders();
         reloadListRef.current();
       }
@@ -695,6 +751,19 @@ export default function MailView({
     }
   }
 
+  /** Hele bericht als .eml in Downloads (te openen in elke mailclient). */
+  async function downloadMessage(m: Message) {
+    setDownloading(m.id);
+    try {
+      const path = await api.downloadMessage(m.id);
+      notify(`${t("messageSaved")}: ${path}`, "info");
+    } catch (e) {
+      notify(String(e), "error");
+    } finally {
+      setDownloading(null);
+    }
+  }
+
   async function remove(m: Message) {
     if (!(await confirm(t("confirmDelete")))) return;
     try {
@@ -709,6 +778,36 @@ export default function MailView({
     try {
       await api.archiveMessage(m.id);
       dropFromLists(m.id);
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  /** Snelle actie uit de instellingen op het geopende bericht toepassen:
+   *  verplaatsen naar een map of een categorie toekennen. */
+  async function runQuickAction(m: Message, qa: QuickAction) {
+    if (qa.kind === "category") {
+      // Categorieën bestaan alleen in Office 365; bij IMAP is er niets te zetten.
+      if (isImap) {
+        notify(t("quickActionNoCategories"), "error");
+        return;
+      }
+      await toggleCategory(m, qa.target);
+      return;
+    }
+    const target = folders.find(
+      (f) => (f.displayName ?? "").trim().toLowerCase() === qa.target.trim().toLowerCase()
+    );
+    if (!target) {
+      notify(`${t("quickActionNoFolder")}: ${qa.target}`, "error");
+      return;
+    }
+    if (target.id === folderId) return; // staat er al
+    try {
+      await api.moveMessage(m.id, target.id);
+      dropFromLists(m.id);
+      notify(`${t("move")} ✓`, "info");
+      void reloadAllFolders();
     } catch (e) {
       notify(String(e), "error");
     }
@@ -1125,6 +1224,21 @@ export default function MailView({
     return order;
   }, [shown]);
 
+  /** De conversatie rond het geopende bericht, oudste eerst. Bevat alleen wat
+   *  in de lijst geladen is: eigen antwoorden uit Verzonden items zitten er
+   *  dus niet bij zolang je in Postvak IN kijkt. */
+  const convo = useMemo(() => {
+    if (!selected) return [];
+    const key = selected.conversationId || selected.id;
+    const items = shown.filter((m) => (m.conversationId || m.id) === key);
+    if (!items.some((m) => m.id === selected.id)) items.push(selected);
+    return items.sort(
+      (a, b) =>
+        new Date(a.receivedDateTime ?? 0).getTime() -
+        new Date(b.receivedDateTime ?? 0).getTime()
+    );
+  }, [selected, shown]);
+
   function toggleThread(key: string) {
     setExpandedThreads((prev) => {
       const next = new Set(prev);
@@ -1140,13 +1254,53 @@ export default function MailView({
       return `<pre class="plain">${selected.body.content
         .replace(/</g, "&lt;")}</pre>`;
     }
-    return sanitizeEmail(selected.body.content, allowImages, inlineImages);
-  }, [selected, allowImages, inlineImages]);
+    return sanitizeEmail(
+      selected.body.content,
+      allowImages,
+      inlineImages,
+      remoteImages
+    );
+  }, [selected, allowImages, inlineImages, remoteImages]);
 
-  const externalBlocked =
-    selected?.body?.contentType?.toLowerCase() !== "text" &&
-    !allowImages &&
-    /<img[^>]+src=["']https?:/i.test(selected?.body?.content ?? "");
+  // Externe afbeeldingen in het geopende bericht (alleen HTML-berichten).
+  const externalUrls = useMemo(() => {
+    if (!selected?.body) return [];
+    if (selected.body.contentType?.toLowerCase() === "text") return [];
+    return externalImageUrls(selected.body.content);
+  }, [selected]);
+
+  const externalBlocked = !allowImages && externalUrls.length > 0;
+
+  /** Toestemming voor externe afbeeldingen: haal ze via de Rust-kern op en
+   *  vul ze als data-URI in. Rechtstreeks laden kan niet (CSP) en zou het
+   *  IP-adres en cookies van de gebruiker aan trackers prijsgeven. */
+  async function showExternalImages() {
+    setAllowImages(true);
+    if (externalUrls.length === 0) return;
+    const seq = ++imageSeq.current;
+    setLoadingImages(true);
+    // Handjevol tegelijk: een nieuwsbrief met 40 afbeeldingen mag de app niet
+    // laten stotteren, maar één voor één duurt te lang.
+    const queue = [...externalUrls];
+    const worker = async () => {
+      while (queue.length > 0 && seq === imageSeq.current) {
+        const url = queue.shift()!;
+        try {
+          const data = await api.fetchRemoteImage(url);
+          if (seq === imageSeq.current) {
+            // Per afbeelding invullen: ze verschijnen zo een voor een.
+            setRemoteImages((prev) => ({ ...prev, [url]: data }));
+          }
+        } catch {
+          // Kapotte of onbereikbare afbeelding: overslaan, geen foutmelding.
+        }
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(4, queue.length) }, worker)
+    );
+    if (seq === imageSeq.current) setLoadingImages(false);
+  }
 
   function onBodyClick(e: React.MouseEvent) {
     const a = (e.target as HTMLElement).closest("a");
@@ -1355,7 +1509,93 @@ export default function MailView({
               <CloseIcon size={16} />
             </button>
           )}
+          <button
+            type="button"
+            className={"search-adv-toggle" + (advOpen ? " active" : "")}
+            onClick={() => setAdvOpen((v) => !v)}
+            title={tip("advancedSearch")}
+            aria-label={t("advancedSearch")}
+            aria-expanded={advOpen}
+          >
+            <ChevronDown size={16} />
+          </button>
         </div>
+        {advOpen && (
+          <div className="search-adv">
+            {(
+              [
+                ["from", t("from")],
+                ["to", t("to")],
+                ["cc", "CC"],
+                ["subject", t("subject")],
+                ["text", t("keywords")],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="adv-row">
+                <span>{label}</span>
+                <input
+                  value={adv[key] ?? ""}
+                  onChange={(e) => setAdv((p) => ({ ...p, [key]: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void runAdvancedSearch();
+                  }}
+                />
+              </label>
+            ))}
+            <label className="adv-row">
+              <span>{t("date")}</span>
+              <span className="adv-dates">
+                <input
+                  type="date"
+                  value={adv.since ?? ""}
+                  onChange={(e) => setAdv((p) => ({ ...p, since: e.target.value }))}
+                />
+                <input
+                  type="date"
+                  value={adv.until ?? ""}
+                  onChange={(e) => setAdv((p) => ({ ...p, until: e.target.value }))}
+                />
+              </span>
+            </label>
+            <label className="adv-row">
+              <span>{t("readState")}</span>
+              <select
+                value={adv.isRead == null ? "" : adv.isRead ? "read" : "unread"}
+                onChange={(e) =>
+                  setAdv((p) => ({
+                    ...p,
+                    isRead: e.target.value === "" ? null : e.target.value === "read",
+                  }))
+                }
+              >
+                <option value="">{t("all")}</option>
+                <option value="read">{t("markRead")}</option>
+                <option value="unread">{t("markUnread")}</option>
+              </select>
+            </label>
+            {/* IMAP kent geen zoekcriterium voor bijlagen; dan niet aanbieden. */}
+            {!isImap && (
+              <label className="adv-row">
+                <span>{t("attachments")}</span>
+                <input
+                  type="checkbox"
+                  checked={adv.hasAttachments ?? false}
+                  onChange={(e) =>
+                    setAdv((p) => ({ ...p, hasAttachments: e.target.checked }))
+                  }
+                />
+              </label>
+            )}
+            <div className="adv-buttons">
+              <button className="btn primary" onClick={() => void runAdvancedSearch()}>
+                {t("searchNow")}
+              </button>
+              <button className="btn" onClick={clearAdvancedSearch}>
+                {t("clearFilters")}
+              </button>
+            </div>
+          </div>
+        )}
         {search.trim() !== "" && (
           <div className="search-scope">
             <div className="seg">
@@ -1494,6 +1734,13 @@ export default function MailView({
                   onChange={(e) => toggleCheck(m.id, e.target.checked)}
                   aria-label={m.subject ?? ""}
                 />
+                {settings.listShowAvatar && (
+                  <Avatar
+                    name={senderName(m.from?.emailAddress)}
+                    address={senderAddress(m.from?.emailAddress)}
+                    size={30}
+                  />
+                )}
                 <div className="msg-main">
                   <div className="msg-top">
                     <span className="msg-from">
@@ -1551,6 +1798,56 @@ export default function MailView({
                   {settings.listShowPreview && (
                     <div className="msg-preview">{m.bodyPreview}</div>
                   )}
+                </div>
+                {/* Contextacties bij hover (en bij toetsenbordfocus), zoals
+                    Outlook. stopPropagation: een klik hierop mag het bericht
+                    niet openen. */}
+                <div className="msg-actions">
+                  {[
+                    {
+                      key: "archive",
+                      label: t("archive"),
+                      hint: tip("tipArchive"),
+                      icon: <ArchiveIcon size={16} />,
+                      run: () => void archive(m),
+                    },
+                    {
+                      key: "read",
+                      label: m.isRead ? t("markUnread") : t("markRead"),
+                      hint: tip(m.isRead ? "markUnread" : "markRead"),
+                      icon: m.isRead ? <MailIcon size={16} /> : <MailOpenIcon size={16} />,
+                      run: () => void toggleRead(m),
+                    },
+                    {
+                      key: "flag",
+                      label: t("flag"),
+                      hint: tip("tipFlag"),
+                      icon: <FlagIcon size={16} />,
+                      run: () => void toggleFlag(m),
+                    },
+                    {
+                      key: "delete",
+                      label: t("delete"),
+                      hint: tip("tipDelete"),
+                      icon: <TrashIcon size={16} />,
+                      run: () => void remove(m),
+                    },
+                  ].map((a) => (
+                    <button
+                      key={a.key}
+                      className={"icon-btn" + (a.key === "delete" ? " danger" : "")}
+                      // hint volgt de tooltip-instelling; het label is er altijd
+                      // voor schermlezers.
+                      title={a.hint}
+                      aria-label={a.label}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        a.run();
+                      }}
+                    >
+                      {a.icon}
+                    </button>
+                  ))}
                 </div>
               </div>
             );
@@ -1640,6 +1937,24 @@ export default function MailView({
               >
                 <OpdrachtenIcon size={18} /> {t("maakOpdracht")}
               </button>
+              {/* Eigen snelle acties (Instellingen -> Snelle acties). */}
+              {settings.quickActions
+                .filter((qa) => !(isImap && qa.kind === "category"))
+                .map((qa) => (
+                  <button
+                    key={qa.id}
+                    className="btn"
+                    onClick={() => void runQuickAction(selected, qa)}
+                    title={
+                      qa.kind === "move"
+                        ? `${t("moveTo")}: ${qa.target}`
+                        : `${t("category")}: ${qa.target}`
+                    }
+                  >
+                    {qa.kind === "move" ? <FolderIcon size={18} /> : <TagIcon size={18} />}{" "}
+                    {qa.target}
+                  </button>
+                ))}
               {settings.aiSkills.length > 0 && (
                 <select
                   className="ai-reply"
@@ -1696,6 +2011,15 @@ export default function MailView({
                 title={tip("tipRead")}
               >
                 {selected.isRead ? <MailIcon size={18} /> : <MailOpenIcon size={18} />}
+              </button>
+              <button
+                className="btn"
+                onClick={() => void downloadMessage(selected)}
+                disabled={downloading === selected.id}
+                title={tip("tipDownloadMessage")}
+                aria-label={t("downloadMessage")}
+              >
+                <DownloadIcon size={18} />
               </button>
               <span className="snooze-wrap">
                 <button
@@ -1758,10 +2082,42 @@ export default function MailView({
         {!selected ? (
           <div className="reader-empty">{t("selectMessage")}</div>
         ) : (
-          <>
+          <div className="thread">
+            {/* Elk bericht uit de conversatie is een eigen kaart. Alleen het
+                geopende bericht toont de volledige inhoud; de rest staat
+                ingeklapt op volgorde van tijd (Outlook-stijl). */}
+            {convo.map((cm) =>
+              cm.id !== selected.id ? (
+                <button
+                  key={cm.id}
+                  className={"thread-card collapsed" + (cm.isRead ? "" : " unread")}
+                  onClick={() => openMessage(cm)}
+                >
+                  <Avatar
+                    name={senderName(cm.from?.emailAddress)}
+                    address={senderAddress(cm.from?.emailAddress)}
+                    size={28}
+                  />
+                  <span className="tc-main">
+                    <span className="tc-top">
+                      <span className="tc-from">{senderName(cm.from?.emailAddress)}</span>
+                      <span className="tc-date">
+                        {shortDate(cm.receivedDateTime, settings.lang)}
+                      </span>
+                    </span>
+                    <span className="tc-preview">{cm.bodyPreview}</span>
+                  </span>
+                </button>
+              ) : (
+                <article key={cm.id} className="thread-card open">
             <div className="reader-head">
               <h2>{selected.subject || "(geen onderwerp)"}</h2>
               <div className="reader-meta">
+                <Avatar
+                  name={senderName(selected.from?.emailAddress)}
+                  address={senderAddress(selected.from?.emailAddress)}
+                  size={40}
+                />
                 <div className="reader-meta-main">
                   <strong>{senderName(selected.from?.emailAddress)}</strong>{" "}
                   <span className="muted">
@@ -1858,17 +2214,21 @@ export default function MailView({
             {externalBlocked && (
               <div className="images-bar">
                 {t("externalImagesBlocked")}{" "}
-                <button className="btn ghost" onClick={() => setAllowImages(true)}>
+                <button className="btn ghost" onClick={showExternalImages}>
                   {t("showImages")}
                 </button>
               </div>
             )}
+            {loadingImages && <div className="images-bar">{t("loadingImages")}</div>}
             <div
               className="reader-body"
               onClick={onBodyClick}
               dangerouslySetInnerHTML={{ __html: bodyHtml }}
             />
-          </>
+                </article>
+              )
+            )}
+          </div>
         )}
           </>
         )}

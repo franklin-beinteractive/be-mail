@@ -5,6 +5,10 @@ import type { Lang } from "./i18n";
 
 export type Theme = "light" | "dark";
 
+/** Weergaven van de agenda, in de volgorde van de keuzeknoppen. */
+export const CALENDAR_VIEWS = ["day", "workweek", "week", "month", "list"] as const;
+export type CalendarViewMode = (typeof CALENDAR_VIEWS)[number];
+
 /** Handtekening. Nieuwe bewerkingen vullen `html` (wysiwyg, incl. afbeeldingen
  *  als data-URI); `text` is de oude platte-tekst-opslag en blijft de fallback. */
 export interface Signature {
@@ -29,6 +33,20 @@ export interface AiSkill {
   id: string;
   name: string;
   prompt: string;
+}
+
+/**
+ * Snelle actie boven een geopend bericht: in één klik verplaatsen naar een map
+ * of een categorie toekennen.
+ *
+ * `target` is de NAAM van de map/categorie, geen id: mapid's verschillen per
+ * account, dus met een naam blijft dezelfde knop werken als je van account
+ * wisselt. Bestaat de map niet in het actieve account, dan zegt de app dat.
+ */
+export interface QuickAction {
+  id: string;
+  kind: "move" | "category";
+  target: string;
 }
 
 /** Persoon voor het autoaanvullen op een opdracht-kaart (uitvoerder/planner). */
@@ -110,15 +128,20 @@ export interface UiSettings {
   hiddenFolders: string[];
   /** Tooltips (uitleg bij knoppen) tonen; standaard aan. */
   showTooltips: boolean;
+  /** Laatst gekozen agendaweergave; onthouden over herstarts heen. */
+  calendarView: CalendarViewMode;
   /** Standaardopmaak voor uitgaande mail (opsteleditor + verzonden HTML). */
   composeFontFamily: string;
   composeFontSizePt: number;
   composeFontColor: string;
   /** Zichtbare velden per bericht in de berichtenlijst. */
+  listShowAvatar: boolean;
   listShowName: boolean;
   listShowEmail: boolean;
   listShowSubject: boolean;
   listShowPreview: boolean;
+  /** Snelle acties boven een geopend bericht (verplaatsen/labelen). */
+  quickActions: QuickAction[];
   /** AI-antwoordstijlen (skills) voor Claude. */
   aiSkills: AiSkill[];
   /** Autoaanvullen-lijsten voor de opdrachten-module. */
@@ -187,13 +210,16 @@ export const defaultSettings: UiSettings = {
   collapsedAccounts: [],
   hiddenFolders: [],
   showTooltips: true,
+  calendarView: "month",
   composeFontFamily: "Calibri",
   composeFontSizePt: 11,
   composeFontColor: "#000000",
+  listShowAvatar: true,
   listShowName: true,
   listShowEmail: false,
   listShowSubject: true,
   listShowPreview: true,
+  quickActions: [],
   aiSkills: [
     {
       id: "zakelijk",

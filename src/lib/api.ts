@@ -21,6 +21,7 @@ import type {
   MessagesPage,
   OutlookCategory,
   Person,
+  SearchQuery,
 } from "./types";
 
 export const api = {
@@ -97,6 +98,14 @@ export const api = {
       top,
       folderId: folderId ?? null,
     }),
+  // Uitgebreid zoeken: losse velden; de Rust-kern vertaalt ze naar KQL (Graph)
+  // of IMAP SEARCH.
+  searchAdvanced: (query: SearchQuery, top = 50, folderId?: string) =>
+    invoke<MessagesPage>("search_advanced", {
+      query,
+      top,
+      folderId: folderId ?? null,
+    }),
   // Concepten: aanmaken geeft het bericht (met id) terug; verzenden van een
   // concept werkt eerst de velden/bijlagen bij zodat er geen duplicaat ontstaat.
   createDraft: (input: ComposeInput) =>
@@ -111,6 +120,16 @@ export const api = {
   // Inline (cid:) afbeeldingen met inhoud, voor weergave in het leesvenster.
   inlineImages: (messageId: string) =>
     invoke<InlineImage[]>("inline_images", { messageId }),
+  // Heel bericht opslaan als .eml in Downloads; geeft het pad terug.
+  downloadMessage: (messageId: string) =>
+    invoke<string>("download_message", { messageId }),
+  // Externe afbeelding ophalen als data-URI. De webview mag externe URL's niet
+  // zelf laden (CSP), dus dit loopt via de Rust-kern - pas na toestemming.
+  fetchRemoteImage: (url: string) => invoke<string>("fetch_remote_image", { url }),
+  // Uitgesteld bericht terugzetten in Postvak IN van een specifiek account
+  // (de wekker moet ook niet-actieve accounts kunnen wekken).
+  wakeSnoozed: (accountId: string, messageId: string) =>
+    invoke<void>("wake_snoozed", { accountId, messageId }),
   // Verplaatst en geeft het verplaatste bericht terug (nieuw id; voor snoozen).
   moveMessageReturning: (messageId: string, destinationId: string) =>
     invoke<Message>("move_message_returning", { messageId, destinationId }),

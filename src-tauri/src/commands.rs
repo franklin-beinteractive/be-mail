@@ -707,6 +707,170 @@ pub async fn inline_images(message_id: String) -> Result<Vec<InlineImage>, Strin
         .map_err(|e| e.to_string())
 }
 
+/// Zet een uitgesteld bericht terug in Postvak IN (ongelezen) van het opgegeven
+/// account.
+///
+/// Bewust met een expliciet account-id in plaats van het actieve account: de
+/// snooze-wekker moet berichten op tijd terugzetten, ook in een account waar je
+/// op dat moment niet in werkt. Verplaatsen + ongelezen zetten zit in één
+/// command zodat de wekker maar één keer hoeft te wachten op de verbinding.
+#[tauri::command]
+pub async fn wake_snoozed(account_id: String, message_id: String) -> Result<(), String> {
+    let cfg = require_config()?;
+    let acc = cfg
+        .accounts
+        .iter()
+        .find(|a| a.id == account_id)
+        .ok_or_else(|| "Onbekend account.".to_string())?;
+    let be = Backend::for_account(&cfg, acc).await?;
+    let moved = be
+        .move_message_returning(&message_id, "inbox")
+        .await
+        .map_err(|e| e.to_string())?;
+    // Ongelezen zetten is een nettigheid; mislukt dat, dan staat het bericht
+    // er nog steeds - geen reden om de wekker te laten falen.
+    let _ = be.set_read(&moved.id, false).await;
+    Ok(())
+}
+
+/// Haalt één externe (http/https) afbeelding op en geeft die terug als data-URI.
+///
+/// De webview mag door de CSP geen externe URL's laden (zie tauri.conf.json).
+/// Dat is bewust: laadde de webview ze zelf, dan zou een tracking-pixel het
+/// IP-adres, de user-agent en eventuele cookies van de gebruiker zien - ook via
+/// CSS-achtergronden, die de "afbeeldingen tonen"-knop omzeilen. Na expliciete
+/// toestemming haalt de Rust-kern de afbeelding op (zonder cookies, zonder
+/// referer) en gaat alleen de `data:`-URI naar de webview.
+#[tauri::command]
+pub async fn fetch_remote_image(url: String) -> Result<String, String> {
+    /// Ruime bovengrens; voorkomt dat één afbeelding het geheugen opvreet.
+    const MAX_BYTES: usize = 10 * 1024 * 1024;
+
+    let parsed = url::Url::parse(&url).map_err(|_| "Ongeldige afbeeldings-URL.".to_string())?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err("Alleen http(s)-afbeeldingen worden opgehaald.".into());
+    }
+
+    let http = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .redirect(reqwest::redirect::Policy::limited(5))
+        // Geen referer meesturen bij redirects: dat verklapt de bron-URL.
+        .referer(false)
+        .build()
+        .map_err(|e| format!("Kon geen HTTP-client maken: {e}"))?;
+
+    let resp = http
+        .get(parsed)
+        .header(reqwest::header::ACCEPT, "image/*")
+        // Sommige CDN's weigeren verzoeken zonder user-agent.
+        .header(reqwest::header::USER_AGENT, "Mozilla/5.0 (compatible; BE-Mail)")
+        .send()
+        .await
+        .map_err(|e| format!("Kon de afbeelding niet ophalen: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("De server gaf status {}.", resp.status()));
+    }
+
+    let header_mime = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.split(';').next().unwrap_or("").trim().to_ascii_lowercase())
+        .unwrap_or_default();
+
+    if let Some(len) = resp.content_length() {
+        if len as usize > MAX_BYTES {
+            return Err("De afbeelding is te groot.".into());
+        }
+    }
+
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("Kon de afbeelding niet lezen: {e}"))?;
+    if bytes.len() > MAX_BYTES {
+        return Err("De afbeelding is te groot.".into());
+    }
+
+    // Alleen echte afbeeldingen doorlaten: een foutpagina of ander bestand mag
+    // nooit als data-URI in het leesvenster belanden.
+    let mime = if header_mime.starts_with("image/") {
+        header_mime
+    } else {
+        sniff_image_mime(&bytes)
+            .ok_or_else(|| "Dit is geen afbeelding.".to_string())?
+            .to_string()
+    };
+
+    use base64::Engine as _;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    Ok(format!("data:{mime};base64,{b64}"))
+}
+
+/// Herkent het afbeeldingstype aan de magic bytes (als de server geen of een
+/// verkeerd Content-Type meestuurt). `None` = geen herkenbare afbeelding.
+fn sniff_image_mime(bytes: &[u8]) -> Option<&'static str> {
+    let b = bytes;
+    if b.starts_with(b"\x89PNG\r\n\x1a\n") {
+        return Some("image/png");
+    }
+    if b.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        return Some("image/jpeg");
+    }
+    if b.starts_with(b"GIF87a") || b.starts_with(b"GIF89a") {
+        return Some("image/gif");
+    }
+    if b.len() > 12 && b.starts_with(b"RIFF") && &b[8..12] == b"WEBP" {
+        return Some("image/webp");
+    }
+    if b.starts_with(b"BM") {
+        return Some("image/bmp");
+    }
+    if b.starts_with(&[0x00, 0x00, 0x01, 0x00]) {
+        return Some("image/x-icon");
+    }
+    // SVG: tekstformaat, dus op de eerste niet-witruimte-tekens kijken.
+    let head = String::from_utf8_lossy(&b[..b.len().min(256)]);
+    let head = head.trim_start();
+    if head.starts_with("<svg") || (head.starts_with("<?xml") && head.contains("<svg")) {
+        return Some("image/svg+xml");
+    }
+    None
+}
+
+/// Uitgebreid zoeken (losse velden). Een leeg formulier geeft niets terug in
+/// plaats van de hele mailbox.
+#[tauri::command]
+pub async fn search_advanced(
+    query: SearchQuery,
+    top: Option<u32>,
+    folder_id: Option<String>,
+) -> Result<MessagesPage, String> {
+    if query.is_empty() {
+        return Ok(MessagesPage {
+            messages: Vec::new(),
+            has_more: false,
+            from_cache: false,
+        });
+    }
+    client()
+        .await?
+        .search_advanced(&query, top.unwrap_or(50), folder_id.as_deref())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Slaat een heel bericht op als .eml in de Downloads-map; geeft het pad terug.
+#[tauri::command]
+pub async fn download_message(message_id: String) -> Result<String, String> {
+    client()
+        .await?
+        .download_message(&message_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Downloadt een bijlage naar de Downloads-map; geeft het opgeslagen pad terug.
 #[tauri::command]
 pub async fn download_attachment(
@@ -823,4 +987,33 @@ pub async fn search_people(query: String) -> Result<Vec<Person>, String> {
 #[tauri::command]
 pub async fn delete_event(id: String) -> Result<(), String> {
     calendar().await?.delete_event(&id).await.map_err(|e| e.to_string())
+}
+
+// =====================================================================
+// Tests
+// =====================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sniff_herkent_afbeeldingen() {
+        assert_eq!(sniff_image_mime(b"\x89PNG\r\n\x1a\nrest"), Some("image/png"));
+        assert_eq!(sniff_image_mime(&[0xFF, 0xD8, 0xFF, 0xE0]), Some("image/jpeg"));
+        assert_eq!(sniff_image_mime(b"GIF89a..."), Some("image/gif"));
+        assert_eq!(sniff_image_mime(b"RIFF....WEBPVP8 "), Some("image/webp"));
+        assert_eq!(sniff_image_mime(b"  <svg xmlns=\"...\">"), Some("image/svg+xml"));
+        // Een foutpagina of ander bestand mag nooit als afbeelding doorgaan.
+        assert_eq!(sniff_image_mime(b"<!doctype html><html>"), None);
+        assert_eq!(sniff_image_mime(b""), None);
+    }
+
+    #[tokio::test]
+    async fn weigert_niet_http_schemas() {
+        // Geen file:// of javascript: - alleen echt externe afbeeldingen.
+        assert!(fetch_remote_image("file:///C:/geheim.txt".into()).await.is_err());
+        assert!(fetch_remote_image("javascript:alert(1)".into()).await.is_err());
+        assert!(fetch_remote_image("niet eens een url".into()).await.is_err());
+    }
 }

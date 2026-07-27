@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Simpele, snelle en veilige e-mail- en agenda-client voor Office 365 (Microsoft Graph).",
   "scripts": {
+    "predev": "node scripts/free-dev-port.mjs 1420",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",

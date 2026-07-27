@@ -19,6 +19,7 @@ import {
   type AiSkill,
   type OpdrachtKlantContact,
   type OpdrachtPersoon,
+  type QuickAction,
   type Signature,
 } from "../lib/settings";
 import type {
@@ -79,6 +80,35 @@ export default function SettingsView({
   // en het invoerveld voor een nieuwe waarde.
   const [aiKeySet, setAiKeySet] = useState(false);
   const [aiKeyInput, setAiKeyInput] = useState("");
+  // Keuzelijsten voor de snelle acties: mappen en categorieën van het actieve
+  // account. Falen mag niet blokkeren; dan blijft de lijst leeg.
+  const [folderNames, setFolderNames] = useState<string[]>([]);
+  const [categoryNames, setCategoryNames] = useState<string[]>([]);
+
+  function patchQuickAction(id: string, patch: Partial<QuickAction>) {
+    setSettings({
+      quickActions: settings.quickActions.map((x) =>
+        x.id === id ? { ...x, ...patch } : x
+      ),
+    });
+  }
+
+  useEffect(() => {
+    api
+      .listFolders()
+      .then((fs) =>
+        setFolderNames(
+          [...new Set(fs.map((f) => (f.displayName ?? "").trim()).filter(Boolean))].sort(
+            (a, b) => a.localeCompare(b)
+          )
+        )
+      )
+      .catch(() => setFolderNames([]));
+    api
+      .listCategories()
+      .then((cs) => setCategoryNames(cs.map((c) => c.displayName ?? "").filter(Boolean)))
+      .catch(() => setCategoryNames([]));
+  }, [accInfo.active]);
 
   useEffect(() => {
     api
@@ -654,10 +684,66 @@ export default function SettingsView({
       </section>
 
       <section className="settings-block">
+        <h2>{t("quickActions")}</h2>
+        <p className="muted small">{t("quickActionsHint")}</p>
+        {settings.quickActions.map((qa) => (
+          <div key={qa.id} className="setting-row">
+            <select
+              value={qa.kind}
+              onChange={(e) =>
+                patchQuickAction(qa.id, {
+                  kind: e.target.value as QuickAction["kind"],
+                  target: "",
+                })
+              }
+            >
+              <option value="move">{t("moveTo")}</option>
+              <option value="category">{t("category")}</option>
+            </select>
+            <select
+              value={qa.target}
+              onChange={(e) => patchQuickAction(qa.id, { target: e.target.value })}
+            >
+              <option value="">{t("choose")}…</option>
+              {(qa.kind === "move" ? folderNames : categoryNames).map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+            <button
+              className="btn danger"
+              onClick={() =>
+                setSettings({
+                  quickActions: settings.quickActions.filter((x) => x.id !== qa.id),
+                })
+              }
+            >
+              {t("delete")}
+            </button>
+          </div>
+        ))}
+        <button
+          className="btn"
+          onClick={() =>
+            setSettings({
+              quickActions: [
+                ...settings.quickActions,
+                { id: `qa${Date.now()}`, kind: "move", target: "" },
+              ],
+            })
+          }
+        >
+          + {t("add")}
+        </button>
+      </section>
+
+      <section className="settings-block">
         <h2>{t("mailList")}</h2>
         <p className="muted small">{t("mailListHint")}</p>
         {(
           [
+            ["listShowAvatar", t("listFieldAvatar")],
             ["listShowName", t("listFieldName")],
             ["listShowEmail", t("listFieldEmail")],
             ["listShowSubject", t("listFieldSubject")],

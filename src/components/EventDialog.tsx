@@ -9,11 +9,13 @@ type RepeatChoice = "none" | RecurrenceInput["frequency"];
 
 export default function EventDialog({
   defaultDate,
+  defaultStartTime,
   event,
   onClose,
   onSaved,
 }: {
   defaultDate: string; // "YYYY-MM-DD"
+  defaultStartTime?: string; // "HH:MM"; komt van een dubbelklik in het tijdgrid
   event?: CalendarEvent | null; // indien gezet: bewerkmodus
   onClose: () => void;
   onSaved: () => void;
@@ -26,10 +28,16 @@ export default function EventDialog({
   const [subject, setSubject] = useState(event?.subject ?? "");
   const [date, setDate] = useState(event ? event.start.dateTime.slice(0, 10) : defaultDate);
   const [startTime, setStartTime] = useState(
-    event && !event.isAllDay ? event.start.dateTime.slice(11, 16) : "09:00"
+    event && !event.isAllDay
+      ? event.start.dateTime.slice(11, 16)
+      : defaultStartTime ?? "09:00"
   );
   const [endTime, setEndTime] = useState(
-    event && !event.isAllDay ? event.end.dateTime.slice(11, 16) : "10:00"
+    event && !event.isAllDay
+      ? event.end.dateTime.slice(11, 16)
+      : defaultStartTime
+      ? plusHour(defaultStartTime)
+      : "10:00"
   );
   const [allDay, setAllDay] = useState(event?.isAllDay ?? false);
   const [location, setLocation] = useState(event?.location?.displayName ?? "");
@@ -288,4 +296,11 @@ function nextDay(date: string): string {
   const d = new Date(date + "T00:00:00");
   d.setDate(d.getDate() + 1);
   return d.toISOString().slice(0, 10);
+}
+
+/** "09:00" -> "10:00"; 23:00 blijft binnen de dag ("23:59"). */
+function plusHour(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  if (h >= 23) return "23:59";
+  return `${String(h + 1).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }

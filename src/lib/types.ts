@@ -247,6 +247,21 @@ export interface CalendarEvent {
   isCancelled?: boolean | null;
 }
 
+/** Velden van het uitgebreide zoekformulier; alles optioneel.
+ *  `isRead`: null = alles, true = alleen gelezen, false = alleen ongelezen. */
+export interface SearchQuery {
+  text?: string;
+  from?: string;
+  to?: string;
+  cc?: string;
+  subject?: string;
+  /** "JJJJ-MM-DD", beide grenzen inclusief. */
+  since?: string;
+  until?: string;
+  isRead?: boolean | null;
+  hasAttachments?: boolean;
+}
+
 export interface ComposeInput {
   to: string[];
   cc: string[];

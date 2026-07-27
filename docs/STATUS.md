@@ -3,16 +3,101 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-13 (IMAP-accounts toegevoegd als tweede
-accounttype naast Office 365 - zie de bullet hieronder. Nog te doen: end-to-end
-verificatie op Windows met echte IMAP-/CalDAV-servers. Eerder: Instellingen ->
-E-mail: standaardopmaak voor uitgaande mail - lettertype, puntgrootte en
-tekstkleur; zichtbaar in de opsteleditor (witte ondergrond, WYSIWYG) en
-meegestuurd in de verzonden HTML; typen-in-editor-bugfix (React 19/
-dangerouslySetInnerHTML), toolbar opgeruimd, Ctrl+A selecteert alle mails)
+**Laatst bijgewerkt:** 2026-07-27. Deze ronde: de GitHub-issues #2, #3, #4, #6,
+#7, #8, #10, #11, #12 en #13 opgelost, elk in een eigen commit (zie de bullets
+hieronder voor wat er per issue veranderde).
+
+De opmaak van #6, #7, #10, #11 en #13 is nagelopen in een browser met de
+Tauri-IPC afgevangen door nepdata; daarbij kwamen twee foutjes in het
+zoekformulier boven water (tweede datumveld liep buiten de kolom, knop erfde de
+placeholder-tekst "Zoeken..."), beide hersteld.
+
+Daarna in de draaiende app tegen de echte Graph-API bevestigd: het uitgebreide
+zoeken (#13) met `from` + `hasAttachment` + `received>=` gecombineerd, en het
+opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
+
+**Nog te doen / open punten**
+- Overlappende afspraken (naast elkaar) en de hele-dag-strook van het tijdgrid
+  (#4): in de agenda staat geen data die dit uitlokt. De indeling is wel
+  unit-getest; visueel bevestigen vraagt twee tijdelijke testafspraken.
+- Snooze die een niet-actief account wekt (#8): er is maar één account
+  gekoppeld, dus het scenario is niet na te spelen.
+- End-to-end verificatie op Windows met echte IMAP-/CalDAV-servers (staat al
+  langer open, sinds de IMAP-accounts).
 
 ## ✅ Af
 
+- **Uitgebreid zoeken (2026-07-27, issue #13)**: pijltje naast het zoekvak
+  klapt een formulier open met Van, Aan, CC, Onderwerp, Trefwoorden, datum van/
+  tot, leesstatus en "heeft bijlagen" - zoals het Outlook-paneel uit de issue.
+  De velden gaan **gestructureerd** naar de kern (`SearchQuery`), niet als
+  kant-en-klare zoekstring: Graph vertaalt naar KQL (`from:…  AND received>=…`),
+  IMAP naar SEARCH-criteria (`FROM "…" SINCE 1-Jan-2026`). Zoeken op bijlagen
+  kan IMAP niet (geen criterium daarvoor); dat vinkje verschijnt daar niet.
+  Einddatum is inclusief, ook bij IMAP (BEFORE is exclusief, dus +1 dag).
+- **Bericht opslaan als .eml (2026-07-27, issue #12)**: knop in de leesbalk
+  slaat het hele bericht (incl. headers en bijlagen) op in de Downloads-map.
+  `.eml` omdat dat de ruwe MIME is en in elke mailclient opent. Graph levert
+  die via `/$value`, IMAP via de bytes die er toch al zijn; beide schrijven via
+  dezelfde `write_eml()` zodat de naamgeving gelijk is (onderwerp, afgekapt op
+  80 tekens, met oplopend volgnummer bij dubbele namen).
+- **Conversatie als losse kaarten (2026-07-27, issue #11)**: het leesvenster
+  toonde één bericht; de rest van de conversatie zag je alleen uitgeklapt in de
+  lijst. Nu krijgt elk bericht uit de conversatie een eigen kaart, het geopende
+  volledig en de andere ingeklapt op één regel (avatar, afzender, datum,
+  voorbeeld); klikken opent zo'n bericht. Het scrollgebied is nu `.thread` in
+  plaats van `.reader-body`. **Beperking:** de conversatie komt uit de geladen
+  lijst, dus eigen antwoorden uit Verzonden items zitten er niet bij zolang je
+  in Postvak IN kijkt. Cross-folder ophalen kan met een Graph-filter op
+  `conversationId`, maar is bewust niet in deze stap meegenomen.
+- **Hover-acties in de berichtenlijst (2026-07-27, issue #10)**: bij hover (en
+  bij toetsenbordfocus) verschijnen rechts in de rij vier knoppen: archiveren,
+  gelezen/ongelezen, vlag en verwijderen. Ze liggen als overlay over de datum,
+  zodat de rij niet verspringt. Verwijderen vraagt bevestiging, net als elders.
+- **Snooze wekt nu ook niet-actieve accounts (2026-07-27, issue #8)**: het
+  uitstellen zelf bestond al (later vandaag / morgenochtend / volgende week +
+  eigen datum en tijd), maar de wekker keek alleen naar het **actieve** account.
+  Wie in account B werkte, kreeg een uitgesteld bericht uit account A niet terug
+  op het afgesproken moment. De wekker loopt nu over alle accounts via het
+  nieuwe command `wake_snoozed` (expliciet account-id, verplaatst naar Postvak
+  IN en zet ongelezen); het beeld ververst alleen als het actieve account
+  wijzigde.
+- **Snelle acties (2026-07-27, issue #7)**: eigen knoppen boven een geopend
+  bericht, in te stellen via Instellingen -> E-mail -> Snelle acties. Twee
+  soorten: verplaatsen naar een map en een categorie toekennen. De actie
+  bewaart de **naam** van de map/categorie, niet het id: mapid's verschillen
+  per account, dus zo werkt dezelfde knop in elk account dat die map heeft
+  (bestaat hij niet, dan zegt de app dat). Categorie-acties verbergen zich bij
+  IMAP-accounts, want die kennen geen categorieën.
+- **Afzender-avatars (2026-07-27, issue #6)**: rond bolletje met initialen en
+  een vaste kleur per afzender, in de berichtenlijst en boven een geopend
+  bericht. Uit te zetten via Instellingen -> Berichtenlijst. Bewust geen foto's
+  uit Graph: `/users/{id}/photo` vraagt `User.ReadBasic.All` (tenant-brede admin
+  consent) en werkt niet voor externe afzenders of IMAP-accounts. Wil je toch
+  echte foto's, dan is dat een aparte beslissing over die scope.
+- **Tijdgrid in dag/werkweek/week (2026-07-27, issue #4)**: die weergaven
+  toonden per dag een platte lijst met chips, zonder tijd-as - je zag niet
+  wanneer of hoe lang iets duurde. Nu een Outlook-achtig rooster: uren links,
+  blokken op starttijd met de hoogte van de duur, overlappende afspraken naast
+  elkaar, een aparte strook voor hele-dag-afspraken, een rode "nu"-lijn en een
+  beginpositie bij de eerste afspraak van de periode. Dubbelklikken op een uur
+  opent een nieuwe afspraak op dat tijdstip (`EventDialog` kreeg daarvoor
+  `defaultStartTime`). De indeling zit in `layoutDay()` in `CalendarView.tsx`.
+- **Agendaweergave wordt onthouden (2026-07-27, issue #3)**: dag/werkweek/week/
+  maand/lijst stond in lokale state van `CalendarView`, en dat component wordt
+  ontkoppeld zodra je naar Mail gaat - de keuze sprong dus telkens terug naar
+  maand. Staat nu als `calendarView` in `UiSettings` (localStorage), naast de
+  andere onthouden UI-staat. Geverifieerd in de echte app: Week blijft staan na
+  Mail → Agenda en na een herstart.
+- **Externe afbeeldingen tonen (2026-07-27, issue #2)**: de knop "Externe
+  afbeeldingen tonen" deed niets - de CSP van de webview
+  (`img-src 'self' data: asset: blob:`) staat geen externe URL's toe, dus de
+  afbeeldingen bleven kapot ook nadat de sanitizer ze doorliet. De CSP is
+  bewust **niet** verruimd: na toestemming haalt de Rust-kern de afbeeldingen op
+  (`fetch_remote_image`, zonder cookies/referer, max 10 MB, alleen echte
+  afbeeldingen) en vult de frontend ze als `data:`-URI in. Dekt nu ook
+  `srcset`, het legacy `background`-attribuut en `url(...)` in inline styles;
+  die konden de blokkade eerder omzeilen zodra de CSP het toeliet.
 - **IMAP-accounts (2026-07-13, issue #5)**: naast Office 365 kun je nu ook
   IMAP-accounts koppelen. Een IMAP-account is een tweede account-TYPE dat in de
   bestaande multi-account-infrastructuur schuift.
