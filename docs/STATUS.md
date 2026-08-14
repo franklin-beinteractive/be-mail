@@ -3,9 +3,10 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-08-14: het tijdgrid van #4 nagelopen met nepdata;
-meerdaagse en over-middernacht-afspraken werden niet getoond (zie de bullet bij
-issue #4).
+**Laatst bijgewerkt:** 2026-08-14. Deze ronde: het tijdgrid van #4 nagelopen met
+nepdata (meerdaagse en over-middernacht-afspraken werden niet getoond), en de
+avatars van #6 aangevuld met echte profielfoto's uit Graph. Zie de bullets bij
+issue #4 en #6.
 
 **Ronde 2026-07-27:** de GitHub-issues #2, #3, #4, #6,
 #7, #8, #10, #11, #12 en #13 opgelost, elk in een eigen commit (zie de bullets
@@ -25,6 +26,10 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
   elkaar staande afspraken, hele-dag-balken, over middernacht heen). Wat nog
   ontbreekt is dezelfde controle in de draaiende app tegen de echte agenda:
   daar staat geen data die overlap of een meerdaagse afspraak uitlokt.
+- Profielfoto's (#6) zijn met nepdata in een browser bekeken (foto, terugval op
+  initialen, alle drie de maten). Tegen de echte Graph-API nog niet: dat vraagt
+  eerst consent voor `User.ReadBasic.All` in de tenant. Zonder die consent is de
+  app onveranderd - dan blijft alles initialen.
 - Snooze die een niet-actief account wekt (#8): er is maar één account
   gekoppeld, dus het scenario is niet na te spelen.
 - End-to-end verificatie op Windows met echte IMAP-/CalDAV-servers (staat al
@@ -76,10 +81,22 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
   IMAP-accounts, want die kennen geen categorieën.
 - **Afzender-avatars (2026-07-27, issue #6)**: rond bolletje met initialen en
   een vaste kleur per afzender, in de berichtenlijst en boven een geopend
-  bericht. Uit te zetten via Instellingen -> Berichtenlijst. Bewust geen foto's
-  uit Graph: `/users/{id}/photo` vraagt `User.ReadBasic.All` (tenant-brede admin
-  consent) en werkt niet voor externe afzenders of IMAP-accounts. Wil je toch
-  echte foto's, dan is dat een aparte beslissing over die scope.
+  bericht. Uit te zetten via Instellingen -> Berichtenlijst.
+  **Aanvulling (2026-08-14): nu ook de echte profielfoto**, zoals op de
+  schermafdruk in de issue. De foto komt via de Rust-kern uit Graph
+  (`/users/{adres}/photo`, kleinste rendition 64x64) en gaat als `data:`-URI
+  naar de webview; de CSP blijft dus dicht. Geen foto = gewoon de initialen,
+  net als in Outlook. Details:
+  - `User.ReadBasic.All` is als **hoogste, optionele scope-tier** toegevoegd in
+    `auth.rs` (`FULL_SCOPES`, met de oude volle set als tussentier). Weigert de
+    tenant de consent, dan zakt de upgrade netjes terug en verandert er niets.
+    Je eigen foto komt via `/me/photo` en werkt dus altijd (`User.Read`).
+  - Antwoorden worden gecachet in `cache.db` (tabel `photos`), inclusief "geen
+    foto": de lijst vraagt er één per zichtbare rij en zou Graph anders bij elk
+    scrollen raken. Foto een week geldig, "geen foto" een dag.
+  - In de webview dedupliceert `Avatar.tsx` per adres (module-cache +
+    lopende-aanvraag-map), zodat tien rijen van dezelfde afzender één call zijn.
+  - IMAP-accounts vragen niets op (geen adreslijst) en houden initialen.
 - **Tijdgrid in dag/werkweek/week (2026-07-27, issue #4)**: die weergaven
   toonden per dag een platte lijst met chips, zonder tijd-as - je zag niet
   wanneer of hoe lang iets duurde. Nu een Outlook-achtig rooster: uren links,

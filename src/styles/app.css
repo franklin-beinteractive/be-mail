@@ -450,6 +450,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   letter-spacing: 0.02em;
   user-select: none;
 }
+/* Photo variant: crop to the circle instead of squashing a non-square photo. */
+img.avatar { object-fit: cover; background: var(--bg-sunken); }
 .msg-top { display: flex; justify-content: space-between; gap: 8px; }
 .msg-from { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg-from-email { color: var(--text-muted); font-size: 0.82rem; font-weight: 400; }

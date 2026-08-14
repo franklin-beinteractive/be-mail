@@ -120,6 +120,10 @@ export const api = {
   // Inline (cid:) afbeeldingen met inhoud, voor weergave in het leesvenster.
   inlineImages: (messageId: string) =>
     invoke<InlineImage[]>("inline_images", { messageId }),
+  // Profile photo of a sender as a data-URI, or null when there is none
+  // (external sender, IMAP account, or no consent for User.ReadBasic.All).
+  // Cached in the core, so calling this per list row is cheap.
+  senderPhoto: (address: string) => invoke<string | null>("sender_photo", { address }),
   // Heel bericht opslaan als .eml in Downloads; geeft het pad terug.
   downloadMessage: (messageId: string) =>
     invoke<string>("download_message", { messageId }),

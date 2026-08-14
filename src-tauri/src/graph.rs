@@ -955,6 +955,61 @@ impl GraphClient {
     }
 
     /// Personen uit de organisatie/contacten zoeken (autoaanvullen genodigden).
+    /// Profile photo of a colleague as a `data:` URI, or None when there is
+    /// none. Never an error: a missing avatar is normal (an external sender is
+    /// not in the directory, and the optional `User.ReadBasic.All` scope may
+    /// not be consented to), and it must never break the message list.
+    pub async fn user_photo(&self, address: &str) -> Option<String> {
+        if !is_plain_address(address) {
+            return None;
+        }
+        self.photo_of(&format!("users/{address}")).await
+    }
+
+    /// Your own profile photo. Worth a separate call because `/me/photo` only
+    /// needs `User.Read`, which every session has: in a tenant without consent
+    /// for the directory scope your own messages still show a real photo.
+    pub async fn my_photo(&self) -> Option<String> {
+        self.photo_of("me").await
+    }
+
+    /// Asks for the 64x64 rendition first - a list avatar is 30px, while the
+    /// original photo is often several hundred kB. Not every mailbox has the
+    /// scaled versions, so the full-size photo is the fallback.
+    async fn photo_of(&self, owner: &str) -> Option<String> {
+        /// Upper bound; a profile photo is never this big and a runaway
+        /// response should not end up in the cache (or in the webview).
+        const MAX_BYTES: usize = 4 * 1024 * 1024;
+
+        for size in ["photos/64x64", "photo"] {
+            let resp = self
+                .http
+                .get(format!("{BASE}/{owner}/{size}/$value"))
+                .bearer_auth(&self.token)
+                .send()
+                .await
+                .ok()?;
+            if !resp.status().is_success() {
+                continue; // 404 = no photo (or no such rendition), 403 = no consent
+            }
+            let mime = resp
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok())
+                .filter(|v| v.starts_with("image/"))
+                .unwrap_or("image/jpeg")
+                .to_string();
+            let bytes = resp.bytes().await.ok()?;
+            if bytes.is_empty() || bytes.len() > MAX_BYTES {
+                return None;
+            }
+            use base64::Engine as _;
+            let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+            return Some(format!("data:{mime};base64,{b64}"));
+        }
+        None
+    }
+
     pub async fn search_people(&self, query: &str) -> Result<Vec<Person>> {
         let q = format!("\"{}\"", query.replace('"', " "));
         let resp = self
@@ -1118,6 +1173,18 @@ fn unique_path(dir: &std::path::Path, filename: &str) -> std::path::PathBuf {
     dir.join(filename)
 }
 
+/// Is this a plain e-mail address, safe to paste into a Graph URL path?
+/// Anything with a slash, a query marker or whitespace could steer the request
+/// at a different endpoint, so those are refused rather than escaped.
+fn is_plain_address(address: &str) -> bool {
+    !address.is_empty()
+        && address.len() <= 320
+        && address.contains('@')
+        && address
+            .chars()
+            .all(|c| !c.is_whitespace() && !c.is_control() && !"/\\?#%&'\"<>".contains(c))
+}
+
 /// Kort een lange (fout)tekst in zodat foutmeldingen leesbaar blijven.
 fn short(text: &str) -> String {
     let t = text.trim();
@@ -1145,5 +1212,16 @@ mod tests {
         assert_eq!(kql_value("Bart van Esch"), "'Bart van Esch'");
         // Dubbele quotes zouden de omhullende $search="..." breken.
         assert_eq!(kql_value("zeg \"hallo\""), "'zeg  hallo '");
+    }
+
+    #[test]
+    fn photo_address_must_be_a_plain_address() {
+        assert!(is_plain_address("bart@be-interactive.nl"));
+        assert!(is_plain_address("timo.de.winter+mail@x.nl"));
+        // No name part, no path tricks and no room for a second URL segment.
+        assert!(!is_plain_address("Bart van Esch"));
+        assert!(!is_plain_address("bart@x.nl/../me/messages"));
+        assert!(!is_plain_address("bart@x.nl?$select=id"));
+        assert!(!is_plain_address(""));
     }
 }
