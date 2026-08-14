@@ -69,8 +69,15 @@ interface SnoozeEntry {
   id: string; // bericht-id ná verplaatsing naar de Uitgesteld-map
   accountId: string;
   due: string; // ISO-tijdstip
+  /** Mislukte pogingen om het bericht terug te zetten. Een tik van de wekker
+   *  kan mislukken doordat het netwerk plat ligt; de registratie blijft dan
+   *  staan zodat de volgende tik het opnieuw probeert. */
+  tries?: number;
 }
 const SNOOZE_KEY = "BE-Mail.snoozes";
+/** Na zoveel mislukte pogingen (één per minuut) geeft de wekker het op. Zonder
+ *  bovengrens zou een bericht dat er niet meer is elke minuut blijven proberen. */
+const SNOOZE_MAX_TRIES = 10;
 function loadSnoozes(): SnoozeEntry[] {
   try {
     return JSON.parse(localStorage.getItem(SNOOZE_KEY) ?? "[]") as SnoozeEntry[];
@@ -97,6 +104,19 @@ function nextMondayMorning(): Date {
   d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
   d.setHours(9, 0, 0, 0);
   return d;
+}
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+/** Date → waarde voor <input type="datetime-local"> (lokale tijd, geen UTC:
+ *  `toISOString()` zou er een uur of twee naast zitten). */
+function toDateTimeInput(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 // Outlook-presetkleuren voor categorieën (preset0 t/m preset24).
@@ -635,6 +655,10 @@ export default function MailView({
 
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [snoozeAt, setSnoozeAt] = useState("");
+  const snoozeRef = useRef<HTMLSpanElement>(null);
+  // Registraties ook in state: de lijst en het leesvenster tonen wanneer een
+  // bericht terugkomt, dus een wijziging moet opnieuw tekenen.
+  const [snoozes, setSnoozes] = useState<SnoozeEntry[]>(loadSnoozes);
   // Verse verwijzing naar "huidige lijst verversen" voor de snooze-wekker
   // (de interval-closure zou anders een verouderde folderId zien).
   const reloadListRef = useRef<() => void>(() => {});
@@ -642,13 +666,30 @@ export default function MailView({
     if (!searchResult) void loadPage(0, true);
   };
 
+  function putSnoozes(next: SnoozeEntry[]) {
+    saveSnoozes(next);
+    setSnoozes(next);
+  }
+  /** Altijd vanuit localStorage rekenen: de wekker draait in een interval en
+   *  zou met een verouderde state-kopie registraties kunnen wegpoetsen. */
+  function updateSnoozes(fn: (list: SnoozeEntry[]) => SnoozeEntry[]) {
+    putSnoozes(fn(loadSnoozes()));
+  }
+
+  /** Openstaande uitstel-registratie van een bericht in het actieve account. */
+  const snoozeOf = useMemo(() => {
+    const map = new Map<string, SnoozeEntry>();
+    for (const s of snoozes) if (s.accountId === activeId) map.set(s.id, s);
+    return map;
+  }, [snoozes, activeId]);
+
   async function ensureSnoozeFolder(): Promise<string> {
-    const name = t("snoozed");
-    const existing = folders.find(
-      (f) => (f.displayName ?? "").toLowerCase() === name.toLowerCase()
-    );
+    // Op naam zoeken in beide talen: wie de app op Engels zet, mag geen tweede
+    // map ("Snoozed" naast "Uitgesteld") krijgen met een halve voorraad erin.
+    const re = HIDEABLE_FOLDERS.find((h) => h.key === "snoozed")!.re;
+    const existing = folders.find((f) => re.test((f.displayName ?? "").trim()));
     if (existing) return existing.id;
-    const f = await api.createFolder(name);
+    const f = await api.createFolder(t("snoozed"));
     patchActiveFolders((prev) => [...prev, f]);
     return f.id;
   }
@@ -656,14 +697,35 @@ export default function MailView({
   async function snooze(m: Message, due: Date) {
     setSnoozeOpen(false);
     try {
-      const dest = await ensureSnoozeFolder();
-      const moved = await api.moveMessageReturning(m.id, dest);
-      saveSnoozes([
-        ...loadSnoozes(),
-        { id: moved.id, accountId: activeId, due: due.toISOString() },
+      // Opnieuw uitstellen van een al uitgesteld bericht verplaatst niets: het
+      // staat al in de map. Wél verplaatsen zou een tweede id opleveren en de
+      // oude registratie op een spookbericht laten wachten.
+      let id = m.id;
+      if (!snoozeOf.has(m.id)) {
+        const dest = await ensureSnoozeFolder();
+        id = (await api.moveMessageReturning(m.id, dest)).id;
+        dropFromLists(m.id);
+      }
+      updateSnoozes((list) => [
+        ...list.filter((s) => s.id !== id && s.id !== m.id),
+        { id, accountId: activeId, due: due.toISOString() },
       ]);
+      notify(`${t("snoozedUntil")} ${longDateTime(due.toISOString(), settings.lang)}`, "info");
+      void reloadAllFolders();
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  /** Uitstellen ongedaan maken: het bericht gaat nu meteen terug naar Postvak
+   *  IN, met hetzelfde command als de wekker. */
+  async function unsnooze(m: Message) {
+    setSnoozeOpen(false);
+    try {
+      await api.wakeSnoozed(activeId, m.id);
+      updateSnoozes((list) => list.filter((s) => s.id !== m.id));
       dropFromLists(m.id);
-      notify(`${t("snoozed")} ✓`, "info");
+      notify(t("snoozeCancelled"), "info");
       void reloadAllFolders();
     } catch (e) {
       notify(String(e), "error");
@@ -674,24 +736,46 @@ export default function MailView({
   // hun tijd voorbij is. Over ALLE accounts, niet alleen het actieve: anders
   // blijft een bericht liggen zolang je in een ander account werkt, terwijl de
   // gebruiker een tijdstip heeft afgesproken.
+  const wakeBusy = useRef(false);
   useEffect(() => {
     if (!activeId) return;
     async function wake() {
-      const all = loadSnoozes();
+      // Een trage ronde mag niet overlappen met de volgende tik; dan zou
+      // hetzelfde bericht twee keer worden teruggezet.
+      if (wakeBusy.current) return;
       const now = Date.now();
-      const due = all.filter((s) => new Date(s.due).getTime() <= now);
+      const due = loadSnoozes().filter((s) => new Date(s.due).getTime() <= now);
       if (!due.length) return;
-      // Meteen uit de lijst halen: anders probeert de volgende tik het opnieuw.
-      saveSnoozes(all.filter((s) => !due.includes(s)));
+      wakeBusy.current = true;
+      const done = new Set<string>();
+      const failed = new Set<string>();
       let activeWoken = false;
       for (const s of due) {
         try {
           await api.wakeSnoozed(s.accountId, s.id);
+          done.add(s.id);
           if (s.accountId === activeId) activeWoken = true;
         } catch {
-          // Bericht is intussen handmatig verplaatst/verwijderd: vergeten.
+          // Netwerk plat of bericht intussen verwijderd: registratie bewaren
+          // en het straks opnieuw proberen (tot SNOOZE_MAX_TRIES).
+          failed.add(s.id);
         }
       }
+      const next: SnoozeEntry[] = [];
+      let gaveUp = 0;
+      for (const s of loadSnoozes()) {
+        if (done.has(s.id)) continue;
+        if (!failed.has(s.id)) {
+          next.push(s);
+          continue;
+        }
+        const tries = (s.tries ?? 0) + 1;
+        if (tries >= SNOOZE_MAX_TRIES) gaveUp++;
+        else next.push({ ...s, tries });
+      }
+      putSnoozes(next);
+      wakeBusy.current = false;
+      if (gaveUp) notify(t("snoozeWakeFailed"), "error");
       // Alleen het beeld verversen als er iets in het zichtbare account wijzigde.
       if (activeWoken) {
         void reloadAllFolders();
@@ -703,6 +787,24 @@ export default function MailView({
     return () => window.clearInterval(h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
+
+  // Uitstel-menu sluiten bij een klik ernaast of Escape (het menu bevat een
+  // invoerveld, dus een klik erbinnen mag het juist niet sluiten).
+  useEffect(() => {
+    if (!snoozeOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!snoozeRef.current?.contains(e.target as Node)) setSnoozeOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSnoozeOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [snoozeOpen]);
 
   // ---- Categorieën ----
 
@@ -1799,12 +1901,35 @@ export default function MailView({
                   {(settings.listShowSubject ||
                     m.flag?.flagStatus === "flagged" ||
                     m.importance === "high" ||
-                    m.hasAttachments) && (
+                    m.hasAttachments ||
+                    snoozeOf.has(m.id)) && (
                     <div className="msg-subject">
                       {m.flag?.flagStatus === "flagged" && <span className="flagdot">⚑</span>}
                       {m.importance === "high" && <span className="hi">!</span>}
-                      {settings.listShowSubject && (m.subject || "(geen onderwerp)")}
-                      {m.hasAttachments && <PaperclipIcon size={14} style={{ marginLeft: 4 }} />}
+                      {/* Eigen span: als losse tekst in een flexrij kapt het
+                          onderwerp niet af maar duwt het de paperclip en de
+                          uitstel-tijd het beeld uit. */}
+                      {settings.listShowSubject && (
+                        <span className="msg-subject-text">
+                          {m.subject || "(geen onderwerp)"}
+                        </span>
+                      )}
+                      {m.hasAttachments && <PaperclipIcon size={14} style={{ flexShrink: 0 }} />}
+                      {/* Uitgesteld bericht: laat zien wanneer het terugkomt,
+                          anders is de Uitgesteld-map een zwart gat. Op deze
+                          regel, want de hover-acties dekken de bovenste af. */}
+                      {snoozeOf.has(m.id) && (
+                        <span
+                          className="msg-snooze"
+                          title={`${t("snoozedUntil")} ${longDateTime(
+                            snoozeOf.get(m.id)!.due,
+                            settings.lang
+                          )}`}
+                        >
+                          <ClockIcon size={12} />
+                          {shortDate(snoozeOf.get(m.id)!.due, settings.lang)}
+                        </span>
+                      )}
                     </div>
                   )}
                   {settings.listShowPreview && (
@@ -2053,22 +2178,55 @@ export default function MailView({
               >
                 <DownloadIcon size={18} />
               </button>
-              <span className="snooze-wrap">
+              <span className="snooze-wrap" ref={snoozeRef}>
                 <button
-                  className="btn"
-                  onClick={() => setSnoozeOpen((v) => !v)}
-                  title={tip("tipSnooze")}
+                  className={"btn snooze-btn" + (snoozeOf.has(selected.id) ? " on" : "")}
+                  aria-pressed={snoozeOf.has(selected.id)}
+                  onClick={() => {
+                    setSnoozeOpen((v) => {
+                      // Bij openen het veld vast vullen: zo is de eigen keuze
+                      // een aanpassing i.p.v. een leeg formulier.
+                      if (!v) {
+                        const cur = snoozeOf.get(selected.id);
+                        setSnoozeAt(
+                          toDateTimeInput(cur ? new Date(cur.due) : tomorrowMorning())
+                        );
+                      }
+                      return !v;
+                    });
+                  }}
+                  title={
+                    snoozeOf.has(selected.id)
+                      ? `${t("snoozedUntil")} ${longDateTime(
+                          snoozeOf.get(selected.id)!.due,
+                          settings.lang
+                        )}`
+                      : tip("tipSnooze")
+                  }
+                  aria-label={t("snooze")}
                 >
                   <ClockIcon size={18} />
                 </button>
                 {snoozeOpen && (
                   <div className="snooze-menu">
-                    <button
-                      className="suggest-item"
-                      onClick={() => void snooze(selected, laterToday())}
-                    >
-                      {t("laterToday")}
-                    </button>
+                    {snoozeOf.has(selected.id) && (
+                      <div className="snooze-due">
+                        {t("snoozedUntil")}{" "}
+                        <strong>
+                          {longDateTime(snoozeOf.get(selected.id)!.due, settings.lang)}
+                        </strong>
+                      </div>
+                    )}
+                    {/* "Later vandaag" is drie uur verder; na 21:00 valt dat op
+                        morgen en zou de knop iets anders beloven dan hij doet. */}
+                    {isSameDay(laterToday(), new Date()) && (
+                      <button
+                        className="suggest-item"
+                        onClick={() => void snooze(selected, laterToday())}
+                      >
+                        {t("laterToday")}
+                      </button>
+                    )}
                     <button
                       className="suggest-item"
                       onClick={() => void snooze(selected, tomorrowMorning())}
@@ -2085,6 +2243,7 @@ export default function MailView({
                       <input
                         type="datetime-local"
                         value={snoozeAt}
+                        min={toDateTimeInput(new Date())}
                         onChange={(e) => setSnoozeAt(e.target.value)}
                       />
                       <button
@@ -2101,6 +2260,14 @@ export default function MailView({
                         {t("ok")}
                       </button>
                     </div>
+                    {snoozeOf.has(selected.id) && (
+                      <button
+                        className="suggest-item"
+                        onClick={() => void unsnooze(selected)}
+                      >
+                        {t("unsnooze")}
+                      </button>
+                    )}
                   </div>
                 )}
               </span>

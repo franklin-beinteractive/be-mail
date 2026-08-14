@@ -238,6 +238,11 @@ const dict = {
     category: "Categorie",
     snooze: "Uitstellen",
     snoozed: "Uitgesteld",
+    snoozedUntil: "Komt terug op",
+    unsnooze: "Nu terugzetten",
+    snoozeCancelled: "Terug in Postvak IN",
+    snoozeWakeFailed:
+      "Een uitgesteld bericht kon niet worden teruggezet in Postvak IN; het staat nog in Uitgesteld.",
     laterToday: "Later vandaag",
     tomorrowMorning: "Morgen 09:00",
     nextWeekMorning: "Volgende week ma 09:00",
@@ -701,6 +706,11 @@ const dict = {
     category: "Category",
     snooze: "Snooze",
     snoozed: "Snoozed",
+    snoozedUntil: "Returns on",
+    unsnooze: "Bring back now",
+    snoozeCancelled: "Back in the Inbox",
+    snoozeWakeFailed:
+      "A snoozed message could not be moved back to the Inbox; it is still in Snoozed.",
     laterToday: "Later today",
     tomorrowMorning: "Tomorrow 09:00",
     nextWeekMorning: "Next week Mon 09:00",

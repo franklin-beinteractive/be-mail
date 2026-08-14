@@ -59,7 +59,7 @@ function HelpNl() {
           <li><strong>Uitschrijven</strong>: bij nieuwsbrieven met een afmeldkoppeling verschijnt automatisch een Uitschrijven-knop.</li>
           <li><strong>Bijlagen</strong>: klik op een bijlage-chip om te downloaden naar je Downloads-map.</li>
           <li><strong>Gesprekken</strong>: berichten uit dezelfde conversatie krijgen een teller-chip; klik erop om het gesprek uit te klappen.</li>
-          <li><strong>Uitstellen (snooze)</strong>: klok-knop in het leesvenster; het bericht verhuist naar Uitgesteld en komt op het gekozen moment ongelezen terug in Postvak IN (zolang de app draait).</li>
+          <li><strong>Uitstellen (snooze)</strong>: klok-knop in het leesvenster; kies een vast moment (later vandaag, morgen, volgende week) of een eigen datum en tijd. Het bericht verhuist naar Uitgesteld en komt op dat moment ongelezen terug in Postvak IN (zolang de app draait). In de map Uitgesteld staat bij elk bericht wanneer het terugkomt; via dezelfde klok-knop kies je een ander moment of zet je het meteen terug.</li>
           <li><strong>Categorieën</strong>: kleurlabels toewijzen in het leesvenster; stippen in de lijst. Vereist eenmalige extra beheerder-toestemming (MailboxSettings).</li>
           <li><strong>Offline</strong>: eerder geladen mappen, lijsten en gelezen berichten blijven leesbaar zonder netwerk (gele balk geeft dit aan); verzenden en verplaatsen vereisen verbinding.</li>
         </ul>
@@ -168,7 +168,7 @@ function HelpEn() {
           <li><strong>Unsubscribe</strong>: newsletters with an unsubscribe link automatically show an Unsubscribe button.</li>
           <li><strong>Attachments</strong>: click an attachment chip to download it to your Downloads folder.</li>
           <li><strong>Conversations</strong>: messages from the same thread get a counter chip; click it to expand the conversation.</li>
-          <li><strong>Snooze</strong>: clock button in the reading pane; the message moves to Snoozed and returns to the Inbox unread at the chosen time (while the app is running).</li>
+          <li><strong>Snooze</strong>: clock button in the reading pane; pick a preset (later today, tomorrow, next week) or your own date and time. The message moves to Snoozed and returns to the Inbox unread at that time (while the app is running). The Snoozed folder shows when each message returns; the same clock button changes the time or brings it back right away.</li>
           <li><strong>Categories</strong>: assign colour labels in the reading pane; dots in the list. Needs one-time extra admin consent (MailboxSettings).</li>
           <li><strong>Offline</strong>: previously loaded folders, lists and read messages stay readable without a network (yellow bar indicates this); sending and moving require a connection.</li>
         </ul>

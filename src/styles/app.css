@@ -466,6 +466,8 @@ img.avatar { object-fit: cover; background: var(--bg-sunken); }
   align-items: center;
   gap: 4px;
 }
+/* Het onderwerp krimpt, de iconen ernaast niet. */
+.msg-subject-text { overflow: hidden; text-overflow: ellipsis; }
 .msg-preview {
   color: var(--text-muted);
   font-size: 0.82rem;
@@ -842,6 +844,27 @@ img.avatar { object-fit: cover; background: var(--bg-sunken); }
 }
 .snooze-custom { display: flex; gap: 4px; padding: 6px; border-top: 1px solid var(--border); }
 .snooze-custom input { flex: 1; min-width: 0; }
+/* Al uitgesteld: knop ingedrukt en het afgesproken moment boven in het menu. */
+.snooze-btn.on { border-color: var(--accent); background: var(--bg-sunken); color: var(--accent); }
+.snooze-due {
+  padding: 6px 8px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+/* Terugkomtijd in de berichtenlijst (Uitgesteld-map); rechts op de
+   onderwerpregel, zodat het onderwerp afkapt en niet de afzendernaam. */
+.msg-snooze {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 6px;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--accent);
+}
 
 /* Categorieën (kleurlabels) */
 .msg-cats { display: inline-flex; gap: 3px; margin: 0 6px; }

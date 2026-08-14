@@ -5,10 +5,11 @@
 
 **Laatst bijgewerkt:** 2026-08-14. Deze ronde: het tijdgrid van #4 nagelopen met
 nepdata (meerdaagse en over-middernacht-afspraken werden niet getoond), de
-avatars van #6 aangevuld met echte profielfoto's uit Graph, en de snelle acties
+avatars van #6 aangevuld met echte profielfoto's uit Graph, de snelle acties
 van #7 nagelopen met meer dan één actie ingesteld (naamloze knop, geen
-terugkoppeling bij categorieën, geen volgorde). Zie de bullets bij issue #4, #6
-en #7.
+terugkoppeling bij categorieën, geen volgorde) en het uitstellen van #8
+nagelopen (een mislukte wekkerbeurt gooide de registratie weg, en je zag nergens
+wanneer een bericht terugkwam). Zie de bullets bij issue #4, #6, #7 en #8.
 
 **Ronde 2026-07-27:** de GitHub-issues #2, #3, #4, #6,
 #7, #8, #10, #11, #12 en #13 opgelost, elk in een eigen commit (zie de bullets
@@ -33,7 +34,10 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
   eerst consent voor `User.ReadBasic.All` in de tenant. Zonder die consent is de
   app onveranderd - dan blijft alles initialen.
 - Snooze die een niet-actief account wekt (#8): er is maar één account
-  gekoppeld, dus het scenario is niet na te spelen.
+  gekoppeld, dus het scenario is niet na te spelen. De rest van #8 (wekker die
+  blijft proberen, terugkomtijd in de lijst, "Nu terugzetten", opnieuw
+  uitstellen) is in een browser met nepdata nagelopen, inclusief een wekkerbeurt
+  die expres mislukt; tegen de echte Graph-API nog niet.
 - De snelle acties (#7) zijn met nepdata in een browser nagelopen (Office 365 én
   IMAP, met een lege actie ertussen). Het klikken zelf ging daar naar de
   nep-api; tegen de echte Graph-API is de nieuwe terugkoppeling nog niet
@@ -71,7 +75,7 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
   bij toetsenbordfocus) verschijnen rechts in de rij vier knoppen: archiveren,
   gelezen/ongelezen, vlag en verwijderen. Ze liggen als overlay over de datum,
   zodat de rij niet verspringt. Verwijderen vraagt bevestiging, net als elders.
-- **Snooze wekt nu ook niet-actieve accounts (2026-07-27, issue #8)**: het
+- **Uitstellen (2026-07-27 + 2026-08-14, issue #8)**: het
   uitstellen zelf bestond al (later vandaag / morgenochtend / volgende week +
   eigen datum en tijd), maar de wekker keek alleen naar het **actieve** account.
   Wie in account B werkte, kreeg een uitgesteld bericht uit account A niet terug
@@ -79,6 +83,27 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
   nieuwe command `wake_snoozed` (expliciet account-id, verplaatst naar Postvak
   IN en zet ongelezen); het beeld ververst alleen als het actieve account
   wijzigde.
+  **Aanvulling (2026-08-14):** met een gevulde Uitgesteld-map (in een browser
+  met nepdata) kwamen vier dingen boven water:
+  - **Een mislukte wekkerbeurt gooide de afspraak weg.** De registraties werden
+    gewist *voordat* het verplaatsen werd geprobeerd, dus lag het netwerk plat
+    op precies dat moment, dan bleef het bericht voorgoed in Uitgesteld staan.
+    De registratie blijft nu staan en de wekker probeert het elke minuut
+    opnieuw; pas na tien mislukte pogingen geeft hij het op, met een melding.
+    Een trage ronde kan zichzelf niet meer inhalen (`wakeBusy`).
+  - **Je zag nergens wanneer een bericht terugkwam.** In de map Uitgesteld staat
+    nu bij elk bericht de terugkomtijd (klok-chip rechts op de onderwerpregel,
+    tooltip met het hele moment), en de klok-knop boven een geopend bericht
+    staat ingedrukt met het moment boven in het menu.
+  - **Uitstellen was niet ongedaan te maken.** Het menu heeft nu "Nu
+    terugzetten" (zelfde `wake_snoozed` als de wekker), en een ander moment
+    kiezen voor een al uitgesteld bericht verplaatst niet opnieuw - dat gaf een
+    tweede id, waarna de wekker op een spookbericht wachtte.
+  - **Kleiner:** het datumveld begint op het al gekozen moment (of morgen 09:00)
+    en weigert het verleden (`min`), "Later vandaag" verdwijnt zodra +3 uur op
+    morgen valt, het menu sluit met Escape of een klik ernaast, de bevestiging
+    noemt het gekozen moment, en de Uitgesteld-map wordt op NL én EN naam
+    herkend (anders kreeg je na een taalwissel een tweede map).
 - **Snelle acties (2026-07-27, issue #7)**: eigen knoppen boven een geopend
   bericht, in te stellen via Instellingen -> E-mail -> Snelle acties. Twee
   soorten: verplaatsen naar een map en een categorie toekennen. De actie
