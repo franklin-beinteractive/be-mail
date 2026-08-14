@@ -535,8 +535,12 @@ img.avatar { object-fit: cover; background: var(--bg-sunken); }
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-raised);
+  /* Niet krimpen: .thread is een flexkolom, dus een kaart met een lang bericht
+     werd samengeperst en de tekst liep dwars over de volgende kaart heen.
+     Scrollen doet .thread. */
+  flex: none;
 }
-.thread-card.open { display: flex; flex-direction: column; min-height: 0; }
+.thread-card.open { display: flex; flex-direction: column; }
 /* In een kaart groeit de body mee; scrollen doet .thread. */
 .thread .reader-body { flex: none; overflow: visible; }
 .thread-card.collapsed {
@@ -554,6 +558,7 @@ img.avatar { object-fit: cover; background: var(--bg-sunken); }
 .thread-card.collapsed:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .tc-main { flex: 1; min-width: 0; }
 .tc-top { display: flex; justify-content: space-between; gap: 8px; }
+.tc-side { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .tc-from { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .thread-card.collapsed.unread .tc-from { font-weight: 700; }
 .tc-date { color: var(--text-muted); font-size: 0.8rem; flex-shrink: 0; }
@@ -579,6 +584,8 @@ img.avatar { object-fit: cover; background: var(--bg-sunken); }
 /* flex:1 zodat de avatar links tegen de afzenderregel blijft plakken en de
    categoriekiezer rechts blijft staan (space-between op de container). */
 .reader-meta-main { flex: 1; min-width: 0; }
+/* Aan/CC: één regel, hoe lang de lijst ook is (volledig in de tooltip). */
+.reader-to { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reader-meta .cat-add { flex-shrink: 0; }
 .warn {
   margin-top: 8px;

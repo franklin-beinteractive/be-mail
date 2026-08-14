@@ -105,6 +105,13 @@ function nextMondayMorning(): Date {
   d.setHours(9, 0, 0, 0);
   return d;
 }
+/** "Jan Jansen, piet@example.com" - naam als die er is, anders het adres. */
+function recipientNames(list?: Recipient[] | null): string {
+  return (list ?? [])
+    .map((r) => r.emailAddress?.name || r.emailAddress?.address || "")
+    .filter(Boolean)
+    .join(", ");
+}
 function isSameDay(a: Date, b: Date): boolean {
   return (
     a.getFullYear() === b.getFullYear() &&
@@ -1363,6 +1370,19 @@ export default function MailView({
     return order;
   }, [shown]);
 
+  // Het geopende bericht bovenaan in beeld zetten. Het scrollgebied (.thread)
+  // blijft bij het wisselen van bericht hetzelfde element, dus zonder dit
+  // begint een net geopend bericht op de scrollpositie van het vorige - midden
+  // in de tekst, of (in een gesprek) helemaal buiten beeld.
+  const openCardRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = openCardRef.current;
+    const box = el?.parentElement;
+    if (!el || !box) return;
+    // Verschil tussen de twee bovenkanten; werkt ongeacht positionering.
+    box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top;
+  }, [selected?.id]);
+
   /** De conversatie rond het geopende bericht, oudste eerst. Bevat alleen wat
    *  in de lijst geladen is: eigen antwoorden uit Verzonden items zitten er
    *  dus niet bij zolang je in Postvak IN kijkt. */
@@ -2339,15 +2359,22 @@ export default function MailView({
                   <span className="tc-main">
                     <span className="tc-top">
                       <span className="tc-from">{senderName(cm.from?.emailAddress)}</span>
-                      <span className="tc-date">
-                        {shortDate(cm.receivedDateTime, settings.lang)}
+                      <span className="tc-side">
+                        {/* Een ingeklapt bericht met bijlage gaf niets prijs. */}
+                        {cm.hasAttachments && <PaperclipIcon size={13} />}
+                        <span
+                          className="tc-date"
+                          title={longDateTime(cm.receivedDateTime, settings.lang)}
+                        >
+                          {shortDate(cm.receivedDateTime, settings.lang)}
+                        </span>
                       </span>
                     </span>
                     <span className="tc-preview">{cm.bodyPreview}</span>
                   </span>
                 </button>
               ) : (
-                <article key={cm.id} className="thread-card open">
+                <article key={cm.id} className="thread-card open" ref={openCardRef}>
             <div className="reader-head">
               <h2>{selected.subject || "(geen onderwerp)"}</h2>
               <div className="reader-meta">
@@ -2364,6 +2391,24 @@ export default function MailView({
                   <div className="muted small">
                     {longDateTime(selected.receivedDateTime, settings.lang)}
                   </div>
+                  {/* Aan wie ging dit bericht? In een gesprek is dat het
+                      verschil tussen "aan mij" en "ik zat in de CC". */}
+                  {recipientNames(selected.toRecipients) && (
+                    <div
+                      className="muted small reader-to"
+                      title={recipientNames(selected.toRecipients)}
+                    >
+                      {t("to")}: {recipientNames(selected.toRecipients)}
+                    </div>
+                  )}
+                  {recipientNames(selected.ccRecipients) && (
+                    <div
+                      className="muted small reader-to"
+                      title={recipientNames(selected.ccRecipients)}
+                    >
+                      {t("cc")}: {recipientNames(selected.ccRecipients)}
+                    </div>
+                  )}
                   {!isImap && (selected.categories ?? []).length > 0 && (
                     <div className="cat-row">
                       {(selected.categories ?? []).map((c) => (

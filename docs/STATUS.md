@@ -9,9 +9,10 @@ avatars van #6 aangevuld met echte profielfoto's uit Graph, de snelle acties
 van #7 nagelopen met meer dan één actie ingesteld (naamloze knop, geen
 terugkoppeling bij categorieën, geen volgorde), het uitstellen van #8 nagelopen
 (een mislukte wekkerbeurt gooide de registratie weg, en je zag nergens wanneer
-een bericht terugkwam) en de hover-acties van #10 (ongelezen-teller liep achter,
-vlagknop zonder staat, archiveren in Archief zelf). Zie de bullets bij issue #4,
-#6, #7, #8 en #10.
+een bericht terugkwam), de hover-acties van #10 (ongelezen-teller liep achter,
+vlagknop zonder staat, archiveren in Archief zelf) en de gesprekskaarten van #11
+(een lang bericht liep over de volgende kaart heen). Zie de bullets bij issue
+#4, #6, #7, #8, #10 en #11.
 
 **Ronde 2026-07-27:** de GitHub-issues #2, #3, #4, #6,
 #7, #8, #10, #11, #12 en #13 opgelost, elk in een eigen commit (zie de bullets
@@ -71,7 +72,7 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
   die via `/$value`, IMAP via de bytes die er toch al zijn; beide schrijven via
   dezelfde `write_eml()` zodat de naamgeving gelijk is (onderwerp, afgekapt op
   80 tekens, met oplopend volgnummer bij dubbele namen).
-- **Conversatie als losse kaarten (2026-07-27, issue #11)**: het leesvenster
+- **Conversatie als losse kaarten (2026-07-27 + 2026-08-14, issue #11)**: het leesvenster
   toonde één bericht; de rest van de conversatie zag je alleen uitgeklapt in de
   lijst. Nu krijgt elk bericht uit de conversatie een eigen kaart, het geopende
   volledig en de andere ingeklapt op één regel (avatar, afzender, datum,
@@ -80,6 +81,24 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
   lijst, dus eigen antwoorden uit Verzonden items zitten er niet bij zolang je
   in Postvak IN kijkt. Cross-folder ophalen kan met een Graph-filter op
   `conversationId`, maar is bewust niet in deze stap meegenomen.
+  **Aanvulling (2026-08-14):** met een gesprek van vier berichten en een lang
+  bericht ertussen (browser, nepdata) kwamen vier dingen boven water:
+  - **Een lang bericht liep dwars over de volgende kaart heen.** `.thread` is
+    een flexkolom, dus de kaart werd samengeperst tot de beschikbare hoogte
+    terwijl de tekst gewoon doorliep - die stond dan over de ingeklapte kaart
+    eronder. Kaarten krimpen niet meer (`flex: none`); scrollen doet `.thread`.
+  - **Een net geopend bericht begon op de scrollpositie van het vorige.** Het
+    scrollgebied blijft bij het wisselen hetzelfde element, dus je kwam midden
+    in de tekst uit - of, in een gesprek, boven het geopende bericht. Het
+    geopende bericht wordt nu bovenaan in beeld gezet.
+  - **Aan wie het bericht ging, stond nergens.** Onder de afzender staan nu de
+    Aan- en CC-regel (één regel, volledige lijst in de tooltip), zoals op de
+    schermafdruk in de issue.
+  - **Een ingeklapte kaart verzweeg zijn bijlage**; die krijgt nu een paperclip,
+    en de datum een tooltip met het volledige tijdstip.
+  Nog steeds anders dan Outlook: daar staan alle berichten van het gesprek
+  tegelijk open. Hier is er één open en zijn de rest ingeklapt - meerdere
+  tegelijk vraagt body, bijlagen en afbeeldingblokkering per kaart.
 - **Hover-acties in de berichtenlijst (2026-07-27 + 2026-08-14, issue #10)**:
   bij hover (en bij toetsenbordfocus) verschijnen rechts in de rij vier knoppen:
   archiveren, gelezen/ongelezen, vlag en verwijderen. Ze liggen als overlay over
