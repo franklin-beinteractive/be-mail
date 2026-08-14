@@ -224,6 +224,14 @@ export default function MailView({
     [accounts, activeId]
   );
 
+  /** Staat de open map zelf Archief te zijn? Dan is archiveren zinloos: het
+   *  bericht zou naar zijn eigen map verhuizen. Naam-herkenning op NL en EN,
+   *  net als bij de andere standaardmappen. */
+  const inArchiveFolder = useMemo(() => {
+    const name = folders.find((f) => f.id === folderId)?.displayName?.trim() ?? "";
+    return !!name && HIDEABLE_FOLDERS.find((h) => h.key === "archive")!.re.test(name);
+  }, [folders, folderId]);
+
   /** Wijzig alleen de mappen van het actieve account. */
   function patchActiveFolders(fn: (fs: MailFolder[]) => MailFolder[]) {
     setAccountFolders((prev) =>
@@ -869,20 +877,37 @@ export default function MailView({
     }
   }
 
+  /** Een bericht verdwijnt uit de open map: de ongelezen-teller ernaast moet
+   *  mee. Binnen zoekresultaten kan het bericht uit een andere map komen, dus
+   *  halen we de tellers daar bij de server op. */
+  function dropUnreadCount(m: Message) {
+    if (searchResult) void reloadAllFolders();
+    else if (!m.isRead) refreshFolderUnread(-1);
+  }
+
   async function remove(m: Message) {
     if (!(await confirm(t("confirmDelete")))) return;
     try {
       await api.deleteMessage(m.id);
       dropFromLists(m.id);
+      dropUnreadCount(m);
     } catch (e) {
       notify(String(e), "error");
     }
   }
 
   async function archive(m: Message) {
+    // Archiveren terwijl je ín Archief staat verplaatst het bericht naar zijn
+    // eigen map: Graph geeft het een nieuw id en de rij staat er bij de
+    // volgende verversing gewoon weer. Zeg dat liever.
+    if (inArchiveFolder) {
+      notify(t("quickActionAlreadyThere"), "info");
+      return;
+    }
     try {
       await api.archiveMessage(m.id);
       dropFromLists(m.id);
+      dropUnreadCount(m);
     } catch (e) {
       notify(String(e), "error");
     }
@@ -1941,25 +1966,35 @@ export default function MailView({
                     niet openen. */}
                 <div className="msg-actions">
                   {[
-                    {
-                      key: "archive",
-                      label: t("archive"),
-                      hint: tip("tipArchive"),
-                      icon: <ArchiveIcon size={16} />,
-                      run: () => void archive(m),
-                    },
+                    // In Archief zelf kan archiveren niets doen; dan geen knop.
+                    ...(inArchiveFolder
+                      ? []
+                      : [
+                          {
+                            key: "archive",
+                            label: t("archive"),
+                            hint: tip("tipArchive"),
+                            icon: <ArchiveIcon size={16} />,
+                            on: false,
+                            run: () => void archive(m),
+                          },
+                        ]),
                     {
                       key: "read",
                       label: m.isRead ? t("markUnread") : t("markRead"),
-                      hint: tip(m.isRead ? "markUnread" : "markRead"),
+                      hint: tip("tipRead"),
                       icon: m.isRead ? <MailIcon size={16} /> : <MailOpenIcon size={16} />,
+                      on: false,
                       run: () => void toggleRead(m),
                     },
                     {
+                      // Schakelknop: laat zien of het bericht al een vlag heeft,
+                      // anders is een tweede klik een gok.
                       key: "flag",
-                      label: t("flag"),
+                      label: m.flag?.flagStatus === "flagged" ? t("unflag") : t("flag"),
                       hint: tip("tipFlag"),
                       icon: <FlagIcon size={16} />,
+                      on: m.flag?.flagStatus === "flagged",
                       run: () => void toggleFlag(m),
                     },
                     {
@@ -1967,16 +2002,20 @@ export default function MailView({
                       label: t("delete"),
                       hint: tip("tipDelete"),
                       icon: <TrashIcon size={16} />,
+                      on: false,
                       run: () => void remove(m),
                     },
                   ].map((a) => (
                     <button
                       key={a.key}
-                      className={"icon-btn" + (a.key === "delete" ? " danger" : "")}
+                      className={
+                        "icon-btn" + (a.key === "delete" ? " danger" : "") + (a.on ? " on" : "")
+                      }
                       // hint volgt de tooltip-instelling; het label is er altijd
                       // voor schermlezers.
                       title={a.hint}
                       aria-label={a.label}
+                      aria-pressed={a.key === "flag" ? a.on : undefined}
                       onClick={(e) => {
                         e.stopPropagation();
                         a.run();
@@ -2471,15 +2510,17 @@ export default function MailView({
           >
             {ctxMenu.msg.isRead ? t("markUnread") : t("markRead")}
           </button>
-          <button
-            className="suggest-item"
-            onClick={() => {
-              void archive(ctxMenu.msg);
-              setCtxMenu(null);
-            }}
-          >
-            {t("archive")}
-          </button>
+          {!inArchiveFolder && (
+            <button
+              className="suggest-item"
+              onClick={() => {
+                void archive(ctxMenu.msg);
+                setCtxMenu(null);
+              }}
+            >
+              {t("archive")}
+            </button>
+          )}
           <button
             className="suggest-item"
             onClick={() => {

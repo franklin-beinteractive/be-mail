@@ -422,9 +422,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 .msg:hover .msg-actions,
 .msg:focus-within .msg-actions { display: flex; }
+/* Bij toetsenbordfocus dezelfde achtergrond als bij hover: anders steekt het
+   verloop achter de knoppen als grijze vlek af tegen de rij. */
+.msg:focus-within { background: var(--bg-sunken); }
 .msg-actions .icon-btn { padding: 4px; color: var(--text-muted); }
 .msg-actions .icon-btn:hover { background: var(--bg-raised); color: var(--text); }
 .msg-actions .icon-btn.danger:hover { color: var(--danger); }
+/* Vlag staat aan: zelfde rood als de vlag in de rij zelf. */
+.msg-actions .icon-btn.on { color: var(--danger); }
 .msg.active { background: var(--bg-sunken); border-left-color: var(--accent); }
 .msg.unread { border-left-color: var(--unread); }
 .msg.unread .msg-from, .msg.unread .msg-subject { font-weight: 700; }

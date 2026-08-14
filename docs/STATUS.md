@@ -7,9 +7,11 @@
 nepdata (meerdaagse en over-middernacht-afspraken werden niet getoond), de
 avatars van #6 aangevuld met echte profielfoto's uit Graph, de snelle acties
 van #7 nagelopen met meer dan één actie ingesteld (naamloze knop, geen
-terugkoppeling bij categorieën, geen volgorde) en het uitstellen van #8
-nagelopen (een mislukte wekkerbeurt gooide de registratie weg, en je zag nergens
-wanneer een bericht terugkwam). Zie de bullets bij issue #4, #6, #7 en #8.
+terugkoppeling bij categorieën, geen volgorde), het uitstellen van #8 nagelopen
+(een mislukte wekkerbeurt gooide de registratie weg, en je zag nergens wanneer
+een bericht terugkwam) en de hover-acties van #10 (ongelezen-teller liep achter,
+vlagknop zonder staat, archiveren in Archief zelf). Zie de bullets bij issue #4,
+#6, #7, #8 en #10.
 
 **Ronde 2026-07-27:** de GitHub-issues #2, #3, #4, #6,
 #7, #8, #10, #11, #12 en #13 opgelost, elk in een eigen commit (zie de bullets
@@ -43,6 +45,13 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
   nep-api; tegen de echte Graph-API is de nieuwe terugkoppeling nog niet
   bekeken. De aangeroepen commands (`move_message`, `set_message_categories`)
   zijn wel dezelfde die de leesbalk en het slepen al gebruiken.
+- De hover-acties (#10) zijn met nepdata in een browser nagelopen (licht en
+  donker, hover én toetsenbordfocus, in Postvak IN en in Archief); tegen de
+  echte Graph-API nog niet. Ze gelden bovendien voor het bericht op de rij, niet
+  voor het hele gesprek: archiveer je een ingeklapte conversatierij, dan verhuist alleen het
+  nieuwste bericht en blijft de rij staan met de rest. Dat is wel consistent met
+  de rest van de app (het vinkje en de leesbalk werken ook op één bericht),
+  maar Outlook pakt daar het hele gesprek.
 - End-to-end verificatie op Windows met echte IMAP-/CalDAV-servers (staat al
   langer open, sinds de IMAP-accounts).
 
@@ -71,10 +80,30 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
   lijst, dus eigen antwoorden uit Verzonden items zitten er niet bij zolang je
   in Postvak IN kijkt. Cross-folder ophalen kan met een Graph-filter op
   `conversationId`, maar is bewust niet in deze stap meegenomen.
-- **Hover-acties in de berichtenlijst (2026-07-27, issue #10)**: bij hover (en
-  bij toetsenbordfocus) verschijnen rechts in de rij vier knoppen: archiveren,
-  gelezen/ongelezen, vlag en verwijderen. Ze liggen als overlay over de datum,
-  zodat de rij niet verspringt. Verwijderen vraagt bevestiging, net als elders.
+- **Hover-acties in de berichtenlijst (2026-07-27 + 2026-08-14, issue #10)**:
+  bij hover (en bij toetsenbordfocus) verschijnen rechts in de rij vier knoppen:
+  archiveren, gelezen/ongelezen, vlag en verwijderen. Ze liggen als overlay over
+  de datum, zodat de rij niet verspringt (op de schermafdruk in de issue dekt de
+  prullenbak de datum van Outlook net zo af). Verwijderen vraagt bevestiging,
+  net als elders.
+  **Aanvulling (2026-08-14):** met de knoppen echt aan het werk (in een browser
+  met nepdata) kwamen vier dingen boven water:
+  - **De ongelezen-teller liep achter.** Archiveren en verwijderen haalden het
+    bericht wel uit de lijst, maar niemand trok de teller naast de map af - die
+    bleef op de oude stand tot je de map opnieuw laadde. (Bulkacties deden dat
+    al goed; die halen de mappen na afloop opnieuw op.) Binnen zoekresultaten
+    kan het bericht uit een andere map komen, dus daar worden de tellers bij de
+    server opgehaald in plaats van lokaal bijgewerkt.
+  - **De vlagknop zag er altijd hetzelfde uit**, terwijl hij schakelt. Hij is nu
+    rood als het bericht een vlag heeft (zelfde rood als de vlag in de rij) en
+    het label zegt dan "Markering weg".
+  - **Archiveren in Archief zelf** verplaatste het bericht naar zijn eigen map:
+    Graph geeft het een nieuw id, de rij verdween en stond er bij de volgende
+    verversing weer. In die map verschijnt de knop nu niet meer (ook niet in het
+    rechtermuisknop-menu) en de sneltoets `e` zegt dat het bericht er al staat.
+  - **Toetsenbordfocus** liet de knoppen zien op een rij zonder hover-kleur,
+    waardoor het verloop achter de knoppen als grijze vlek afstak; de rij krijgt
+    nu dezelfde achtergrond als bij hover.
 - **Uitstellen (2026-07-27 + 2026-08-14, issue #8)**: het
   uitstellen zelf bestond al (later vandaag / morgenochtend / volgende week +
   eigen datum en tijd), maar de wekker keek alleen naar het **actieve** account.
