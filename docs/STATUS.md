@@ -4,9 +4,11 @@
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
 **Laatst bijgewerkt:** 2026-08-14. Deze ronde: het tijdgrid van #4 nagelopen met
-nepdata (meerdaagse en over-middernacht-afspraken werden niet getoond), en de
-avatars van #6 aangevuld met echte profielfoto's uit Graph. Zie de bullets bij
-issue #4 en #6.
+nepdata (meerdaagse en over-middernacht-afspraken werden niet getoond), de
+avatars van #6 aangevuld met echte profielfoto's uit Graph, en de snelle acties
+van #7 nagelopen met meer dan één actie ingesteld (naamloze knop, geen
+terugkoppeling bij categorieën, geen volgorde). Zie de bullets bij issue #4, #6
+en #7.
 
 **Ronde 2026-07-27:** de GitHub-issues #2, #3, #4, #6,
 #7, #8, #10, #11, #12 en #13 opgelost, elk in een eigen commit (zie de bullets
@@ -32,6 +34,11 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
   app onveranderd - dan blijft alles initialen.
 - Snooze die een niet-actief account wekt (#8): er is maar één account
   gekoppeld, dus het scenario is niet na te spelen.
+- De snelle acties (#7) zijn met nepdata in een browser nagelopen (Office 365 én
+  IMAP, met een lege actie ertussen). Het klikken zelf ging daar naar de
+  nep-api; tegen de echte Graph-API is de nieuwe terugkoppeling nog niet
+  bekeken. De aangeroepen commands (`move_message`, `set_message_categories`)
+  zijn wel dezelfde die de leesbalk en het slepen al gebruiken.
 - End-to-end verificatie op Windows met echte IMAP-/CalDAV-servers (staat al
   langer open, sinds de IMAP-accounts).
 
@@ -79,6 +86,24 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
   per account, dus zo werkt dezelfde knop in elk account dat die map heeft
   (bestaat hij niet, dan zegt de app dat). Categorie-acties verbergen zich bij
   IMAP-accounts, want die kennen geen categorieën.
+  **Aanvulling (2026-08-14):** met méér dan één actie ingesteld kwamen er drie
+  dingen boven water (in een browser met nepdata, vier acties + één lege):
+  - Een actie zonder gekozen map/categorie kreeg tóch een knop: alleen een
+    icoon, zonder naam, en klikken gaf enkel de fout "map bestaat niet". Zo'n
+    onaffe actie levert nu geen knop meer op, en in Instellingen staat erbij
+    waarom je hem niet ziet.
+  - Een categorie-knop **schakelt** (tweede klik haalt de categorie weer weg),
+    maar zag er altijd hetzelfde uit. Hij toont nu de kleur van de categorie
+    (zelfde bron als de chips) en een ingedrukte staat als het bericht hem al
+    heeft; de tooltip zegt toekennen of weghalen. Er komt ook een melding, want
+    de chip zelf staat buiten beeld zodra je in het bericht gescrold hebt.
+    Verplaatsen naar de map waar het bericht al in staat, zei ook niets.
+  - De volgorde van de knoppen was alleen te veranderen door acties te
+    verwijderen en opnieuw toe te voegen; er zitten nu ↑/↓-knoppen bij.
+  Lange map-/categorienamen kappen af op de knop (max 220 px) i.p.v. de balk op
+  te rekken. Nog niet nagelopen: twee mappen met dezelfde naam onder een
+  verschillende bovenmap - de keuzelijst toont die naam één keer en de knop
+  pakt de eerste treffer.
 - **Afzender-avatars (2026-07-27, issue #6)**: rond bolletje met initialen en
   een vaste kleur per afzender, in de berichtenlijst en boven een geopend
   bericht. Uit te zetten via Instellingen -> Berichtenlijst.

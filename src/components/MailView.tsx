@@ -56,7 +56,6 @@ import {
   ReplyIcon,
   SearchIcon,
   SpamIcon,
-  TagIcon,
   TrashIcon,
 } from "./Icons";
 
@@ -716,7 +715,9 @@ export default function MailView({
     return (c && CATEGORY_COLORS[c]) || "#a0aeb2";
   }
 
-  async function toggleCategory(m: Message, name: string) {
+  /** Categorie aan/uit zetten. Geeft false terug als het misging (de melding
+   *  is dan al getoond), zodat een aanroeper geen "gelukt" meer meldt. */
+  async function toggleCategory(m: Message, name: string): Promise<boolean> {
     const cur = m.categories ?? [];
     const next = cur.includes(name)
       ? cur.filter((x) => x !== name)
@@ -725,8 +726,10 @@ export default function MailView({
       await api.setMessageCategories(m.id, next);
       patch(m.id, { categories: next });
       setSelected((s) => (s && s.id === m.id ? { ...s, categories: next } : s));
+      return true;
     } catch (e) {
       notify(String(e), "error");
+      return false;
     }
   }
 
@@ -792,7 +795,13 @@ export default function MailView({
         notify(t("quickActionNoCategories"), "error");
         return;
       }
-      await toggleCategory(m, qa.target);
+      // De knop schakelt: had het bericht de categorie al, dan haalt hij hem
+      // eraf. Zonder melding zie je alleen de chip veranderen, en die staat
+      // buiten beeld zodra je naar beneden hebt gescrold.
+      const had = (m.categories ?? []).includes(qa.target);
+      if (await toggleCategory(m, qa.target)) {
+        notify(`${t(had ? "categoryRemoved" : "categoryAdded")}: ${qa.target}`, "info");
+      }
       return;
     }
     const target = folders.find(
@@ -802,7 +811,10 @@ export default function MailView({
       notify(`${t("quickActionNoFolder")}: ${qa.target}`, "error");
       return;
     }
-    if (target.id === folderId) return; // staat er al
+    if (target.id === folderId) {
+      notify(`${t("quickActionAlreadyThere")}: ${qa.target}`, "info");
+      return;
+    }
     try {
       await api.moveMessage(m.id, target.id);
       dropFromLists(m.id);
@@ -1937,24 +1949,44 @@ export default function MailView({
               >
                 <OpdrachtenIcon size={18} /> {t("maakOpdracht")}
               </button>
-              {/* Eigen snelle acties (Instellingen -> Snelle acties). */}
+              {/* Eigen snelle acties (Instellingen -> Snelle acties). Een actie
+                  zonder gekozen map/categorie is nog niet af en krijgt geen
+                  knop; anders staat er een naamloze knop die alleen een fout
+                  kan geven. */}
               {settings.quickActions
-                .filter((qa) => !(isImap && qa.kind === "category"))
-                .map((qa) => (
-                  <button
-                    key={qa.id}
-                    className="btn"
-                    onClick={() => void runQuickAction(selected, qa)}
-                    title={
-                      qa.kind === "move"
-                        ? `${t("moveTo")}: ${qa.target}`
-                        : `${t("category")}: ${qa.target}`
-                    }
-                  >
-                    {qa.kind === "move" ? <FolderIcon size={18} /> : <TagIcon size={18} />}{" "}
-                    {qa.target}
-                  </button>
-                ))}
+                .filter(
+                  (qa) => qa.target.trim() !== "" && !(isImap && qa.kind === "category")
+                )
+                .map((qa) => {
+                  // Categorie-acties schakelen, dus laat zien of het bericht de
+                  // categorie al heeft - in de kleur van de categorie zelf.
+                  const on =
+                    qa.kind === "category" &&
+                    (selected.categories ?? []).includes(qa.target);
+                  return (
+                    <button
+                      key={qa.id}
+                      className={"btn quick-action" + (on ? " on" : "")}
+                      onClick={() => void runQuickAction(selected, qa)}
+                      aria-pressed={qa.kind === "category" ? on : undefined}
+                      title={
+                        qa.kind === "move"
+                          ? `${t("moveTo")}: ${qa.target}`
+                          : `${t(on ? "categoryRemove" : "categoryAdd")}: ${qa.target}`
+                      }
+                    >
+                      {qa.kind === "move" ? (
+                        <FolderIcon size={18} />
+                      ) : (
+                        <span
+                          className="qa-dot"
+                          style={{ background: catColor(qa.target) }}
+                        />
+                      )}
+                      <span className="qa-label">{qa.target}</span>
+                    </button>
+                  );
+                })}
               {settings.aiSkills.length > 0 && (
                 <select
                   className="ai-reply"

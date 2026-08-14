@@ -176,12 +176,6 @@ export const FolderIcon = (p: Props) => (
     <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
   </Svg>
 );
-export const TagIcon = (p: Props) => (
-  <Svg {...p}>
-    <path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9z" />
-    <circle cx="7.5" cy="7.5" r="1.2" />
-  </Svg>
-);
 export const DownloadIcon = (p: Props) => (
   <Svg {...p}>
     <path d="M12 3v12m0 0 4-4m-4 4-4-4" />
