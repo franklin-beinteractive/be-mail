@@ -10,9 +10,10 @@ van #7 nagelopen met meer dan één actie ingesteld (naamloze knop, geen
 terugkoppeling bij categorieën, geen volgorde), het uitstellen van #8 nagelopen
 (een mislukte wekkerbeurt gooide de registratie weg, en je zag nergens wanneer
 een bericht terugkwam), de hover-acties van #10 (ongelezen-teller liep achter,
-vlagknop zonder staat, archiveren in Archief zelf) en de gesprekskaarten van #11
-(een lang bericht liep over de volgende kaart heen). Zie de bullets bij issue
-#4, #6, #7, #8, #10 en #11.
+vlagknop zonder staat, archiveren in Archief zelf), de gesprekskaarten van #11
+(een lang bericht liep over de volgende kaart heen) en het opslaan van berichten
+uit #12 (nu ook meerdere tegelijk en via de rechtermuisknop). Zie de bullets bij
+issue #4, #6, #7, #8, #10, #11 en #12.
 
 **Ronde 2026-07-27:** de GitHub-issues #2, #3, #4, #6,
 #7, #8, #10, #11, #12 en #13 opgelost, elk in een eigen commit (zie de bullets
@@ -66,12 +67,28 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
   IMAP naar SEARCH-criteria (`FROM "…" SINCE 1-Jan-2026`). Zoeken op bijlagen
   kan IMAP niet (geen criterium daarvoor); dat vinkje verschijnt daar niet.
   Einddatum is inclusief, ook bij IMAP (BEFORE is exclusief, dus +1 dag).
-- **Bericht opslaan als .eml (2026-07-27, issue #12)**: knop in de leesbalk
-  slaat het hele bericht (incl. headers en bijlagen) op in de Downloads-map.
-  `.eml` omdat dat de ruwe MIME is en in elke mailclient opent. Graph levert
-  die via `/$value`, IMAP via de bytes die er toch al zijn; beide schrijven via
-  dezelfde `write_eml()` zodat de naamgeving gelijk is (onderwerp, afgekapt op
-  80 tekens, met oplopend volgnummer bij dubbele namen).
+- **Bericht opslaan als .eml (2026-07-27 + 2026-08-14, issue #12)**: knop in de
+  leesbalk slaat het hele bericht (incl. headers en bijlagen) op in de
+  Downloads-map. `.eml` omdat dat de ruwe MIME is en in elke mailclient opent.
+  Graph levert die via `/$value`, IMAP via de bytes die er toch al zijn; beide
+  schrijven via dezelfde `write_eml()` zodat de naamgeving gelijk is (onderwerp,
+  afgekapt op 80 tekens, met oplopend volgnummer bij dubbele namen).
+  **Aanvulling (2026-08-14):** opslaan kon alleen bij een geopend bericht, één
+  voor één. Nu ook:
+  - **Meerdere tegelijk**: knop in de bulkbalk slaat alle aangevinkte berichten
+    op. Bewust los van `bulk()` - daar verandert er iets aan de mailbox en
+    wordt de lijst herladen; hier blijft de selectie gewoon staan. Fouten geven
+    één melding, niet twintig dezelfde.
+  - **Rechtermuisknop** op een bericht in de lijst: "Bericht opslaan", zonder
+    het bericht eerst te openen.
+  - **Naamgeving zit nu in één module** (`src-tauri/src/download.rs`,
+    `save_to_downloads()` + `write_eml()`). Graph en IMAP hadden elk hun eigen
+    kopie van het opschonen en doornummeren, die ook nog net anders nummerden
+    ("(1)" tegenover "(2)" bij de eerste dubbele naam). Meteen de
+    **Windows-apparaatnamen** afgevangen: een bericht met onderwerp "CON" of een
+    bijlage "nul.pdf" schreef naar het apparaat, waarna de app "opgeslagen"
+    meldde terwijl er niets op schijf stond. Die krijgen nu een `_` ervoor.
+    Vier unit-tests erbij (64 groen).
 - **Conversatie als losse kaarten (2026-07-27 + 2026-08-14, issue #11)**: het leesvenster
   toonde één bericht; de rest van de conversatie zag je alleen uitgeklapt in de
   lijst. Nu krijgt elk bericht uit de conversatie een eigen kaart, het geopende

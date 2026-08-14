@@ -884,6 +884,30 @@ export default function MailView({
     }
   }
 
+  /** Alle aangevinkte berichten als .eml in Downloads. Bewust los van `bulk()`:
+   *  daar verandert er iets aan de mailbox en wordt de lijst opnieuw geladen,
+   *  hier alleen op schijf - dus blijven de selectie en de lijst staan. */
+  async function bulkDownload() {
+    const ids = [...checked];
+    if (ids.length === 0) return;
+    setDownloading("bulk");
+    let saved = 0;
+    let firstError = "";
+    for (const id of ids) {
+      try {
+        await api.downloadMessage(id);
+        saved++;
+      } catch (e) {
+        // Eén melding aan het eind: bij twintig berichten wil niemand twintig
+        // dezelfde foutmeldingen.
+        if (!firstError) firstError = String(e);
+      }
+    }
+    setDownloading(null);
+    if (saved > 0) notify(`${saved} ${t("messagesSaved")}`, "info");
+    if (firstError) notify(firstError, "error");
+  }
+
   /** Een bericht verdwijnt uit de open map: de ongelezen-teller ernaast moet
    *  mee. Binnen zoekresultaten kan het bericht uit een andere map komen, dus
    *  halen we de tellers daar bij de server op. */
@@ -1828,6 +1852,15 @@ export default function MailView({
             <button className="btn" onClick={() => bulk("archive")} title={tip("tipBulkArchive")}>
               <ArchiveIcon size={16} />
             </button>
+            <button
+              className="btn"
+              onClick={() => void bulkDownload()}
+              disabled={downloading !== null}
+              title={tip("tipBulkDownload")}
+              aria-label={t("downloadMessage")}
+            >
+              <DownloadIcon size={16} />
+            </button>
             {/* Verplaatsen gaat door de selectie naar een map te slepen. */}
             <button className="btn danger" onClick={() => bulk("delete")} title={tip("tipBulkDelete")}>
               <TrashIcon size={16} />
@@ -2566,6 +2599,15 @@ export default function MailView({
               {t("archive")}
             </button>
           )}
+          <button
+            className="suggest-item"
+            onClick={() => {
+              void downloadMessage(ctxMenu.msg);
+              setCtxMenu(null);
+            }}
+          >
+            {t("downloadMessage")}
+          </button>
           <button
             className="suggest-item"
             onClick={() => {

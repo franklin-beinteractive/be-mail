@@ -148,7 +148,9 @@ const dict = {
     clearFilters: "Filters wissen",
     downloadMessage: "Bericht opslaan",
     messageSaved: "Bericht opgeslagen als .eml",
+    messagesSaved: "berichten opgeslagen als .eml in Downloads",
     tipDownloadMessage: "Het hele bericht opslaan als .eml in Downloads",
+    tipBulkDownload: "De aangevinkte berichten opslaan als .eml in Downloads",
     quickActions: "Snelle acties",
     quickActionsHint:
       "Knoppen boven een geopend bericht. Verplaatsen werkt op mapnaam, dus dezelfde knop werkt in elk account met die map.",
@@ -616,7 +618,9 @@ const dict = {
     clearFilters: "Clear filters",
     downloadMessage: "Save message",
     messageSaved: "Message saved as .eml",
+    messagesSaved: "messages saved as .eml in Downloads",
     tipDownloadMessage: "Save the whole message as .eml in Downloads",
+    tipBulkDownload: "Save the ticked messages as .eml in Downloads",
     quickActions: "Quick actions",
     quickActionsHint:
       "Buttons above an open message. Moving works by folder name, so the same button works in any account that has that folder.",

@@ -488,7 +488,7 @@ impl ImapClient {
         let subject = mail_parser::MessageParser::default()
             .parse(&raw[..])
             .and_then(|p| p.subject().map(str::to_string));
-        crate::graph::write_eml(subject.as_deref(), &raw)
+        crate::download::write_eml(subject.as_deref(), &raw)
     }
 
     pub async fn download_attachment(
@@ -510,13 +510,10 @@ impl ImapClient {
             .nth(want)
             .ok_or_else(|| anyhow::anyhow!("Deze bijlage bestaat niet meer."))?;
 
-        let name = sanitize_filename(part.attachment_name().unwrap_or("bijlage"));
-        let dir = dirs::download_dir()
-            .ok_or_else(|| anyhow::anyhow!("Kon de Downloads-map niet vinden."))?;
-        let path = unique_path(&dir, &name);
-        std::fs::write(&path, part.contents())
-            .context("Kon het bestand niet opslaan in Downloads.")?;
-        Ok(path.to_string_lossy().into_owned())
+        crate::download::save_to_downloads(
+            part.attachment_name().unwrap_or("bijlage"),
+            part.contents(),
+        )
     }
 
     pub async fn inline_images(&self, message_id: &str) -> Result<Vec<InlineImage>> {
@@ -1327,42 +1324,6 @@ fn imap_date(ymd: &str) -> Option<String> {
 fn next_day(ymd: &str) -> Option<String> {
     let d = chrono::NaiveDate::parse_from_str(ymd.trim(), "%Y-%m-%d").ok()?;
     Some(d.succ_opt()?.format("%Y-%m-%d").to_string())
-}
-
-fn sanitize_filename(name: &str) -> String {
-    let cleaned: String = name
-        .chars()
-        .map(|c| match c {
-            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
-            c if (c as u32) < 0x20 => '_',
-            c => c,
-        })
-        .collect();
-    let trimmed = cleaned.trim().trim_matches('.');
-    if trimmed.is_empty() {
-        "bijlage".to_string()
-    } else {
-        trimmed.to_string()
-    }
-}
-
-/// Geeft een pad dat nog niet bestaat: "naam.pdf", anders "naam (2).pdf", enz.
-fn unique_path(dir: &std::path::Path, filename: &str) -> std::path::PathBuf {
-    let candidate = dir.join(filename);
-    if !candidate.exists() {
-        return candidate;
-    }
-    let (stem, ext) = match filename.rsplit_once('.') {
-        Some((s, e)) if !s.is_empty() => (s.to_string(), format!(".{e}")),
-        _ => (filename.to_string(), String::new()),
-    };
-    for i in 2..1000 {
-        let p = dir.join(format!("{stem} ({i}){ext}"));
-        if !p.exists() {
-            return p;
-        }
-    }
-    dir.join(filename)
 }
 
 // ---- Schrijfpad-helpers (verplaatsen, terugvinden, SMTP, MIME) ----

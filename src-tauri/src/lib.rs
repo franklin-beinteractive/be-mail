@@ -9,6 +9,7 @@ mod caldav;
 mod claude;
 mod commands;
 mod config;
+mod download;
 mod graph;
 mod imap;
 mod models;

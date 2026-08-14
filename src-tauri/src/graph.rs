@@ -591,11 +591,7 @@ impl GraphClient {
             .decode(b64.as_bytes())
             .context("Kon de bijlage-inhoud niet decoderen")?;
 
-        let dir = dirs::download_dir()
-            .ok_or_else(|| anyhow::anyhow!("Kon de Downloads-map niet vinden"))?;
-        let path = unique_path(&dir, &sanitize_filename(att.name.as_deref().unwrap_or("bijlage")));
-        std::fs::write(&path, bytes).context("Kon het bestand niet opslaan in Downloads")?;
-        Ok(path.to_string_lossy().into_owned())
+        crate::download::save_to_downloads(att.name.as_deref().unwrap_or("bijlage"), &bytes)
     }
 
     /// Slaat het hele bericht op als .eml (ruwe MIME) in de Downloads-map en
@@ -624,7 +620,7 @@ impl GraphClient {
             .await
             .context("Kon het bericht niet lezen")?;
 
-        write_eml(subject.subject.as_deref(), &bytes)
+        crate::download::write_eml(subject.subject.as_deref(), &bytes)
     }
 
     /// Inline (cid:) afbeeldingen van een bericht, met inhoud als base64.
@@ -1121,56 +1117,6 @@ fn kql_value(v: &str) -> String {
 struct MessageSubject {
     #[serde(default)]
     subject: Option<String>,
-}
-
-/// Schrijft ruwe MIME als .eml in Downloads en geeft het pad terug. Gedeeld
-/// door Graph en IMAP zodat beide dezelfde naamgeving gebruiken.
-pub fn write_eml(subject: Option<&str>, bytes: &[u8]) -> Result<String> {
-    let dir = dirs::download_dir()
-        .ok_or_else(|| anyhow::anyhow!("Kon de Downloads-map niet vinden"))?;
-    let base = subject.map(str::trim).filter(|s| !s.is_empty()).unwrap_or("bericht");
-    // Lange onderwerpen afkappen: Windows-paden zijn begrensd.
-    let base: String = base.chars().take(80).collect();
-    let path = unique_path(&dir, &format!("{}.eml", sanitize_filename(&base)));
-    std::fs::write(&path, bytes).context("Kon het bericht niet opslaan in Downloads")?;
-    Ok(path.to_string_lossy().into_owned())
-}
-
-/// Haalt tekens uit een bestandsnaam die op Windows niet mogen (en padscheiders).
-fn sanitize_filename(name: &str) -> String {
-    let cleaned: String = name
-        .chars()
-        .map(|c| match c {
-            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
-            c if (c as u32) < 0x20 => '_',
-            c => c,
-        })
-        .collect();
-    let trimmed = cleaned.trim().trim_matches('.');
-    if trimmed.is_empty() {
-        "bijlage".to_string()
-    } else {
-        trimmed.to_string()
-    }
-}
-
-/// Geeft een pad dat nog niet bestaat: "naam.pdf", anders "naam (1).pdf", enz.
-fn unique_path(dir: &std::path::Path, filename: &str) -> std::path::PathBuf {
-    let candidate = dir.join(filename);
-    if !candidate.exists() {
-        return candidate;
-    }
-    let (stem, ext) = match filename.rsplit_once('.') {
-        Some((s, e)) if !s.is_empty() => (s.to_string(), format!(".{e}")),
-        _ => (filename.to_string(), String::new()),
-    };
-    for i in 1..1000 {
-        let p = dir.join(format!("{stem} ({i}){ext}"));
-        if !p.exists() {
-            return p;
-        }
-    }
-    dir.join(filename)
 }
 
 /// Is this a plain e-mail address, safe to paste into a Graph URL path?
