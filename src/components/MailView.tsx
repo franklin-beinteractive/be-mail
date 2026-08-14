@@ -457,14 +457,41 @@ export default function MailView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, searchScope, folderId, isImap]);
 
+  /** Is er iets ingevuld om op te zoeken? Zelfde regel als
+   *  `SearchQuery::is_empty()` in de kern, die op een leeg formulier nul
+   *  resultaten teruggeeft - en dan lijkt de map ineens leeg. */
+  function advIsEmpty(q: SearchQuery): boolean {
+    const blank = (s?: string | null) => (s ?? "").trim() === "";
+    return (
+      blank(q.text) &&
+      blank(q.from) &&
+      blank(q.to) &&
+      blank(q.cc) &&
+      blank(q.subject) &&
+      blank(q.since) &&
+      blank(q.until) &&
+      q.isRead == null &&
+      q.hasAttachments !== true
+    );
+  }
+
   /** Uitgebreid zoeken uitvoeren. Het snelle zoekvak wordt geleegd zodat de
-   *  twee elkaars resultaten niet overschrijven. */
-  async function runAdvancedSearch() {
+   *  twee elkaars resultaten niet overschrijven. Het bereik komt als argument
+   *  mee: bij het omschakelen is de state nog niet bijgewerkt. */
+  async function runAdvancedSearch(scope: "all" | "folder" = searchScope) {
+    if (advIsEmpty(adv)) {
+      notify(t("advEmpty"), "error");
+      return;
+    }
+    if (adv.since && adv.until && adv.since > adv.until) {
+      notify(t("advDateOrder"), "error");
+      return;
+    }
     const seq = ++searchSeq.current;
     setSearch("");
     setLoading(true);
     try {
-      const folderScoped = searchScope === "folder" || isImap;
+      const folderScoped = scope === "folder" || isImap;
       const page = await api.searchAdvanced(
         adv,
         50,
@@ -485,6 +512,17 @@ export default function MailView({
     searchSeq.current++;
     setSearchResult(null);
     setChecked(new Set());
+  }
+
+  /** Staan er resultaten van het uitgebreide formulier op het scherm? Dan is
+   *  het zoekvak leeg en trapt dat dus geen nieuwe zoekopdracht af. */
+  const advActive = searchResult !== null && search.trim() === "";
+
+  function changeScope(next: "all" | "folder") {
+    setSearchScope(next);
+    // Het snelle zoeken gaat vanzelf opnieuw (effect op searchScope); het
+    // uitgebreide formulier heeft geen zoekvak, dus dat starten we hier.
+    if (advActive) void runAdvancedSearch(next);
   }
 
   async function loadPage(from: number, replace: boolean) {
@@ -1704,7 +1742,28 @@ export default function MailView({
           </button>
         </div>
         {advOpen && (
-          <div className="search-adv">
+          <div
+            className="search-adv"
+            // Enter werkt zo in het hele formulier, ook in de datumvelden.
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void runAdvancedSearch();
+            }}
+          >
+            {/* "Zoeken in" bovenaan, zoals het Outlook-paneel uit de issue: de
+                balk met Alle mappen/Deze map hoort bij het snelle zoekvak en
+                staat er niet zolang dat leeg is. */}
+            <label className="adv-row">
+              <span>{t("searchIn")}</span>
+              <select
+                value={isImap ? "folder" : searchScope}
+                disabled={isImap}
+                title={isImap ? tip("searchImapFolderOnly") : undefined}
+                onChange={(e) => changeScope(e.target.value as "all" | "folder")}
+              >
+                <option value="all">{t("searchEverywhere")}</option>
+                <option value="folder">{t("searchThisFolder")}</option>
+              </select>
+            </label>
             {(
               [
                 ["from", t("from")],
@@ -1719,9 +1778,6 @@ export default function MailView({
                 <input
                   value={adv[key] ?? ""}
                   onChange={(e) => setAdv((p) => ({ ...p, [key]: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void runAdvancedSearch();
-                  }}
                 />
               </label>
             ))}
@@ -1784,7 +1840,7 @@ export default function MailView({
             <div className="seg">
               <button
                 className={"seg-btn" + (searchScope === "all" && !isImap ? " active" : "")}
-                onClick={() => setSearchScope("all")}
+                onClick={() => changeScope("all")}
                 disabled={isImap}
                 title={isImap ? tip("searchImapFolderOnly") : undefined}
               >
@@ -1792,7 +1848,7 @@ export default function MailView({
               </button>
               <button
                 className={"seg-btn" + (searchScope === "folder" || isImap ? " active" : "")}
-                onClick={() => setSearchScope("folder")}
+                onClick={() => changeScope("folder")}
               >
                 {t("searchThisFolder")}
               </button>
@@ -1800,6 +1856,18 @@ export default function MailView({
             {isImap && (
               <span className="muted small">{t("searchImapFolderOnly")}</span>
             )}
+          </div>
+        )}
+        {/* Uitgebreid zoeken laat het zoekvak leeg; zonder deze regel is niet te
+            zien dat je naar een gefilterde lijst kijkt (of hoe je eruit komt). */}
+        {advActive && (
+          <div className="search-scope">
+            <span className="muted small">
+              {t("searchResults")}: {searchResult?.length ?? 0}
+            </span>
+            <button className="btn ghost" onClick={clearAdvancedSearch}>
+              {t("clearFilters")}
+            </button>
           </div>
         )}
         <div className="list-controls">

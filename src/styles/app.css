@@ -361,7 +361,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 .search-clear:hover { color: var(--text); background: var(--bg-sunken); }
 /* Zoekbereik (Overal / Deze map), alleen zichtbaar tijdens het zoeken. */
-.search-scope { padding: 6px 12px; border-bottom: 1px solid var(--border); }
+.search-scope {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 /* AI-antwoord-keuzelijst in de actiebalk. */
 .ai-reply { max-width: 170px; }
 .list-controls {

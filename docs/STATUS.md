@@ -11,9 +11,10 @@ terugkoppeling bij categorieën, geen volgorde), het uitstellen van #8 nagelopen
 (een mislukte wekkerbeurt gooide de registratie weg, en je zag nergens wanneer
 een bericht terugkwam), de hover-acties van #10 (ongelezen-teller liep achter,
 vlagknop zonder staat, archiveren in Archief zelf), de gesprekskaarten van #11
-(een lang bericht liep over de volgende kaart heen) en het opslaan van berichten
-uit #12 (nu ook meerdere tegelijk en via de rechtermuisknop). Zie de bullets bij
-issue #4, #6, #7, #8, #10, #11 en #12.
+(een lang bericht liep over de volgende kaart heen), het opslaan van berichten
+uit #12 (nu ook meerdere tegelijk en via de rechtermuisknop) en het uitgebreide
+zoeken van #13 (leeg formulier gaf een lege lijst, bereik was onzichtbaar). Zie
+de bullets bij issue #4, #6, #7, #8, #10, #11, #12 en #13.
 
 **Ronde 2026-07-27:** de GitHub-issues #2, #3, #4, #6,
 #7, #8, #10, #11, #12 en #13 opgelost, elk in een eigen commit (zie de bullets
@@ -59,14 +60,30 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
 
 ## ✅ Af
 
-- **Uitgebreid zoeken (2026-07-27, issue #13)**: pijltje naast het zoekvak
-  klapt een formulier open met Van, Aan, CC, Onderwerp, Trefwoorden, datum van/
-  tot, leesstatus en "heeft bijlagen" - zoals het Outlook-paneel uit de issue.
-  De velden gaan **gestructureerd** naar de kern (`SearchQuery`), niet als
-  kant-en-klare zoekstring: Graph vertaalt naar KQL (`from:…  AND received>=…`),
-  IMAP naar SEARCH-criteria (`FROM "…" SINCE 1-Jan-2026`). Zoeken op bijlagen
-  kan IMAP niet (geen criterium daarvoor); dat vinkje verschijnt daar niet.
-  Einddatum is inclusief, ook bij IMAP (BEFORE is exclusief, dus +1 dag).
+- **Uitgebreid zoeken (2026-07-27 + 2026-08-14, issue #13)**: pijltje naast het
+  zoekvak klapt een formulier open met Van, Aan, CC, Onderwerp, Trefwoorden,
+  datum van/tot, leesstatus en "heeft bijlagen" - zoals het Outlook-paneel uit
+  de issue. De velden gaan **gestructureerd** naar de kern (`SearchQuery`), niet
+  als kant-en-klare zoekstring: Graph vertaalt naar KQL (`from:…  AND
+  received>=…`), IMAP naar SEARCH-criteria (`FROM "…" SINCE 1-Jan-2026`). Zoeken
+  op bijlagen kan IMAP niet (geen criterium daarvoor); dat vinkje verschijnt
+  daar niet. Einddatum is inclusief, ook bij IMAP (BEFORE is exclusief, dus
+  +1 dag).
+  **Aanvulling (2026-08-14):** het formulier echt gebruikt (browser, nepdata);
+  vier dingen kwamen boven water:
+  - **Een leeg formulier leverde een lege lijst.** De kern geeft op een leeg
+    `SearchQuery` netjes nul resultaten terug, maar in beeld leek de map ineens
+    leeg. De knop zegt nu "Vul minstens één zoekveld in" en laat de map staan.
+  - **Het bereik was onzichtbaar bij uitgebreid zoeken.** De balk "Alle
+    mappen"/"Deze map" hangt aan het snelle zoekvak, en dat wordt juist geleegd
+    als je het formulier gebruikt - je zocht dus in een bereik dat je niet kon
+    zien of wijzigen. "Zoeken in" staat nu bovenaan het formulier (zoals op de
+    schermafdruk in de issue) en zoekt meteen opnieuw als je het omzet.
+  - **Niets liet zien dat je naar een filter keek.** Boven de lijst staat nu
+    "Zoekresultaten: N" met een knop "Filters wissen".
+  - **Enter deed niets in de datumvelden en de keuzelijsten** (alleen in de
+    tekstvelden); dat luistert nu op het hele formulier. Een einddatum vóór de
+    begindatum geeft een melding in plaats van stilzwijgend nul resultaten.
 - **Bericht opslaan als .eml (2026-07-27 + 2026-08-14, issue #12)**: knop in de
   leesbalk slaat het hele bericht (incl. headers en bijlagen) op in de
   Downloads-map. `.eml` omdat dat de ruwe MIME is en in elke mailclient opent.
