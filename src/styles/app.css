@@ -1016,21 +1016,28 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .week-num { display: block; font-size: 1.2rem; font-weight: 600; }
 .tg-dayhead.today .week-num { color: var(--accent); }
 
-.tg-allday { border-bottom: 1px solid var(--border); background: var(--bg-sunken); }
+/* All-day strip: one row per "lane", so a multi-day event can lie across
+   several day columns as a single continuous bar (just like Outlook). */
+.tg-allday {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-sunken);
+  grid-template-rows: repeat(var(--lanes, 1), minmax(22px, auto));
+}
 .tg-allday-label {
   font-size: 0.72rem;
   color: var(--text-muted);
   padding: 4px 6px;
   text-align: right;
+  grid-row: 1 / -1;
 }
+/* The day cells are only background and drop target; they span every lane. */
 .tg-allday-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 3px;
+  grid-row: 1 / -1;
   min-height: 24px;
   border-left: 1px solid var(--border);
 }
+/* The bar sits on top of the day cells (grid items are allowed to overlap). */
+.tg-allday-bar { z-index: 1; margin: 2px 3px; }
 
 .tg-gutter { border-right: 1px solid var(--border); }
 .tg-hours { position: relative; }

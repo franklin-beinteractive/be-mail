@@ -3,7 +3,11 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-07-27. Deze ronde: de GitHub-issues #2, #3, #4, #6,
+**Laatst bijgewerkt:** 2026-08-14: het tijdgrid van #4 nagelopen met nepdata;
+meerdaagse en over-middernacht-afspraken werden niet getoond (zie de bullet bij
+issue #4).
+
+**Ronde 2026-07-27:** de GitHub-issues #2, #3, #4, #6,
 #7, #8, #10, #11, #12 en #13 opgelost, elk in een eigen commit (zie de bullets
 hieronder voor wat er per issue veranderde).
 
@@ -17,9 +21,10 @@ zoeken (#13) met `from` + `hasAttachment` + `received>=` gecombineerd, en het
 opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
 
 **Nog te doen / open punten**
-- Overlappende afspraken (naast elkaar) en de hele-dag-strook van het tijdgrid
-  (#4): in de agenda staat geen data die dit uitlokt. De indeling is wel
-  unit-getest; visueel bevestigen vraagt twee tijdelijke testafspraken.
+- Het tijdgrid (#4) is nu wel met nepdata in een browser nagelopen (naast
+  elkaar staande afspraken, hele-dag-balken, over middernacht heen). Wat nog
+  ontbreekt is dezelfde controle in de draaiende app tegen de echte agenda:
+  daar staat geen data die overlap of een meerdaagse afspraak uitlokt.
 - Snooze die een niet-actief account wekt (#8): er is maar één account
   gekoppeld, dus het scenario is niet na te spelen.
 - End-to-end verificatie op Windows met echte IMAP-/CalDAV-servers (staat al
@@ -83,6 +88,16 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
   beginpositie bij de eerste afspraak van de periode. Dubbelklikken op een uur
   opent een nieuwe afspraak op dat tijdstip (`EventDialog` kreeg daarvoor
   `defaultStartTime`). De indeling zit in `layoutDay()` in `CalendarView.tsx`.
+  **Aanvulling (2026-08-14):** afspraken werden ingedeeld op alleen hun
+  *startdag*, terwijl `/me/calendarView` alles teruggeeft wat de periode
+  *overlapt*. Een meerdaagse afspraak die vóór de zichtbare week begon viel
+  daardoor helemaal weg, en een afspraak over middernacht heen was de tweede
+  dag onzichtbaar. `daysOfEvent()` levert nu alle dagen die een afspraak raakt;
+  `layoutDay(events, dayKey)` knipt per dag af (doorlopers beginnen om 00:00 en
+  tellen niet mee voor de scrollpositie) en `layoutAllDay()` legt hele-dag-
+  afspraken als één balk over alle dagen die ze beslaan, met een rij per
+  overlappende balk. Ook de maandweergave zet een meerdaagse afspraak nu op
+  elke dag die hij beslaat.
 - **Agendaweergave wordt onthouden (2026-07-27, issue #3)**: dag/werkweek/week/
   maand/lijst stond in lokale state van `CalendarView`, en dat component wordt
   ontkoppeld zodra je naar Mail gaat - de keuze sprong dus telkens terug naar
