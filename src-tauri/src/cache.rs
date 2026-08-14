@@ -47,6 +47,13 @@ fn db() -> Result<&'static Mutex<Connection>> {
            delta_link TEXT,
            synced_at  INTEGER NOT NULL DEFAULT 0,
            PRIMARY KEY (account_id, folder_id)
+         );
+         CREATE TABLE IF NOT EXISTS photos (
+           account_id TEXT NOT NULL,
+           address    TEXT NOT NULL,
+           data_uri   TEXT NOT NULL,
+           fetched_at INTEGER NOT NULL,
+           PRIMARY KEY (account_id, address)
          );",
     )
     .context("Kon het cache-schema niet aanmaken")?;
@@ -222,6 +229,50 @@ pub fn clear_account(account_id: &str) -> Result<()> {
     conn.execute("DELETE FROM folders WHERE account_id = ?1", params![account_id])?;
     conn.execute("DELETE FROM messages WHERE account_id = ?1", params![account_id])?;
     conn.execute("DELETE FROM sync_state WHERE account_id = ?1", params![account_id])?;
+    conn.execute("DELETE FROM photos WHERE account_id = ?1", params![account_id])?;
+    Ok(())
+}
+
+// ---- Profielfoto's (avatars) ----
+
+/// How long a photo we found stays valid. People rarely change their picture,
+/// so a week keeps the list snappy without freezing a new photo out for long.
+const PHOTO_TTL: i64 = 7 * 24 * 3600;
+/// How long "this address has no photo" stays valid. Shorter, because this is
+/// also the answer when the tenant has not (yet) consented to the scope.
+const NO_PHOTO_TTL: i64 = 24 * 3600;
+
+/// A cached profile photo: `Some(Some(uri))` = photo found, `Some(None)` = known
+/// to have no photo, `None` = never fetched or expired, so ask Graph again.
+pub fn photo(account_id: &str, address: &str) -> Option<Option<String>> {
+    let m = db().ok()?;
+    let conn = m.lock().ok()?;
+    let (uri, fetched_at): (String, i64) = conn
+        .query_row(
+            "SELECT data_uri, fetched_at FROM photos WHERE account_id = ?1 AND address = ?2",
+            params![account_id, address],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .ok()?;
+    let ttl = if uri.is_empty() { NO_PHOTO_TTL } else { PHOTO_TTL };
+    if now_ts() - fetched_at > ttl {
+        return None;
+    }
+    Some(Some(uri).filter(|u| !u.is_empty()))
+}
+
+/// Stores a photo, or the fact that there is none (`None`), for this address.
+pub fn save_photo(account_id: &str, address: &str, data_uri: Option<&str>) -> Result<()> {
+    let m = db()?;
+    let conn = m.lock().unwrap();
+    conn.execute(
+        "INSERT INTO photos (account_id, address, data_uri, fetched_at)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT (account_id, address) DO UPDATE SET
+           data_uri   = excluded.data_uri,
+           fetched_at = excluded.fetched_at",
+        params![account_id, address, data_uri.unwrap_or(""), now_ts()],
+    )?;
     Ok(())
 }
 

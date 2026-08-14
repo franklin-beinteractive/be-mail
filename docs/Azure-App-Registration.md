@@ -39,10 +39,18 @@
    - `profile`
    - `People.Read` *(optioneel: autoaanvullen van genodigden/ontvangers en @-vermeldingen)*
    - `MailboxSettings.ReadWrite` *(optioneel: afwezigheid/automatisch antwoord en categorieën)*
+   - `User.ReadBasic.All` *(optioneel: profielfoto's van collega's als avatar in
+     de berichtenlijst en het leesvenster)*
 
-   > De twee optionele rechten zijn niet nodig om te kunnen mailen; de app
+   > De drie optionele rechten zijn niet nodig om te kunnen mailen; de app
    > werkt ook zonder. Zodra de consent er wél is, pakt de app ze vanzelf op
    > (stille upgrade bij het vernieuwen van de sessie).
+   >
+   > `User.ReadBasic.All` geeft leestoegang tot de **basisgegevens** (naam,
+   > e-mailadres, foto) van gebruikers in de eigen tenant; de app gebruikt er
+   > alleen `/users/{adres}/photo` mee. Zonder dit recht toont de avatar de
+   > initialen - precies zoals nu. Je eigen foto komt sowieso mee: die haalt de
+   > app via `/me/photo`, wat al onder `User.Read` valt.
 
    Klik daarna op **Grant admin consent for <organisatie>** - die knop staat in de
    **actiebalk bovenaan de pagina "API permissions"** (naast *+ Add a permission*),
@@ -120,15 +128,15 @@ De gebruiker vult ze in op het instelscherm van BE-Mail bij het eerste opstarten
   tenants laten gebruikers zelf geen toestemming geven voor bepaalde permissions
   (bv. `People.Read`, nodig voor het autoaanvullen van genodigden). Daarom vraagt
   de browser-login **alleen de basisrechten** (mail + agenda) en probeert de app
-  daarna **stil** (zonder consent-scherm) `People.Read` erbij te krijgen - dat
-  lukt automatisch zodra een beheerder consent heeft gegeven. Tot die tijd werkt
-  alles behalve het autoaanvullen van genodigden. Na de consent: éénmalig uit- en
-  weer inloggen. De consent-fix (eenmalig, door een beheerder):
+  daarna **stil** (zonder consent-scherm) de optionele rechten erbij te krijgen -
+  dat lukt automatisch zodra een beheerder consent heeft gegeven. Tot die tijd
+  werkt alles behalve het autoaanvullen van genodigden. Na de consent: éénmalig
+  uit- en weer inloggen. De consent-fix (eenmalig, door een beheerder):
   1. Azure Portal → **App registrations** → *BE-Mail* → **API permissions**.
   2. Voeg onder **Microsoft Graph → Delegated permissions** toe:
      `User.Read`, `Mail.ReadWrite`, `Mail.Send`, `Calendars.ReadWrite`,
-     `People.Read`, `MailboxSettings.ReadWrite`, `offline_access`
-     (openid/profile gaan vanzelf mee).
+     `People.Read`, `MailboxSettings.ReadWrite`, `User.ReadBasic.All`,
+     `offline_access` (openid/profile gaan vanzelf mee).
   3. Klik **Grant admin consent for &lt;organisatie&gt;** (vereist een
      beheerdersrol). Alle statussen worden groen ("Granted").
   4. Log daarna opnieuw in vanuit de app - de goedkeuringsvraag is weg.
@@ -138,3 +146,14 @@ De gebruiker vult ze in op het instelscherm van BE-Mail bij het eerste opstarten
   ```
   https://login.microsoftonline.com/<TENANT-ID>/adminconsent?client_id=<CLIENT-ID>
   ```
+- **Avatars blijven initialen in plaats van profielfoto's.** Dat is de bedoelde
+  terugval en heeft meestal één van deze oorzaken:
+  - `User.ReadBasic.All` staat nog niet in de app-registratie of is nog niet
+    goedgekeurd (zie stap 4). De app probeert de scope bij elke start stil op te
+    pakken; na de consent verschijnen de foto's dus vanzelf, uiterlijk na een
+    herstart.
+  - De afzender staat niet in jullie tenant (externe afzender) of heeft in
+    Microsoft 365 geen foto ingesteld. Outlook toont daar ook initialen.
+  - Het account is een IMAP-account: dat heeft geen adreslijst om aan te vragen.
+  - De vorige uitkomst zit nog in de cache: "geen foto" wordt een dag onthouden,
+    een gevonden foto een week (`photos`-tabel in `cache.db`).

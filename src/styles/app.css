@@ -96,6 +96,7 @@ h2 { font-size: 1.15rem; }
   display: inline-flex;
 }
 .icon-btn:hover { background: var(--bg-sunken); }
+.icon-btn:disabled { opacity: 0.35; cursor: default; background: transparent; }
 .icon-btn:focus-visible { outline: 3px solid var(--accent); }
 
 input, select, textarea {
@@ -360,7 +361,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 .search-clear:hover { color: var(--text); background: var(--bg-sunken); }
 /* Zoekbereik (Overal / Deze map), alleen zichtbaar tijdens het zoeken. */
-.search-scope { padding: 6px 12px; border-bottom: 1px solid var(--border); }
+.search-scope {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 /* AI-antwoord-keuzelijst in de actiebalk. */
 .ai-reply { max-width: 170px; }
 .list-controls {
@@ -421,9 +429,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 .msg:hover .msg-actions,
 .msg:focus-within .msg-actions { display: flex; }
+/* Bij toetsenbordfocus dezelfde achtergrond als bij hover: anders steekt het
+   verloop achter de knoppen als grijze vlek af tegen de rij. */
+.msg:focus-within { background: var(--bg-sunken); }
 .msg-actions .icon-btn { padding: 4px; color: var(--text-muted); }
 .msg-actions .icon-btn:hover { background: var(--bg-raised); color: var(--text); }
 .msg-actions .icon-btn.danger:hover { color: var(--danger); }
+/* Vlag staat aan: zelfde rood als de vlag in de rij zelf. */
+.msg-actions .icon-btn.on { color: var(--danger); }
 .msg.active { background: var(--bg-sunken); border-left-color: var(--accent); }
 .msg.unread { border-left-color: var(--unread); }
 .msg.unread .msg-from, .msg.unread .msg-subject { font-weight: 700; }
@@ -450,6 +463,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   letter-spacing: 0.02em;
   user-select: none;
 }
+/* Photo variant: crop to the circle instead of squashing a non-square photo. */
+img.avatar { object-fit: cover; background: var(--bg-sunken); }
 .msg-top { display: flex; justify-content: space-between; gap: 8px; }
 .msg-from { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg-from-email { color: var(--text-muted); font-size: 0.82rem; font-weight: 400; }
@@ -463,6 +478,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   align-items: center;
   gap: 4px;
 }
+/* Het onderwerp krimpt, de iconen ernaast niet. */
+.msg-subject-text { overflow: hidden; text-overflow: ellipsis; }
 .msg-preview {
   color: var(--text-muted);
   font-size: 0.82rem;
@@ -495,6 +512,21 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   flex-wrap: wrap;
 }
 .move-select { padding: 7px 8px; }
+/* Snelle acties (Instellingen -> Snelle acties). Een categorie-knop schakelt,
+   dus toont hij de kleur van de categorie en of het bericht hem al heeft. */
+.quick-action { max-width: 220px; }
+.qa-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quick-action.on { border-color: var(--accent); background: var(--bg-sunken); }
+.qa-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+/* Rij in Instellingen: de knoppen op één regel, de hint eronder. */
+.qa-row { flex-wrap: wrap; gap: 8px; }
+.qa-row select { flex: 1 1 110px; min-width: 0; }
+.qa-hint { flex-basis: 100%; }
 /* Conversatie: elk bericht een eigen kaart, met de kaarten als scrollgebied.
    Het geopende bericht toont alles; de rest staat ingeklapt op één regel. */
 .thread {
@@ -510,8 +542,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-raised);
+  /* Niet krimpen: .thread is een flexkolom, dus een kaart met een lang bericht
+     werd samengeperst en de tekst liep dwars over de volgende kaart heen.
+     Scrollen doet .thread. */
+  flex: none;
 }
-.thread-card.open { display: flex; flex-direction: column; min-height: 0; }
+.thread-card.open { display: flex; flex-direction: column; }
 /* In een kaart groeit de body mee; scrollen doet .thread. */
 .thread .reader-body { flex: none; overflow: visible; }
 .thread-card.collapsed {
@@ -529,6 +565,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .thread-card.collapsed:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .tc-main { flex: 1; min-width: 0; }
 .tc-top { display: flex; justify-content: space-between; gap: 8px; }
+.tc-side { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .tc-from { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .thread-card.collapsed.unread .tc-from { font-weight: 700; }
 .tc-date { color: var(--text-muted); font-size: 0.8rem; flex-shrink: 0; }
@@ -554,6 +591,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 /* flex:1 zodat de avatar links tegen de afzenderregel blijft plakken en de
    categoriekiezer rechts blijft staan (space-between op de container). */
 .reader-meta-main { flex: 1; min-width: 0; }
+/* Aan/CC: één regel, hoe lang de lijst ook is (volledig in de tooltip). */
+.reader-to { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reader-meta .cat-add { flex-shrink: 0; }
 .warn {
   margin-top: 8px;
@@ -824,6 +863,27 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 .snooze-custom { display: flex; gap: 4px; padding: 6px; border-top: 1px solid var(--border); }
 .snooze-custom input { flex: 1; min-width: 0; }
+/* Al uitgesteld: knop ingedrukt en het afgesproken moment boven in het menu. */
+.snooze-btn.on { border-color: var(--accent); background: var(--bg-sunken); color: var(--accent); }
+.snooze-due {
+  padding: 6px 8px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+/* Terugkomtijd in de berichtenlijst (Uitgesteld-map); rechts op de
+   onderwerpregel, zodat het onderwerp afkapt en niet de afzendernaam. */
+.msg-snooze {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 6px;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--accent);
+}
 
 /* Categorieën (kleurlabels) */
 .msg-cats { display: inline-flex; gap: 3px; margin: 0 6px; }
@@ -1016,21 +1076,28 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .week-num { display: block; font-size: 1.2rem; font-weight: 600; }
 .tg-dayhead.today .week-num { color: var(--accent); }
 
-.tg-allday { border-bottom: 1px solid var(--border); background: var(--bg-sunken); }
+/* All-day strip: one row per "lane", so a multi-day event can lie across
+   several day columns as a single continuous bar (just like Outlook). */
+.tg-allday {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-sunken);
+  grid-template-rows: repeat(var(--lanes, 1), minmax(22px, auto));
+}
 .tg-allday-label {
   font-size: 0.72rem;
   color: var(--text-muted);
   padding: 4px 6px;
   text-align: right;
+  grid-row: 1 / -1;
 }
+/* The day cells are only background and drop target; they span every lane. */
 .tg-allday-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 3px;
+  grid-row: 1 / -1;
   min-height: 24px;
   border-left: 1px solid var(--border);
 }
+/* The bar sits on top of the day cells (grid items are allowed to overlap). */
+.tg-allday-bar { z-index: 1; margin: 2px 3px; }
 
 .tg-gutter { border-right: 1px solid var(--border); }
 .tg-hours { position: relative; }

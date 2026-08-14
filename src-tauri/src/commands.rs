@@ -193,10 +193,11 @@ pub fn logout(account_id: Option<String>) -> Result<(), String> {
 #[tauri::command]
 pub fn list_accounts() -> Result<AccountsInfo, String> {
     let cfg = require_config()?;
-    // Op de achtergrond: ontbrekende optionele scopes (People.Read,
-    // MailboxSettings) stil ophalen zodra de beheerder consent heeft gegeven -
-    // ook als het access-token nog geldig is. Zo werkt autocomplete direct
-    // na het opstarten, zonder wachten op token-verloop of herinloggen.
+    // In the background: quietly pick up missing optional scopes (People.Read,
+    // MailboxSettings, User.ReadBasic.All for profile photos) as soon as the
+    // administrator has consented - even while the access token is still valid.
+    // That way autocomplete and avatars work right after startup, without
+    // waiting for the token to expire or making the user sign in again.
     for a in &cfg.accounts {
         let cfg2 = cfg.clone();
         let id = a.id.clone();
@@ -695,6 +696,53 @@ pub async fn set_message_categories(
         .set_message_categories(&message_id, &categories)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// Profile photo of a sender as a `data:` URI, or null when there is none.
+///
+/// Never returns an error: no photo is the normal case (external senders are
+/// not in the directory, IMAP accounts have no directory at all, and the
+/// optional `User.ReadBasic.All` scope may not be consented to), and the
+/// message list must not turn red over a missing avatar.
+///
+/// Answers are cached in cache.db - including "no photo" - because the list
+/// asks for one per visible row and Graph would otherwise be hit on every
+/// scroll.
+#[tauri::command]
+pub async fn sender_photo(address: String) -> Result<Option<String>, String> {
+    let address = address.trim().to_lowercase();
+    if address.is_empty() {
+        return Ok(None);
+    }
+    let Ok(account_id) = active_account() else {
+        return Ok(None);
+    };
+    if let Some(hit) = cache::photo(&account_id, &address) {
+        return Ok(hit);
+    }
+    // An IMAP account has no directory to ask; that stays initials.
+    let Ok(Backend::Graph(graph)) = client().await else {
+        return Ok(None);
+    };
+    // Your own photo goes through /me/photo, which works without the directory
+    // scope, so your own messages show a real picture in every tenant.
+    let own = config::load()
+        .ok()
+        .flatten()
+        .and_then(|cfg| {
+            cfg.accounts
+                .iter()
+                .find(|a| a.id == account_id)
+                .and_then(|a| a.mail.clone())
+        })
+        .map(|m| m.trim().to_lowercase());
+    let photo = if own.as_deref() == Some(address.as_str()) {
+        graph.my_photo().await
+    } else {
+        graph.user_photo(&address).await
+    };
+    let _ = cache::save_photo(&account_id, &address, photo.as_deref());
+    Ok(photo)
 }
 
 /// Inline (cid:) afbeeldingen van een bericht, voor weergave in het leesvenster.

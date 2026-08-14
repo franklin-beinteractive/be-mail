@@ -44,10 +44,43 @@ function minutesOfDay(dt: string): number {
   return m ? Number(m[1]) * 60 + Number(m[2]) : 0;
 }
 
-/** Eindtijd in minuten binnen de startdag; loopt de afspraak door naar de
- *  volgende dag, dan knippen we af op middernacht. */
-function endMinutesInDay(ev: CalendarEvent): number {
-  if (ev.end.dateTime.slice(0, 10) > ev.start.dateTime.slice(0, 10)) return DAY_MINUTES;
+/**
+ * Every day (YYYY-MM-DD) an event touches, from its first through its last day.
+ * An end at exactly midnight does not add a day: Graph gives a single-day
+ * all-day event an end of 00:00 on the day after.
+ *
+ * Needed because `/me/calendarView` returns everything that *overlaps* the
+ * window, including an event that started before the visible week. Bucketing on
+ * the start day alone made such an event disappear altogether.
+ */
+export function daysOfEvent(ev: CalendarEvent): string[] {
+  const first = ev.start.dateTime.slice(0, 10);
+  let last = ev.end.dateTime.slice(0, 10);
+  if (last > first && minutesOfDay(ev.end.dateTime) === 0) {
+    last = ymd(addDays(new Date(last + "T00:00:00"), -1));
+  }
+  if (last <= first) return [first];
+  const out: string[] = [];
+  // Upper bound: an event running longer than a year is cut off here.
+  for (let d = new Date(first + "T00:00:00"), i = 0; i < 366; i++) {
+    const key = ymd(d);
+    if (key > last) break;
+    out.push(key);
+    d = addDays(d, 1);
+  }
+  return out;
+}
+
+/** Start time in minutes within `dayKey`; 0 if the event started earlier. */
+function startMinutesInDay(ev: CalendarEvent, dayKey: string): number {
+  if (ev.start.dateTime.slice(0, 10) < dayKey) return 0;
+  return Math.min(minutesOfDay(ev.start.dateTime), DAY_MINUTES);
+}
+
+/** End time in minutes within `dayKey`; an event running into the next day is
+ *  cut off at midnight. */
+function endMinutesInDay(ev: CalendarEvent, dayKey: string): number {
+  if (ev.end.dateTime.slice(0, 10) > dayKey) return DAY_MINUTES;
   return minutesOfDay(ev.end.dateTime);
 }
 
@@ -59,14 +92,17 @@ export interface PlacedEvent {
   height: number;
   left: number;
   width: number;
+  /** Started on an earlier day and continues here from midnight. */
+  continued: boolean;
 }
 
 /**
- * Plaatst de afspraken van één dag in het tijdgrid: verticaal op starttijd met
- * de hoogte van de duur, en overlappende afspraken naast elkaar (zoals
- * Outlook). Afspraken die elkaar niet raken krijgen allemaal de volle breedte.
+ * Places the events of day `dayKey` in the time grid: vertically at their start
+ * time with the height of their duration, and overlapping events next to each
+ * other (like Outlook). Events that do not touch each other all get the full
+ * width. An event running across midnight is clipped on every day it covers.
  */
-export function layoutDay(events: CalendarEvent[]): PlacedEvent[] {
+export function layoutDay(events: CalendarEvent[], dayKey: string): PlacedEvent[] {
   interface Slot {
     ev: CalendarEvent;
     s: number;
@@ -74,8 +110,8 @@ export function layoutDay(events: CalendarEvent[]): PlacedEvent[] {
   }
   const slots: Slot[] = events
     .map((ev) => {
-      const s = Math.min(minutesOfDay(ev.start.dateTime), DAY_MINUTES);
-      const e = Math.min(Math.max(endMinutesInDay(ev), s + MIN_SLOT), DAY_MINUTES);
+      const s = startMinutesInDay(ev, dayKey);
+      const e = Math.min(Math.max(endMinutesInDay(ev, dayKey), s + MIN_SLOT), DAY_MINUTES);
       return { ev, s, e };
     })
     // Op starttijd; bij gelijke start de langste eerst (die wordt de linker kolom).
@@ -110,6 +146,7 @@ export function layoutDay(events: CalendarEvent[]): PlacedEvent[] {
         height: ((it.e - it.s) / 60) * HOUR_H,
         left: (c / n) * 100,
         width: 100 / n,
+        continued: it.ev.start.dateTime.slice(0, 10) < dayKey,
       });
     }
     cluster = [];
@@ -123,6 +160,48 @@ export function layoutDay(events: CalendarEvent[]): PlacedEvent[] {
   }
   if (cluster.length > 0) flush();
   return out;
+}
+
+/** Bar in the all-day strip: which day columns it covers (`col` is the index
+ *  into the visible days) and which row it ends up on. */
+export interface AllDayBar {
+  ev: CalendarEvent;
+  col: number;
+  span: number;
+  lane: number;
+}
+
+/**
+ * Lays out the all-day events in the strip above the time grid: one bar per
+ * event across every day it covers (like Outlook), with overlapping bars
+ * stacked underneath each other. Days outside the view are clipped; an event
+ * carried in from before the window simply starts at the left edge.
+ */
+export function layoutAllDay(events: CalendarEvent[], dayKeys: string[]): AllDayBar[] {
+  const index = new Map(dayKeys.map((k, i) => [k, i]));
+  const bars: AllDayBar[] = [];
+  // Per row, the last column already taken; a row only exists once it is used.
+  const laneEnds: number[] = [];
+  for (const ev of events) {
+    let first = Infinity;
+    let last = -Infinity;
+    for (const key of daysOfEvent(ev)) {
+      const i = index.get(key);
+      if (i === undefined) continue;
+      if (i < first) first = i;
+      if (i > last) last = i;
+    }
+    if (last < first) continue; // falls entirely outside the visible days
+    let lane = laneEnds.findIndex((end) => end < first);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(last);
+    } else {
+      laneEnds[lane] = last;
+    }
+    bars.push({ ev, col: first, span: last - first + 1, lane });
+  }
+  return bars;
 }
 
 /** Minuten sinds middernacht, nu. */
@@ -205,13 +284,17 @@ export default function CalendarView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range.start, range.end, hasCalendar, capabilities]);
 
+  // An event is filed under EVERY day it covers, not just its start day:
+  // otherwise a multi-day event that started before the visible window drops
+  // out of sight completely.
   const byDay = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
     for (const e of events) {
-      const key = e.start.dateTime.slice(0, 10);
-      const arr = map.get(key) ?? [];
-      arr.push(e);
-      map.set(key, arr);
+      for (const key of daysOfEvent(e)) {
+        const arr = map.get(key) ?? [];
+        arr.push(e);
+        map.set(key, arr);
+      }
     }
     return map;
   }, [events]);
@@ -223,25 +306,42 @@ export default function CalendarView() {
     () => Array.from({ length: dayCount }, (_, i) => addDays(range.start, i)),
     [range.start, dayCount]
   );
+  const dayKeys = useMemo(() => days.map(ymd), [days]);
   /** Per dag: de afspraken met een tijd, al ingedeeld in het grid. */
   const dayLayouts = useMemo(
     () =>
-      days.map((d) => layoutDay((byDay.get(ymd(d)) ?? []).filter((e) => !e.isAllDay))),
-    [days, byDay]
+      dayKeys.map((key) =>
+        layoutDay((byDay.get(key) ?? []).filter((e) => !e.isAllDay), key)
+      ),
+    [dayKeys, byDay]
   );
-  /** Hele-dag-afspraken horen niet in het tijdgrid maar in de strook erboven. */
-  const allDayRows = useMemo(
-    () => days.map((d) => (byDay.get(ymd(d)) ?? []).filter((e) => e.isAllDay)),
-    [days, byDay]
-  );
-  const hasAllDay = allDayRows.some((r) => r.length > 0);
+  /** All-day events do not belong in the time grid but in the strip above it,
+   *  as a bar across every day they cover. */
+  const allDayBars = useMemo(() => {
+    const seen = new Set<string>();
+    const list: CalendarEvent[] = [];
+    for (const key of dayKeys) {
+      for (const e of byDay.get(key) ?? []) {
+        if (!e.isAllDay || seen.has(e.id)) continue;
+        seen.add(e.id);
+        list.push(e);
+      }
+    }
+    return layoutAllDay(list, dayKeys);
+  }, [dayKeys, byDay]);
+  const allDayLanes = allDayBars.reduce((n, b) => Math.max(n, b.lane + 1), 0);
 
   // Bij 24 uur in beeld staat de werkdag onderaan: scroll naar de eerste
   // afspraak (of 08:00 op een lege dag) zodra de weergave of periode wijzigt.
   useEffect(() => {
     const el = gridRef.current;
     if (!el || !isTimeGrid) return;
-    const starts = dayLayouts.flat().map((p) => p.top);
+    // An event carried over from the previous day starts here at 00:00; it does
+    // not count, otherwise the grid would scroll to midnight.
+    const starts = dayLayouts
+      .flat()
+      .filter((p) => !p.continued)
+      .map((p) => p.top);
     const first = starts.length > 0 ? Math.min(...starts) : 8 * HOUR_H;
     // De vastgezette kop bedekt tijdens het scrollen precies zijn eigen hoogte,
     // dus scrollTop komt overeen met de bovenste zichtbare regel in het rooster.
@@ -485,30 +585,37 @@ export default function CalendarView() {
                 );
               })}
             </div>
-            {hasAllDay && (
-              <div className="tg-row tg-allday">
+            {allDayLanes > 0 && (
+              <div
+                className="tg-row tg-allday"
+                style={{ "--lanes": allDayLanes } as React.CSSProperties}
+              >
                 <div className="tg-gutter tg-allday-label">{t("allDay")}</div>
-                {days.map((d, i) => {
-                  const key = ymd(d);
-                  return (
-                    <div
-                      key={key}
-                      className={"tg-allday-cell" + (dropDay === key ? " drop-target" : "")}
-                      {...dayDropProps(key)}
-                    >
-                      {allDayRows[i].map((e) => (
-                        <button
-                          key={e.id}
-                          className="chip block"
-                          onClick={() => setDetail(e)}
-                          {...chipDragProps(e)}
-                        >
-                          {e.subject || "(-)"}
-                        </button>
-                      ))}
-                    </div>
-                  );
-                })}
+                {/* Day cells first (background + drop target), then the bars on
+                    top of them: those may span several columns. */}
+                {dayKeys.map((key, i) => (
+                  <div
+                    key={key}
+                    className={"tg-allday-cell" + (dropDay === key ? " drop-target" : "")}
+                    style={{ gridColumn: i + 2 }}
+                    {...dayDropProps(key)}
+                  />
+                ))}
+                {allDayBars.map((b) => (
+                  <button
+                    key={b.ev.id}
+                    className="chip block tg-allday-bar"
+                    style={{
+                      gridColumn: `${b.col + 2} / span ${b.span}`,
+                      gridRow: b.lane + 1,
+                    }}
+                    onClick={() => setDetail(b.ev)}
+                    title={b.ev.subject || "(-)"}
+                    {...chipDragProps(b.ev)}
+                  >
+                    {b.ev.subject || "(-)"}
+                  </button>
+                ))}
               </div>
             )}
           </div>

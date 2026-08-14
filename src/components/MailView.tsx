@@ -56,7 +56,6 @@ import {
   ReplyIcon,
   SearchIcon,
   SpamIcon,
-  TagIcon,
   TrashIcon,
 } from "./Icons";
 
@@ -70,8 +69,15 @@ interface SnoozeEntry {
   id: string; // bericht-id ná verplaatsing naar de Uitgesteld-map
   accountId: string;
   due: string; // ISO-tijdstip
+  /** Mislukte pogingen om het bericht terug te zetten. Een tik van de wekker
+   *  kan mislukken doordat het netwerk plat ligt; de registratie blijft dan
+   *  staan zodat de volgende tik het opnieuw probeert. */
+  tries?: number;
 }
 const SNOOZE_KEY = "BE-Mail.snoozes";
+/** Na zoveel mislukte pogingen (één per minuut) geeft de wekker het op. Zonder
+ *  bovengrens zou een bericht dat er niet meer is elke minuut blijven proberen. */
+const SNOOZE_MAX_TRIES = 10;
 function loadSnoozes(): SnoozeEntry[] {
   try {
     return JSON.parse(localStorage.getItem(SNOOZE_KEY) ?? "[]") as SnoozeEntry[];
@@ -98,6 +104,26 @@ function nextMondayMorning(): Date {
   d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
   d.setHours(9, 0, 0, 0);
   return d;
+}
+/** "Jan Jansen, piet@example.com" - naam als die er is, anders het adres. */
+function recipientNames(list?: Recipient[] | null): string {
+  return (list ?? [])
+    .map((r) => r.emailAddress?.name || r.emailAddress?.address || "")
+    .filter(Boolean)
+    .join(", ");
+}
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+/** Date → waarde voor <input type="datetime-local"> (lokale tijd, geen UTC:
+ *  `toISOString()` zou er een uur of twee naast zitten). */
+function toDateTimeInput(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 // Outlook-presetkleuren voor categorieën (preset0 t/m preset24).
@@ -204,6 +230,14 @@ export default function MailView({
     () => accounts.find((x) => x.id === activeId)?.kind === "imap",
     [accounts, activeId]
   );
+
+  /** Staat de open map zelf Archief te zijn? Dan is archiveren zinloos: het
+   *  bericht zou naar zijn eigen map verhuizen. Naam-herkenning op NL en EN,
+   *  net als bij de andere standaardmappen. */
+  const inArchiveFolder = useMemo(() => {
+    const name = folders.find((f) => f.id === folderId)?.displayName?.trim() ?? "";
+    return !!name && HIDEABLE_FOLDERS.find((h) => h.key === "archive")!.re.test(name);
+  }, [folders, folderId]);
 
   /** Wijzig alleen de mappen van het actieve account. */
   function patchActiveFolders(fn: (fs: MailFolder[]) => MailFolder[]) {
@@ -423,14 +457,41 @@ export default function MailView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, searchScope, folderId, isImap]);
 
+  /** Is er iets ingevuld om op te zoeken? Zelfde regel als
+   *  `SearchQuery::is_empty()` in de kern, die op een leeg formulier nul
+   *  resultaten teruggeeft - en dan lijkt de map ineens leeg. */
+  function advIsEmpty(q: SearchQuery): boolean {
+    const blank = (s?: string | null) => (s ?? "").trim() === "";
+    return (
+      blank(q.text) &&
+      blank(q.from) &&
+      blank(q.to) &&
+      blank(q.cc) &&
+      blank(q.subject) &&
+      blank(q.since) &&
+      blank(q.until) &&
+      q.isRead == null &&
+      q.hasAttachments !== true
+    );
+  }
+
   /** Uitgebreid zoeken uitvoeren. Het snelle zoekvak wordt geleegd zodat de
-   *  twee elkaars resultaten niet overschrijven. */
-  async function runAdvancedSearch() {
+   *  twee elkaars resultaten niet overschrijven. Het bereik komt als argument
+   *  mee: bij het omschakelen is de state nog niet bijgewerkt. */
+  async function runAdvancedSearch(scope: "all" | "folder" = searchScope) {
+    if (advIsEmpty(adv)) {
+      notify(t("advEmpty"), "error");
+      return;
+    }
+    if (adv.since && adv.until && adv.since > adv.until) {
+      notify(t("advDateOrder"), "error");
+      return;
+    }
     const seq = ++searchSeq.current;
     setSearch("");
     setLoading(true);
     try {
-      const folderScoped = searchScope === "folder" || isImap;
+      const folderScoped = scope === "folder" || isImap;
       const page = await api.searchAdvanced(
         adv,
         50,
@@ -451,6 +512,17 @@ export default function MailView({
     searchSeq.current++;
     setSearchResult(null);
     setChecked(new Set());
+  }
+
+  /** Staan er resultaten van het uitgebreide formulier op het scherm? Dan is
+   *  het zoekvak leeg en trapt dat dus geen nieuwe zoekopdracht af. */
+  const advActive = searchResult !== null && search.trim() === "";
+
+  function changeScope(next: "all" | "folder") {
+    setSearchScope(next);
+    // Het snelle zoeken gaat vanzelf opnieuw (effect op searchScope); het
+    // uitgebreide formulier heeft geen zoekvak, dus dat starten we hier.
+    if (advActive) void runAdvancedSearch(next);
   }
 
   async function loadPage(from: number, replace: boolean) {
@@ -636,6 +708,10 @@ export default function MailView({
 
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [snoozeAt, setSnoozeAt] = useState("");
+  const snoozeRef = useRef<HTMLSpanElement>(null);
+  // Registraties ook in state: de lijst en het leesvenster tonen wanneer een
+  // bericht terugkomt, dus een wijziging moet opnieuw tekenen.
+  const [snoozes, setSnoozes] = useState<SnoozeEntry[]>(loadSnoozes);
   // Verse verwijzing naar "huidige lijst verversen" voor de snooze-wekker
   // (de interval-closure zou anders een verouderde folderId zien).
   const reloadListRef = useRef<() => void>(() => {});
@@ -643,13 +719,30 @@ export default function MailView({
     if (!searchResult) void loadPage(0, true);
   };
 
+  function putSnoozes(next: SnoozeEntry[]) {
+    saveSnoozes(next);
+    setSnoozes(next);
+  }
+  /** Altijd vanuit localStorage rekenen: de wekker draait in een interval en
+   *  zou met een verouderde state-kopie registraties kunnen wegpoetsen. */
+  function updateSnoozes(fn: (list: SnoozeEntry[]) => SnoozeEntry[]) {
+    putSnoozes(fn(loadSnoozes()));
+  }
+
+  /** Openstaande uitstel-registratie van een bericht in het actieve account. */
+  const snoozeOf = useMemo(() => {
+    const map = new Map<string, SnoozeEntry>();
+    for (const s of snoozes) if (s.accountId === activeId) map.set(s.id, s);
+    return map;
+  }, [snoozes, activeId]);
+
   async function ensureSnoozeFolder(): Promise<string> {
-    const name = t("snoozed");
-    const existing = folders.find(
-      (f) => (f.displayName ?? "").toLowerCase() === name.toLowerCase()
-    );
+    // Op naam zoeken in beide talen: wie de app op Engels zet, mag geen tweede
+    // map ("Snoozed" naast "Uitgesteld") krijgen met een halve voorraad erin.
+    const re = HIDEABLE_FOLDERS.find((h) => h.key === "snoozed")!.re;
+    const existing = folders.find((f) => re.test((f.displayName ?? "").trim()));
     if (existing) return existing.id;
-    const f = await api.createFolder(name);
+    const f = await api.createFolder(t("snoozed"));
     patchActiveFolders((prev) => [...prev, f]);
     return f.id;
   }
@@ -657,14 +750,35 @@ export default function MailView({
   async function snooze(m: Message, due: Date) {
     setSnoozeOpen(false);
     try {
-      const dest = await ensureSnoozeFolder();
-      const moved = await api.moveMessageReturning(m.id, dest);
-      saveSnoozes([
-        ...loadSnoozes(),
-        { id: moved.id, accountId: activeId, due: due.toISOString() },
+      // Opnieuw uitstellen van een al uitgesteld bericht verplaatst niets: het
+      // staat al in de map. Wél verplaatsen zou een tweede id opleveren en de
+      // oude registratie op een spookbericht laten wachten.
+      let id = m.id;
+      if (!snoozeOf.has(m.id)) {
+        const dest = await ensureSnoozeFolder();
+        id = (await api.moveMessageReturning(m.id, dest)).id;
+        dropFromLists(m.id);
+      }
+      updateSnoozes((list) => [
+        ...list.filter((s) => s.id !== id && s.id !== m.id),
+        { id, accountId: activeId, due: due.toISOString() },
       ]);
+      notify(`${t("snoozedUntil")} ${longDateTime(due.toISOString(), settings.lang)}`, "info");
+      void reloadAllFolders();
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  /** Uitstellen ongedaan maken: het bericht gaat nu meteen terug naar Postvak
+   *  IN, met hetzelfde command als de wekker. */
+  async function unsnooze(m: Message) {
+    setSnoozeOpen(false);
+    try {
+      await api.wakeSnoozed(activeId, m.id);
+      updateSnoozes((list) => list.filter((s) => s.id !== m.id));
       dropFromLists(m.id);
-      notify(`${t("snoozed")} ✓`, "info");
+      notify(t("snoozeCancelled"), "info");
       void reloadAllFolders();
     } catch (e) {
       notify(String(e), "error");
@@ -675,24 +789,46 @@ export default function MailView({
   // hun tijd voorbij is. Over ALLE accounts, niet alleen het actieve: anders
   // blijft een bericht liggen zolang je in een ander account werkt, terwijl de
   // gebruiker een tijdstip heeft afgesproken.
+  const wakeBusy = useRef(false);
   useEffect(() => {
     if (!activeId) return;
     async function wake() {
-      const all = loadSnoozes();
+      // Een trage ronde mag niet overlappen met de volgende tik; dan zou
+      // hetzelfde bericht twee keer worden teruggezet.
+      if (wakeBusy.current) return;
       const now = Date.now();
-      const due = all.filter((s) => new Date(s.due).getTime() <= now);
+      const due = loadSnoozes().filter((s) => new Date(s.due).getTime() <= now);
       if (!due.length) return;
-      // Meteen uit de lijst halen: anders probeert de volgende tik het opnieuw.
-      saveSnoozes(all.filter((s) => !due.includes(s)));
+      wakeBusy.current = true;
+      const done = new Set<string>();
+      const failed = new Set<string>();
       let activeWoken = false;
       for (const s of due) {
         try {
           await api.wakeSnoozed(s.accountId, s.id);
+          done.add(s.id);
           if (s.accountId === activeId) activeWoken = true;
         } catch {
-          // Bericht is intussen handmatig verplaatst/verwijderd: vergeten.
+          // Netwerk plat of bericht intussen verwijderd: registratie bewaren
+          // en het straks opnieuw proberen (tot SNOOZE_MAX_TRIES).
+          failed.add(s.id);
         }
       }
+      const next: SnoozeEntry[] = [];
+      let gaveUp = 0;
+      for (const s of loadSnoozes()) {
+        if (done.has(s.id)) continue;
+        if (!failed.has(s.id)) {
+          next.push(s);
+          continue;
+        }
+        const tries = (s.tries ?? 0) + 1;
+        if (tries >= SNOOZE_MAX_TRIES) gaveUp++;
+        else next.push({ ...s, tries });
+      }
+      putSnoozes(next);
+      wakeBusy.current = false;
+      if (gaveUp) notify(t("snoozeWakeFailed"), "error");
       // Alleen het beeld verversen als er iets in het zichtbare account wijzigde.
       if (activeWoken) {
         void reloadAllFolders();
@@ -705,6 +841,24 @@ export default function MailView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
+  // Uitstel-menu sluiten bij een klik ernaast of Escape (het menu bevat een
+  // invoerveld, dus een klik erbinnen mag het juist niet sluiten).
+  useEffect(() => {
+    if (!snoozeOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!snoozeRef.current?.contains(e.target as Node)) setSnoozeOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSnoozeOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [snoozeOpen]);
+
   // ---- Categorieën ----
 
   useEffect(() => {
@@ -716,7 +870,9 @@ export default function MailView({
     return (c && CATEGORY_COLORS[c]) || "#a0aeb2";
   }
 
-  async function toggleCategory(m: Message, name: string) {
+  /** Categorie aan/uit zetten. Geeft false terug als het misging (de melding
+   *  is dan al getoond), zodat een aanroeper geen "gelukt" meer meldt. */
+  async function toggleCategory(m: Message, name: string): Promise<boolean> {
     const cur = m.categories ?? [];
     const next = cur.includes(name)
       ? cur.filter((x) => x !== name)
@@ -725,8 +881,10 @@ export default function MailView({
       await api.setMessageCategories(m.id, next);
       patch(m.id, { categories: next });
       setSelected((s) => (s && s.id === m.id ? { ...s, categories: next } : s));
+      return true;
     } catch (e) {
       notify(String(e), "error");
+      return false;
     }
   }
 
@@ -764,20 +922,61 @@ export default function MailView({
     }
   }
 
+  /** Alle aangevinkte berichten als .eml in Downloads. Bewust los van `bulk()`:
+   *  daar verandert er iets aan de mailbox en wordt de lijst opnieuw geladen,
+   *  hier alleen op schijf - dus blijven de selectie en de lijst staan. */
+  async function bulkDownload() {
+    const ids = [...checked];
+    if (ids.length === 0) return;
+    setDownloading("bulk");
+    let saved = 0;
+    let firstError = "";
+    for (const id of ids) {
+      try {
+        await api.downloadMessage(id);
+        saved++;
+      } catch (e) {
+        // Eén melding aan het eind: bij twintig berichten wil niemand twintig
+        // dezelfde foutmeldingen.
+        if (!firstError) firstError = String(e);
+      }
+    }
+    setDownloading(null);
+    if (saved > 0) notify(`${saved} ${t("messagesSaved")}`, "info");
+    if (firstError) notify(firstError, "error");
+  }
+
+  /** Een bericht verdwijnt uit de open map: de ongelezen-teller ernaast moet
+   *  mee. Binnen zoekresultaten kan het bericht uit een andere map komen, dus
+   *  halen we de tellers daar bij de server op. */
+  function dropUnreadCount(m: Message) {
+    if (searchResult) void reloadAllFolders();
+    else if (!m.isRead) refreshFolderUnread(-1);
+  }
+
   async function remove(m: Message) {
     if (!(await confirm(t("confirmDelete")))) return;
     try {
       await api.deleteMessage(m.id);
       dropFromLists(m.id);
+      dropUnreadCount(m);
     } catch (e) {
       notify(String(e), "error");
     }
   }
 
   async function archive(m: Message) {
+    // Archiveren terwijl je ín Archief staat verplaatst het bericht naar zijn
+    // eigen map: Graph geeft het een nieuw id en de rij staat er bij de
+    // volgende verversing gewoon weer. Zeg dat liever.
+    if (inArchiveFolder) {
+      notify(t("quickActionAlreadyThere"), "info");
+      return;
+    }
     try {
       await api.archiveMessage(m.id);
       dropFromLists(m.id);
+      dropUnreadCount(m);
     } catch (e) {
       notify(String(e), "error");
     }
@@ -792,7 +991,13 @@ export default function MailView({
         notify(t("quickActionNoCategories"), "error");
         return;
       }
-      await toggleCategory(m, qa.target);
+      // De knop schakelt: had het bericht de categorie al, dan haalt hij hem
+      // eraf. Zonder melding zie je alleen de chip veranderen, en die staat
+      // buiten beeld zodra je naar beneden hebt gescrold.
+      const had = (m.categories ?? []).includes(qa.target);
+      if (await toggleCategory(m, qa.target)) {
+        notify(`${t(had ? "categoryRemoved" : "categoryAdded")}: ${qa.target}`, "info");
+      }
       return;
     }
     const target = folders.find(
@@ -802,7 +1007,10 @@ export default function MailView({
       notify(`${t("quickActionNoFolder")}: ${qa.target}`, "error");
       return;
     }
-    if (target.id === folderId) return; // staat er al
+    if (target.id === folderId) {
+      notify(`${t("quickActionAlreadyThere")}: ${qa.target}`, "info");
+      return;
+    }
     try {
       await api.moveMessage(m.id, target.id);
       dropFromLists(m.id);
@@ -1224,6 +1432,19 @@ export default function MailView({
     return order;
   }, [shown]);
 
+  // Het geopende bericht bovenaan in beeld zetten. Het scrollgebied (.thread)
+  // blijft bij het wisselen van bericht hetzelfde element, dus zonder dit
+  // begint een net geopend bericht op de scrollpositie van het vorige - midden
+  // in de tekst, of (in een gesprek) helemaal buiten beeld.
+  const openCardRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = openCardRef.current;
+    const box = el?.parentElement;
+    if (!el || !box) return;
+    // Verschil tussen de twee bovenkanten; werkt ongeacht positionering.
+    box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top;
+  }, [selected?.id]);
+
   /** De conversatie rond het geopende bericht, oudste eerst. Bevat alleen wat
    *  in de lijst geladen is: eigen antwoorden uit Verzonden items zitten er
    *  dus niet bij zolang je in Postvak IN kijkt. */
@@ -1521,7 +1742,28 @@ export default function MailView({
           </button>
         </div>
         {advOpen && (
-          <div className="search-adv">
+          <div
+            className="search-adv"
+            // Enter werkt zo in het hele formulier, ook in de datumvelden.
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void runAdvancedSearch();
+            }}
+          >
+            {/* "Zoeken in" bovenaan, zoals het Outlook-paneel uit de issue: de
+                balk met Alle mappen/Deze map hoort bij het snelle zoekvak en
+                staat er niet zolang dat leeg is. */}
+            <label className="adv-row">
+              <span>{t("searchIn")}</span>
+              <select
+                value={isImap ? "folder" : searchScope}
+                disabled={isImap}
+                title={isImap ? tip("searchImapFolderOnly") : undefined}
+                onChange={(e) => changeScope(e.target.value as "all" | "folder")}
+              >
+                <option value="all">{t("searchEverywhere")}</option>
+                <option value="folder">{t("searchThisFolder")}</option>
+              </select>
+            </label>
             {(
               [
                 ["from", t("from")],
@@ -1536,9 +1778,6 @@ export default function MailView({
                 <input
                   value={adv[key] ?? ""}
                   onChange={(e) => setAdv((p) => ({ ...p, [key]: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void runAdvancedSearch();
-                  }}
                 />
               </label>
             ))}
@@ -1601,7 +1840,7 @@ export default function MailView({
             <div className="seg">
               <button
                 className={"seg-btn" + (searchScope === "all" && !isImap ? " active" : "")}
-                onClick={() => setSearchScope("all")}
+                onClick={() => changeScope("all")}
                 disabled={isImap}
                 title={isImap ? tip("searchImapFolderOnly") : undefined}
               >
@@ -1609,7 +1848,7 @@ export default function MailView({
               </button>
               <button
                 className={"seg-btn" + (searchScope === "folder" || isImap ? " active" : "")}
-                onClick={() => setSearchScope("folder")}
+                onClick={() => changeScope("folder")}
               >
                 {t("searchThisFolder")}
               </button>
@@ -1617,6 +1856,18 @@ export default function MailView({
             {isImap && (
               <span className="muted small">{t("searchImapFolderOnly")}</span>
             )}
+          </div>
+        )}
+        {/* Uitgebreid zoeken laat het zoekvak leeg; zonder deze regel is niet te
+            zien dat je naar een gefilterde lijst kijkt (of hoe je eruit komt). */}
+        {advActive && (
+          <div className="search-scope">
+            <span className="muted small">
+              {t("searchResults")}: {searchResult?.length ?? 0}
+            </span>
+            <button className="btn ghost" onClick={clearAdvancedSearch}>
+              {t("clearFilters")}
+            </button>
           </div>
         )}
         <div className="list-controls">
@@ -1668,6 +1919,15 @@ export default function MailView({
             </button>
             <button className="btn" onClick={() => bulk("archive")} title={tip("tipBulkArchive")}>
               <ArchiveIcon size={16} />
+            </button>
+            <button
+              className="btn"
+              onClick={() => void bulkDownload()}
+              disabled={downloading !== null}
+              title={tip("tipBulkDownload")}
+              aria-label={t("downloadMessage")}
+            >
+              <DownloadIcon size={16} />
             </button>
             {/* Verplaatsen gaat door de selectie naar een map te slepen. */}
             <button className="btn danger" onClick={() => bulk("delete")} title={tip("tipBulkDelete")}>
@@ -1787,12 +2047,35 @@ export default function MailView({
                   {(settings.listShowSubject ||
                     m.flag?.flagStatus === "flagged" ||
                     m.importance === "high" ||
-                    m.hasAttachments) && (
+                    m.hasAttachments ||
+                    snoozeOf.has(m.id)) && (
                     <div className="msg-subject">
                       {m.flag?.flagStatus === "flagged" && <span className="flagdot">⚑</span>}
                       {m.importance === "high" && <span className="hi">!</span>}
-                      {settings.listShowSubject && (m.subject || "(geen onderwerp)")}
-                      {m.hasAttachments && <PaperclipIcon size={14} style={{ marginLeft: 4 }} />}
+                      {/* Eigen span: als losse tekst in een flexrij kapt het
+                          onderwerp niet af maar duwt het de paperclip en de
+                          uitstel-tijd het beeld uit. */}
+                      {settings.listShowSubject && (
+                        <span className="msg-subject-text">
+                          {m.subject || "(geen onderwerp)"}
+                        </span>
+                      )}
+                      {m.hasAttachments && <PaperclipIcon size={14} style={{ flexShrink: 0 }} />}
+                      {/* Uitgesteld bericht: laat zien wanneer het terugkomt,
+                          anders is de Uitgesteld-map een zwart gat. Op deze
+                          regel, want de hover-acties dekken de bovenste af. */}
+                      {snoozeOf.has(m.id) && (
+                        <span
+                          className="msg-snooze"
+                          title={`${t("snoozedUntil")} ${longDateTime(
+                            snoozeOf.get(m.id)!.due,
+                            settings.lang
+                          )}`}
+                        >
+                          <ClockIcon size={12} />
+                          {shortDate(snoozeOf.get(m.id)!.due, settings.lang)}
+                        </span>
+                      )}
                     </div>
                   )}
                   {settings.listShowPreview && (
@@ -1804,25 +2087,35 @@ export default function MailView({
                     niet openen. */}
                 <div className="msg-actions">
                   {[
-                    {
-                      key: "archive",
-                      label: t("archive"),
-                      hint: tip("tipArchive"),
-                      icon: <ArchiveIcon size={16} />,
-                      run: () => void archive(m),
-                    },
+                    // In Archief zelf kan archiveren niets doen; dan geen knop.
+                    ...(inArchiveFolder
+                      ? []
+                      : [
+                          {
+                            key: "archive",
+                            label: t("archive"),
+                            hint: tip("tipArchive"),
+                            icon: <ArchiveIcon size={16} />,
+                            on: false,
+                            run: () => void archive(m),
+                          },
+                        ]),
                     {
                       key: "read",
                       label: m.isRead ? t("markUnread") : t("markRead"),
-                      hint: tip(m.isRead ? "markUnread" : "markRead"),
+                      hint: tip("tipRead"),
                       icon: m.isRead ? <MailIcon size={16} /> : <MailOpenIcon size={16} />,
+                      on: false,
                       run: () => void toggleRead(m),
                     },
                     {
+                      // Schakelknop: laat zien of het bericht al een vlag heeft,
+                      // anders is een tweede klik een gok.
                       key: "flag",
-                      label: t("flag"),
+                      label: m.flag?.flagStatus === "flagged" ? t("unflag") : t("flag"),
                       hint: tip("tipFlag"),
                       icon: <FlagIcon size={16} />,
+                      on: m.flag?.flagStatus === "flagged",
                       run: () => void toggleFlag(m),
                     },
                     {
@@ -1830,16 +2123,20 @@ export default function MailView({
                       label: t("delete"),
                       hint: tip("tipDelete"),
                       icon: <TrashIcon size={16} />,
+                      on: false,
                       run: () => void remove(m),
                     },
                   ].map((a) => (
                     <button
                       key={a.key}
-                      className={"icon-btn" + (a.key === "delete" ? " danger" : "")}
+                      className={
+                        "icon-btn" + (a.key === "delete" ? " danger" : "") + (a.on ? " on" : "")
+                      }
                       // hint volgt de tooltip-instelling; het label is er altijd
                       // voor schermlezers.
                       title={a.hint}
                       aria-label={a.label}
+                      aria-pressed={a.key === "flag" ? a.on : undefined}
                       onClick={(e) => {
                         e.stopPropagation();
                         a.run();
@@ -1937,24 +2234,44 @@ export default function MailView({
               >
                 <OpdrachtenIcon size={18} /> {t("maakOpdracht")}
               </button>
-              {/* Eigen snelle acties (Instellingen -> Snelle acties). */}
+              {/* Eigen snelle acties (Instellingen -> Snelle acties). Een actie
+                  zonder gekozen map/categorie is nog niet af en krijgt geen
+                  knop; anders staat er een naamloze knop die alleen een fout
+                  kan geven. */}
               {settings.quickActions
-                .filter((qa) => !(isImap && qa.kind === "category"))
-                .map((qa) => (
-                  <button
-                    key={qa.id}
-                    className="btn"
-                    onClick={() => void runQuickAction(selected, qa)}
-                    title={
-                      qa.kind === "move"
-                        ? `${t("moveTo")}: ${qa.target}`
-                        : `${t("category")}: ${qa.target}`
-                    }
-                  >
-                    {qa.kind === "move" ? <FolderIcon size={18} /> : <TagIcon size={18} />}{" "}
-                    {qa.target}
-                  </button>
-                ))}
+                .filter(
+                  (qa) => qa.target.trim() !== "" && !(isImap && qa.kind === "category")
+                )
+                .map((qa) => {
+                  // Categorie-acties schakelen, dus laat zien of het bericht de
+                  // categorie al heeft - in de kleur van de categorie zelf.
+                  const on =
+                    qa.kind === "category" &&
+                    (selected.categories ?? []).includes(qa.target);
+                  return (
+                    <button
+                      key={qa.id}
+                      className={"btn quick-action" + (on ? " on" : "")}
+                      onClick={() => void runQuickAction(selected, qa)}
+                      aria-pressed={qa.kind === "category" ? on : undefined}
+                      title={
+                        qa.kind === "move"
+                          ? `${t("moveTo")}: ${qa.target}`
+                          : `${t(on ? "categoryRemove" : "categoryAdd")}: ${qa.target}`
+                      }
+                    >
+                      {qa.kind === "move" ? (
+                        <FolderIcon size={18} />
+                      ) : (
+                        <span
+                          className="qa-dot"
+                          style={{ background: catColor(qa.target) }}
+                        />
+                      )}
+                      <span className="qa-label">{qa.target}</span>
+                    </button>
+                  );
+                })}
               {settings.aiSkills.length > 0 && (
                 <select
                   className="ai-reply"
@@ -2021,22 +2338,55 @@ export default function MailView({
               >
                 <DownloadIcon size={18} />
               </button>
-              <span className="snooze-wrap">
+              <span className="snooze-wrap" ref={snoozeRef}>
                 <button
-                  className="btn"
-                  onClick={() => setSnoozeOpen((v) => !v)}
-                  title={tip("tipSnooze")}
+                  className={"btn snooze-btn" + (snoozeOf.has(selected.id) ? " on" : "")}
+                  aria-pressed={snoozeOf.has(selected.id)}
+                  onClick={() => {
+                    setSnoozeOpen((v) => {
+                      // Bij openen het veld vast vullen: zo is de eigen keuze
+                      // een aanpassing i.p.v. een leeg formulier.
+                      if (!v) {
+                        const cur = snoozeOf.get(selected.id);
+                        setSnoozeAt(
+                          toDateTimeInput(cur ? new Date(cur.due) : tomorrowMorning())
+                        );
+                      }
+                      return !v;
+                    });
+                  }}
+                  title={
+                    snoozeOf.has(selected.id)
+                      ? `${t("snoozedUntil")} ${longDateTime(
+                          snoozeOf.get(selected.id)!.due,
+                          settings.lang
+                        )}`
+                      : tip("tipSnooze")
+                  }
+                  aria-label={t("snooze")}
                 >
                   <ClockIcon size={18} />
                 </button>
                 {snoozeOpen && (
                   <div className="snooze-menu">
-                    <button
-                      className="suggest-item"
-                      onClick={() => void snooze(selected, laterToday())}
-                    >
-                      {t("laterToday")}
-                    </button>
+                    {snoozeOf.has(selected.id) && (
+                      <div className="snooze-due">
+                        {t("snoozedUntil")}{" "}
+                        <strong>
+                          {longDateTime(snoozeOf.get(selected.id)!.due, settings.lang)}
+                        </strong>
+                      </div>
+                    )}
+                    {/* "Later vandaag" is drie uur verder; na 21:00 valt dat op
+                        morgen en zou de knop iets anders beloven dan hij doet. */}
+                    {isSameDay(laterToday(), new Date()) && (
+                      <button
+                        className="suggest-item"
+                        onClick={() => void snooze(selected, laterToday())}
+                      >
+                        {t("laterToday")}
+                      </button>
+                    )}
                     <button
                       className="suggest-item"
                       onClick={() => void snooze(selected, tomorrowMorning())}
@@ -2053,6 +2403,7 @@ export default function MailView({
                       <input
                         type="datetime-local"
                         value={snoozeAt}
+                        min={toDateTimeInput(new Date())}
                         onChange={(e) => setSnoozeAt(e.target.value)}
                       />
                       <button
@@ -2069,6 +2420,14 @@ export default function MailView({
                         {t("ok")}
                       </button>
                     </div>
+                    {snoozeOf.has(selected.id) && (
+                      <button
+                        className="suggest-item"
+                        onClick={() => void unsnooze(selected)}
+                      >
+                        {t("unsnooze")}
+                      </button>
+                    )}
                   </div>
                 )}
               </span>
@@ -2101,15 +2460,22 @@ export default function MailView({
                   <span className="tc-main">
                     <span className="tc-top">
                       <span className="tc-from">{senderName(cm.from?.emailAddress)}</span>
-                      <span className="tc-date">
-                        {shortDate(cm.receivedDateTime, settings.lang)}
+                      <span className="tc-side">
+                        {/* Een ingeklapt bericht met bijlage gaf niets prijs. */}
+                        {cm.hasAttachments && <PaperclipIcon size={13} />}
+                        <span
+                          className="tc-date"
+                          title={longDateTime(cm.receivedDateTime, settings.lang)}
+                        >
+                          {shortDate(cm.receivedDateTime, settings.lang)}
+                        </span>
                       </span>
                     </span>
                     <span className="tc-preview">{cm.bodyPreview}</span>
                   </span>
                 </button>
               ) : (
-                <article key={cm.id} className="thread-card open">
+                <article key={cm.id} className="thread-card open" ref={openCardRef}>
             <div className="reader-head">
               <h2>{selected.subject || "(geen onderwerp)"}</h2>
               <div className="reader-meta">
@@ -2126,6 +2492,24 @@ export default function MailView({
                   <div className="muted small">
                     {longDateTime(selected.receivedDateTime, settings.lang)}
                   </div>
+                  {/* Aan wie ging dit bericht? In een gesprek is dat het
+                      verschil tussen "aan mij" en "ik zat in de CC". */}
+                  {recipientNames(selected.toRecipients) && (
+                    <div
+                      className="muted small reader-to"
+                      title={recipientNames(selected.toRecipients)}
+                    >
+                      {t("to")}: {recipientNames(selected.toRecipients)}
+                    </div>
+                  )}
+                  {recipientNames(selected.ccRecipients) && (
+                    <div
+                      className="muted small reader-to"
+                      title={recipientNames(selected.ccRecipients)}
+                    >
+                      {t("cc")}: {recipientNames(selected.ccRecipients)}
+                    </div>
+                  )}
                   {!isImap && (selected.categories ?? []).length > 0 && (
                     <div className="cat-row">
                       {(selected.categories ?? []).map((c) => (
@@ -2272,14 +2656,25 @@ export default function MailView({
           >
             {ctxMenu.msg.isRead ? t("markUnread") : t("markRead")}
           </button>
+          {!inArchiveFolder && (
+            <button
+              className="suggest-item"
+              onClick={() => {
+                void archive(ctxMenu.msg);
+                setCtxMenu(null);
+              }}
+            >
+              {t("archive")}
+            </button>
+          )}
           <button
             className="suggest-item"
             onClick={() => {
-              void archive(ctxMenu.msg);
+              void downloadMessage(ctxMenu.msg);
               setCtxMenu(null);
             }}
           >
-            {t("archive")}
+            {t("downloadMessage")}
           </button>
           <button
             className="suggest-item"

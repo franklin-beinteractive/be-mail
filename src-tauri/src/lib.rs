@@ -9,6 +9,7 @@ mod caldav;
 mod claude;
 mod commands;
 mod config;
+mod download;
 mod graph;
 mod imap;
 mod models;
@@ -77,6 +78,7 @@ pub fn run() {
             commands::send_draft,
             commands::list_attachments,
             commands::inline_images,
+            commands::sender_photo,
             commands::fetch_remote_image,
             commands::wake_snoozed,
             commands::download_attachment,

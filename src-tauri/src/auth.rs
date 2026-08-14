@@ -23,13 +23,18 @@ const BASE_SCOPES: &str =
 /// Basis + People.Read (genodigden-/ontvanger-autocomplete).
 const PEOPLE_SCOPES: &str =
     "openid profile offline_access User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite People.Read";
-/// Alles, incl. MailboxSettings.ReadWrite (afwezigheid + categorieën).
-const FULL_SCOPES: &str =
+/// Basis + People.Read + MailboxSettings.ReadWrite (afwezigheid + categorieën).
+const MAILBOX_SCOPES: &str =
     "openid profile offline_access User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite People.Read MailboxSettings.ReadWrite";
+/// Alles, incl. User.ReadBasic.All: dat is wat `/users/{adres}/photo` nodig
+/// heeft voor de profielfoto's van collega's in de lijst en het leesvenster.
+/// Zonder die scope blijft de avatar gewoon de initialen tonen.
+const FULL_SCOPES: &str =
+    "openid profile offline_access User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite People.Read MailboxSettings.ReadWrite User.ReadBasic.All";
 /// Upgrade-varianten van meest naar minst compleet; de eerste die de tenant
 /// toestaat wint. Zo blokkeert een ontbrekende consent voor de ene optionele
 /// scope niet de upgrade naar de andere.
-const SCOPE_TIERS: [&str; 2] = [FULL_SCOPES, PEOPLE_SCOPES];
+const SCOPE_TIERS: [&str; 3] = [FULL_SCOPES, MAILBOX_SCOPES, PEOPLE_SCOPES];
 
 fn b64url(bytes: &[u8]) -> String {
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)

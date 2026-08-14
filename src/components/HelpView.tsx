@@ -53,13 +53,15 @@ function HelpNl() {
         <ul>
           <li><strong>Lezen</strong>: klik op een bericht; externe afbeeldingen zijn geblokkeerd tot je ze toont (veiligheid).</li>
           <li><strong>Zoeken</strong>: het zoekvak doorzoekt je héle mailbox (alle mappen); leegmaken = terug naar de map.</li>
+          <li><strong>Uitgebreid zoeken</strong>: het pijltje naast het zoekvak klapt een formulier open met Zoeken in, Van, Aan, CC, Onderwerp, Trefwoorden, een datumbereik, leesstatus en bijlagen. Enter of "Zoeken" start; boven de lijst staat hoeveel resultaten er zijn en met "Filters wissen" ben je er weer uit.</li>
           <li><strong>Mappen</strong>: nieuwe map via de <strong>+</strong> boven de lijst; hernoemen/verwijderen via de icoontjes die verschijnen als je over een eigen map beweegt. Sleep een map op een andere map om te nesten, of naar de rand ervan om de volgorde te wijzigen.</li>
           <li><strong>Meerdere berichten tegelijk</strong>: vink berichten aan; bovenin verschijnt een balk met Gelezen/Ongelezen, Archiveren, Verplaatsen en Verwijderen.</li>
           <li><strong>Spam</strong>: <em>Spam</em> verplaatst naar Ongewenste e-mail; het blokkeer-icoon maakt bovendien een regel die die afzender voortaan automatisch daarheen stuurt.</li>
           <li><strong>Uitschrijven</strong>: bij nieuwsbrieven met een afmeldkoppeling verschijnt automatisch een Uitschrijven-knop.</li>
           <li><strong>Bijlagen</strong>: klik op een bijlage-chip om te downloaden naar je Downloads-map.</li>
+          <li><strong>Bericht opslaan</strong>: de download-knop in de leesbalk zet het hele bericht (headers en bijlagen inbegrepen) als .eml in je Downloads-map; zo'n bestand opent in elke mailclient. Ook via de rechtermuisknop in de lijst, en voor meerdere berichten tegelijk via de bulkbalk (vink ze aan).</li>
           <li><strong>Gesprekken</strong>: berichten uit dezelfde conversatie krijgen een teller-chip; klik erop om het gesprek uit te klappen.</li>
-          <li><strong>Uitstellen (snooze)</strong>: klok-knop in het leesvenster; het bericht verhuist naar Uitgesteld en komt op het gekozen moment ongelezen terug in Postvak IN (zolang de app draait).</li>
+          <li><strong>Uitstellen (snooze)</strong>: klok-knop in het leesvenster; kies een vast moment (later vandaag, morgen, volgende week) of een eigen datum en tijd. Het bericht verhuist naar Uitgesteld en komt op dat moment ongelezen terug in Postvak IN (zolang de app draait). In de map Uitgesteld staat bij elk bericht wanneer het terugkomt; via dezelfde klok-knop kies je een ander moment of zet je het meteen terug.</li>
           <li><strong>Categorieën</strong>: kleurlabels toewijzen in het leesvenster; stippen in de lijst. Vereist eenmalige extra beheerder-toestemming (MailboxSettings).</li>
           <li><strong>Offline</strong>: eerder geladen mappen, lijsten en gelezen berichten blijven leesbaar zonder netwerk (gele balk geeft dit aan); verzenden en verplaatsen vereisen verbinding.</li>
         </ul>
@@ -162,13 +164,15 @@ function HelpEn() {
         <ul>
           <li><strong>Reading</strong>: click a message; external images stay blocked until you show them (safety).</li>
           <li><strong>Search</strong>: the search box searches your entire mailbox (all folders); clear it to return to the folder.</li>
+          <li><strong>Advanced search</strong>: the arrow next to the search box opens a form with Search in, From, To, CC, Subject, Keywords, a date range, read state and attachments. Enter or "Search" runs it; above the list you see how many results there are, and "Clear filters" takes you back.</li>
           <li><strong>Folders</strong>: create with the <strong>+</strong> above the list; rename/delete via the icons that appear when hovering your own folders. Drag a folder onto another to nest it, or to its edge to reorder.</li>
           <li><strong>Multiple messages</strong>: tick messages; a bar appears with Read/Unread, Archive, Move and Delete.</li>
           <li><strong>Spam</strong>: <em>Spam</em> moves to Junk Email; the block icon also creates a rule sending that sender there automatically.</li>
           <li><strong>Unsubscribe</strong>: newsletters with an unsubscribe link automatically show an Unsubscribe button.</li>
           <li><strong>Attachments</strong>: click an attachment chip to download it to your Downloads folder.</li>
+          <li><strong>Save message</strong>: the download button in the reading pane puts the whole message (headers and attachments included) in your Downloads folder as .eml, a file every mail client opens. Also on the right-click menu in the list, and for several messages at once from the bulk bar (tick them first).</li>
           <li><strong>Conversations</strong>: messages from the same thread get a counter chip; click it to expand the conversation.</li>
-          <li><strong>Snooze</strong>: clock button in the reading pane; the message moves to Snoozed and returns to the Inbox unread at the chosen time (while the app is running).</li>
+          <li><strong>Snooze</strong>: clock button in the reading pane; pick a preset (later today, tomorrow, next week) or your own date and time. The message moves to Snoozed and returns to the Inbox unread at that time (while the app is running). The Snoozed folder shows when each message returns; the same clock button changes the time or brings it back right away.</li>
           <li><strong>Categories</strong>: assign colour labels in the reading pane; dots in the list. Needs one-time extra admin consent (MailboxSettings).</li>
           <li><strong>Offline</strong>: previously loaded folders, lists and read messages stay readable without a network (yellow bar indicates this); sending and moving require a connection.</li>
         </ul>

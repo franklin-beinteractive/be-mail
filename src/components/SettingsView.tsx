@@ -93,6 +93,16 @@ export default function SettingsView({
     });
   }
 
+  /** Snelle actie een plek naar voren (-1) of naar achteren (+1) schuiven; die
+   *  volgorde is ook de volgorde van de knoppen boven een geopend bericht. */
+  function moveQuickAction(index: number, delta: number) {
+    const next = [...settings.quickActions];
+    const to = index + delta;
+    if (to < 0 || to >= next.length) return;
+    [next[index], next[to]] = [next[to], next[index]];
+    setSettings({ quickActions: next });
+  }
+
   useEffect(() => {
     api
       .listFolders()
@@ -686,8 +696,8 @@ export default function SettingsView({
       <section className="settings-block">
         <h2>{t("quickActions")}</h2>
         <p className="muted small">{t("quickActionsHint")}</p>
-        {settings.quickActions.map((qa) => (
-          <div key={qa.id} className="setting-row">
+        {settings.quickActions.map((qa, i) => (
+          <div key={qa.id} className="setting-row qa-row">
             <select
               value={qa.kind}
               onChange={(e) =>
@@ -711,6 +721,25 @@ export default function SettingsView({
                 </option>
               ))}
             </select>
+            {/* De volgorde hier is de volgorde van de knoppen in de leesbalk. */}
+            <button
+              className="icon-btn"
+              disabled={i === 0}
+              onClick={() => moveQuickAction(i, -1)}
+              title={tip("quickActionUp")}
+              aria-label={t("quickActionUp")}
+            >
+              ↑
+            </button>
+            <button
+              className="icon-btn"
+              disabled={i === settings.quickActions.length - 1}
+              onClick={() => moveQuickAction(i, 1)}
+              title={tip("quickActionDown")}
+              aria-label={t("quickActionDown")}
+            >
+              ↓
+            </button>
             <button
               className="btn danger"
               onClick={() =>
@@ -721,6 +750,12 @@ export default function SettingsView({
             >
               {t("delete")}
             </button>
+            {/* Zonder keuze verschijnt de knop niet boven het bericht; zeg dat
+                erbij, anders lijkt de actie kwijt. Eigen regel onder de rij,
+                want de instellingenkolom is smal. */}
+            {!qa.target && (
+              <span className="muted small qa-hint">{t("quickActionIncomplete")}</span>
+            )}
           </div>
         ))}
         <button
