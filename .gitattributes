@@ -1,0 +1,5 @@
+# Deze repo staat op core.autocrlf=true, dus tekstbestanden komen als CRLF uit
+# de checkout. Een shell-script met CRLF is voor Git Bash stuk ("$'\r': command
+# not found"), en de pre-push hook draait juist via Git Bash - die map dus altijd
+# als LF uitchecken.
+.githooks/** text eol=lf

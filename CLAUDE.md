@@ -80,6 +80,39 @@ via `tauri dev`) en ruimt zo'n achtergebleven **vite** op. Houdt iets anders de
 poort bezet, dan stopt het script daar bewust niets: het meldt wat het is en
 geeft exitcode 1.
 
+### 7. `src-tauri/target` groeit ongelimiteerd (26 GB op 2026-08-17)
+
+Cargo ruimt zijn eigen rommel nooit op: `incremental/` krijgt een map per crate
+*per* metadata-hash (6,2 GB), afgebroken link-stappen laten
+`.tmpXXXX.temp-archive`-mappen achter (1,2 GB) en `deps/`/`build/` houden
+artifacts van dependency-versies die niet meer in `Cargo.lock` staan (7,6 GB
+ouder dan 30 dagen). Een kale `cargo clean` lost het op maar kost je de hele
+dependency-cache, dus begint de volgende dev-build vanaf nul - zie ook valkuil 4,
+waar `cargo clean` juist wél het antwoord is.
+
+`scripts/clean-target.mjs` haalt alleen het dode deel weg:
+
+- Handmatig: `npm run clean:target` (of `npm run clean:target:dry` om eerst te
+  zien wat er weggaat). Vlaggen: `--keep=N` (incremental-caches per crate,
+  default 2), `--deps-age=DAYS` (default 30, `0` slaat dat deel over),
+  `--release` (ook `cargo clean --release`; staat aan in het npm-script omdat
+  releases in CI bouwen), `--dry-run`, `--force`.
+- Automatisch: `.githooks/pre-push` ziet een `refs/tags/v*`-push - precies de
+  trigger van `.github/workflows/release.yml` - en start het script
+  **losgekoppeld** op de achtergrond, zodat de tag-push en dus de start van de
+  release-build niet wacht op het verwijderen van tientallen GB's. De hook
+  eindigt altijd met exit 0 en logt naar `src-tauri/target/clean-target.log`.
+- **Eenmalig per checkout activeren:** `git config core.hooksPath .githooks`
+  (Git kan hooks niet zelf uit de repo oppikken). Zonder die instelling werkt
+  alleen het npm-script.
+- Draait er een `cargo`/`rustc`, dan slaat het script zichzelf over en zegt dat
+  in de log; de volgende release pakt het werk op.
+- Let op de kosten van `--deps-age`: een dependency die simpelweg lang niet
+  veranderde wordt ook opgeruimd en dus één keer opnieuw gecompileerd. Wil je
+  dat niet, gebruik `--deps-age=0`.
+
+Dit script staat identiek in de `git-workflow`-repo; verbeteringen graag in beide.
+
 ## Werkwijze / voorkeuren
 
 - Houd project-specifieke Claude-config (dit bestand, skills, docs) **in de repo**,
@@ -89,8 +122,9 @@ geeft exitcode 1.
   afgeronde feature. (`docs/FEATURES.md` is de wensenlijst, geen status.)
 - **Geen em dash ("—") in teksten**: gebruik een gewone "-". Geldt voor
   UI-teksten, docs, comments en commit-berichten.
-- **Alles wat naar GitHub gaat is Engels**: commit-berichten, tags en
-  release-notes, `README.md`, issues, pull requests en labels. Ook als het
-  gesprek in het Nederlands gaat. Blijft Nederlands: de app-UI (via `i18n.ts`),
-  de code-comments en de interne werkdocumenten (`CLAUDE.md`, `docs/STATUS.md`,
-  `docs/FEATURES.md` en de overige docs).
+- **Alles in de code en op GitHub is Engels**: alle code-comments (inline,
+  docblocks, TODO's), commit-berichten, tags en release-notes, `README.md`,
+  issues, pull requests en labels. Ook als het gesprek in het Nederlands gaat.
+  Bestaande Nederlandse comments die je aanraakt, vertaal je meteen mee.
+  Blijft Nederlands: de app-UI (via `i18n.ts`) en de interne werkdocumenten
+  (`CLAUDE.md`, `docs/STATUS.md`, `docs/FEATURES.md` en de overige docs).
