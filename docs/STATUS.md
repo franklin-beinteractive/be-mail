@@ -481,9 +481,23 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
   (`tauri-plugin-updater` + `-process`; banner in `App.tsx`, hook in
   `src/lib/update.ts`) checkt bij opstarten en elke 30 min, en installeert +
   herstart op verzoek. `keyring` is nu per-OS (Windows/macOS/Linux) zodat alle
-  drie de platforms bouwen. **Eenmalig nog nodig** (zie plan/README): het
-  updater-sleutelpaar genereren, de secrets `TAURI_SIGNING_PRIVATE_KEY`
-  (+ `_PASSWORD`) zetten en de `pubkey` in `tauri.conf.json` invullen.
+  drie de platforms bouwen. Zo uitgebracht: v0.1.1 t/m v0.1.3.
+- **Lokale releases naar `f-de-groot/be-mail-releases`** (2026-11-13): zoals
+  GitWorkflow en Vanguard. `npm run release` (`scripts/release.mjs`) bouwt en
+  ondertekent de Windows-installers, scant ze met Defender en publiceert ze
+  met `latest.json` in de nieuwe publieke releases-repo; de updater-endpoint
+  wijst daarheen. Een brug-release in deze repo leidt kopieën t/m 0.1.3 om.
+  Skill `local-release`, plus `npm run deps:update` / `deps:report`
+  (overgenomen van GitWorkflow). De CI-workflow draait niet meer op een tag.
+  **Open:** de private updater-sleutel staat alleen als GitHub-secret; voor
+  de eerste lokale release moet hij in `~/.tauri/be-mail.key` (+ wachtwoord)
+  staan, anders kunnen geïnstalleerde kopieën niet automatisch bijwerken.
+- **Dependencies bijgewerkt** (2026-11-13): alle semver-compatibele updates
+  (o.a. Tauri 2.12, vite 7.3.8, dompurify 3.4.17, rustls 0.23.46,
+  quinn-proto 0.11.19), rusqlite 0.32 -> 0.42 voor RUSTSEC-2026-0459 (SQLite-CVE).
+  `npm audit` en `cargo audit` schoon. Bewust niet: vite 8,
+  @vitejs/plugin-react 6, TypeScript 7, reqwest 0.13, keyring 4,
+  mail-parser 1.0, rand 0.10, dirs 7, webpki-roots 1.
 
 ## 🔜 Volgende stappen (afgesproken volgorde)
 

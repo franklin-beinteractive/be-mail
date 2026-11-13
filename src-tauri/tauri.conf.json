@@ -39,7 +39,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/franklin-beinteractive/be-mail/releases/latest/download/latest.json"
+        "https://github.com/f-de-groot/be-mail-releases/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFCNDkxRTYzM0E4MDE5QkEKUldTNkdZQTZZeDVKcTJYYWF6MXdka1JVazc0RkRwMTRKR3c3TC9BL0x1c3czdkN3UCtoQ241bEgK"
     }

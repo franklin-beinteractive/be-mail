@@ -10,8 +10,13 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "clean:target": "node scripts/clean-target.mjs --release",
-    "clean:target:dry": "node scripts/clean-target.mjs --release --dry-run"
+    "clean:target": "node scripts/clean-target.mjs",
+    "clean:target:dry": "node scripts/clean-target.mjs --dry-run",
+    "release": "node scripts/release.mjs",
+    "release:dry": "node scripts/release.mjs --dry-run",
+    "deps:update": "node scripts/update-deps.mjs",
+    "deps:majors": "node scripts/update-deps.mjs --majors",
+    "deps:report": "node scripts/deps.mjs report"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

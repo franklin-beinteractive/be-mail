@@ -1,24 +1,27 @@
 name: Release
 
-# Tag-gedreven release. Een tag zoals `v0.1.0` bouwt ondertekende bundels voor
-# alle drie de desktopplatforms en publiceert ze - samen met het updater-
-# manifest `latest.json` - naar de Releases van DEZE repo. De auto-updater
-# downloadt ze onauthenticatie, dus de repo moet publiek zijn.
+# RETIRED ROUTE, kept for reference only. Releases are built locally with
+# `npm run release` (scripts/release.mjs) and published to the public repo
+# f-de-groot/be-mail-releases, which the updater polls since 0.2.0.
 #
-# Vereiste repo-secrets:
-#   TAURI_SIGNING_PRIVATE_KEY          - private sleutel voor updater-signing
-#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD - het bijbehorende wachtwoord
-# (GITHUB_TOKEN is automatisch - geen PAT nodig, want we publiceren naar deze repo.)
+# This workflow built signed bundles for Windows, macOS and Linux and
+# published them to the Releases of THIS repo, where copies up to 0.1.3 still
+# look for updates. A tag push no longer starts it: it would publish a second,
+# conflicting release here next to the bridge release that release.mjs makes.
+# It only runs by hand (`gh workflow run release.yml --ref vX.Y.Z`), and then
+# still publishes here, not to be-mail-releases.
 #
-# De git-tag is de bron van waarheid voor de versie: "Set version from tag"
-# stempelt vX.Y.Z in tauri.conf.json voor het bouwen.
+# Repository secrets it needs:
+#   TAURI_SIGNING_PRIVATE_KEY          - private key for updater signing
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD - its password
+#
+# The git tag is the source of truth for the version: "Set version from tag"
+# stamps vX.Y.Z into tauri.conf.json before building.
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
 
-# We publiceren naar DEZE repo, dus GITHUB_TOKEN heeft schrijfrechten nodig.
+# Publishes to THIS repo, so GITHUB_TOKEN needs write access.
 permissions:
   contents: write
 

@@ -8,3 +8,6 @@ dist/
 # Rust / Tauri
 src-tauri/target/
 src-tauri/gen/schemas/
+
+# Local release output (scripts/release.mjs)
+release-files/
