@@ -6,8 +6,9 @@ name: Release
 #
 # This workflow built signed bundles for Windows, macOS and Linux and
 # published them to the Releases of THIS repo, where copies up to 0.1.3 still
-# look for updates. A tag push no longer starts it: it would publish a second,
-# conflicting release here next to the bridge release that release.mjs makes.
+# look for updates. A tag push no longer starts it: `npm run release` pushes
+# the tag after publishing, and this would then publish a second release here,
+# signed with the old key.
 # It only runs by hand (`gh workflow run release.yml --ref vX.Y.Z`), and then
 # still publishes here, not to be-mail-releases.
 #

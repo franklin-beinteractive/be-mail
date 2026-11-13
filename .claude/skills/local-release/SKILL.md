@@ -9,8 +9,7 @@ The work is done by `scripts/release.mjs` (`npm run release`); this skill is
 the procedure around it. The release section in `CLAUDE.md` explains the why.
 It mirrors the `local-release` skill of GitWorkflow. The user does nothing on
 GitHub: the script creates the release as a draft, uploads into it, publishes
-it as latest, pushes `main` and the tag, and adds the bridge release for
-copies up to 0.1.3. Asking for a release is the go-ahead to publish it: once
+it as latest and pushes `main` and the tag. Asking for a release is the go-ahead to publish it: once
 the version and the previous release are settled (step 1), run all steps
 through to the end without stopping for an OK. Stop only for a failure, which
 is then reported.
@@ -118,10 +117,8 @@ exist yet and that the updater key can sign. Then it builds the NSIS and MSI
 installers, verifies both signatures against the pubkey in `tauri.conf.json`,
 scans both with the local Defender, writes `latest.json`, creates the release
 as a draft with three files (both installers and `latest.json`, which carries
-the signatures), publishes it as latest, pushes `main` and the tag, creates
-the bridge release in `franklin-beinteractive/be-mail` (only `latest.json`,
-for copies up to 0.1.3) and checks that both updater endpoints serve the new
-version.
+the signatures), publishes it as latest, pushes `main` and the tag, and
+checks that the updater endpoint serves the new version.
 
 When it stops:
 
@@ -136,7 +133,6 @@ When it stops:
 | *Tag ... does not point at HEAD* / *uncommitted changes* | Fix the commit or tag (step 4), then run it again. |
 | A build or compile error | Show the error. Fix it only when the cause is obvious, in its own commit before the release commit; otherwise report it. |
 | *Creating the release failed; nothing was published* | The script removed its draft. Report the error; run it again once the cause is fixed. |
-| *The bridge release ... failed* | The real release is out. Retry by hand: `gh release create vX.Y.Z --repo franklin-beinteractive/be-mail --verify-tag --latest --title "BE-Mail vX.Y.Z" --notes "..." release-files/vX.Y.Z/latest.json`. |
 | *does not serve X.Y.Z yet; check it by hand* | Usually the CDN lagging a minute behind. Check the URL it prints again shortly; never publish again over it. |
 
 ## 6. Afterwards

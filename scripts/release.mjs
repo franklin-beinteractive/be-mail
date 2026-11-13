@@ -28,8 +28,10 @@
 //      never see half a release.
 //   5. `git push origin main vX.Y.Z`, so the source repo only gets the tag
 //      once the release is live (and the pre-push cleanup runs after the
-//      build), then the bridge release for copies that still poll the source
-//      repo (see LEGACY_REPO).
+//      build).
+//
+// Copies up to 0.1.3 poll the source repo and trust an older key, so they
+// never see these releases: they are reinstalled by hand once.
 import { spawnSync } from 'node:child_process'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
@@ -47,14 +49,6 @@ const dryRun = flag('dry-run')
 // tauri.conf.json points at its latest release).
 const RELEASES_REPO = 'f-de-groot/be-mail-releases'
 
-// Up to 0.1.3, GitHub Actions published every release in the source repo and
-// installed copies poll that repo's latest.json. While the updater key is the
-// one those copies trust, every release also gets a release there holding
-// only latest.json, whose download URLs point at RELEASES_REPO: those copies
-// then update to a version that polls RELEASES_REPO itself. With another key
-// they would download the update and refuse it, so the bridge is skipped.
-const LEGACY_REPO = 'franklin-beinteractive/be-mail'
-const LEGACY_KEY_ID = 'AB491E633A8019BA'
 
 // Where `tauri signer generate` was told to write the key (docs/Releases.md).
 const KEY_FILE = 'be-mail.key'
@@ -251,14 +245,13 @@ function findInstaller(bundle, matches, builtAfter) {
 }
 
 // The updater uses minisign. The pubkey and every .sig are base64 of a minisign
-// text file: an "untrusted comment" line, then the payload - for the key "Ed"
-// + an 8-byte key id + the 32-byte Ed25519 key, for a signature "ED" + the key
-// id + a 64-byte signature over the BLAKE2b-512 hash of the file.
-const minisignLines = (base64) => Buffer.from(base64.trim(), 'base64').toString('utf8').split(/\r?\n/)
-const minisignPayload = (base64) => Buffer.from(minisignLines(base64)[1] ?? '', 'base64')
-
-/** The key id as `tauri signer generate` prints it in the pubkey's comment. */
-const pubkeyId = () => minisignLines(conf.plugins.updater.pubkey)[0].match(/([0-9A-F]{16})\s*$/i)?.[1]?.toUpperCase()
+// text file whose second line holds the payload: for the key "Ed" + an 8-byte
+// key id + the 32-byte Ed25519 key, for a signature "ED" + the key id + a
+// 64-byte signature over the BLAKE2b-512 hash of the file.
+function minisignPayload(base64) {
+  const lines = Buffer.from(base64.trim(), 'base64').toString('utf8').split(/\r?\n/)
+  return Buffer.from(lines[1] ?? '', 'base64')
+}
 
 function verifySignature({ file, sig, name }) {
   const pub = minisignPayload(conf.plugins.updater.pubkey)
@@ -366,39 +359,6 @@ function discardDraft(repo) {
 }
 
 /**
- * The release in LEGACY_REPO that moves copies up to 0.1.3 over: the same
- * latest.json, so they download the installer from RELEASES_REPO. Returns
- * false on failure; the real release is out by then.
- */
-function publishBridge(manifestFile) {
-  if (pubkeyId() !== LEGACY_KEY_ID) {
-    console.log(`The updater key is not ${LEGACY_KEY_ID}, which copies up to 0.1.3 trust; no bridge release.`)
-    return true
-  }
-  const notesFile = path.join(outDir, 'bridge-notes.md')
-  fs.writeFileSync(
-    notesFile,
-    `BE-Mail releases moved to https://github.com/${RELEASES_REPO}/releases. ` +
-      'This release only carries the update manifest for installed copies that still look here.',
-  )
-  const created = spawn('gh', [
-    'release', 'create', tag,
-    '--repo', LEGACY_REPO,
-    '--verify-tag',
-    '--latest',
-    '--title', `BE-Mail ${tag}`,
-    '--notes-file', notesFile,
-    manifestFile,
-  ])
-  if (created.status !== 0) {
-    discardDraft(LEGACY_REPO)
-    console.error(`The bridge release in ${LEGACY_REPO} failed; copies up to 0.1.3 do not see ${tag} yet.`)
-    return false
-  }
-  return true
-}
-
-/**
  * The latest.json installed copies will see, once it is this version's, or
  * whatever was served last (null when nothing parsed). GitHub's CDN can lag a
  * few seconds behind a fresh release.
@@ -494,13 +454,9 @@ if (spawn('gh', ['release', 'edit', tag, '--repo', RELEASES_REPO, '--draft=false
 heading('Pushing')
 step('git', ['push', 'origin', 'main', tag])
 
-heading(`Bridge release in ${LEGACY_REPO}`)
-const bridgeOk = publishBridge(manifestFile)
-
-heading('Checking the updater endpoints')
-let endpointsOk = await checkEndpoint(RELEASES_REPO)
-if (bridgeOk && pubkeyId() === LEGACY_KEY_ID) endpointsOk = (await checkEndpoint(LEGACY_REPO)) && endpointsOk
+heading('Checking the updater endpoint')
+const endpointOk = await checkEndpoint(RELEASES_REPO)
 
 heading(`Released ${tag}`)
 console.log(`https://github.com/${RELEASES_REPO}/releases/tag/${tag}`)
-process.exit(bridgeOk && endpointsOk ? 0 : 1)
+process.exit(endpointOk ? 0 : 1)

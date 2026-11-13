@@ -486,12 +486,10 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
   GitWorkflow en Vanguard. `npm run release` (`scripts/release.mjs`) bouwt en
   ondertekent de Windows-installers, scant ze met Defender en publiceert ze
   met `latest.json` in de nieuwe publieke releases-repo; de updater-endpoint
-  wijst daarheen. Een brug-release in deze repo leidt kopieën t/m 0.1.3 om.
-  Skill `local-release`, plus `npm run deps:update` / `deps:report`
+  wijst daarheen. Nieuwe updater-sleutel (de oude stond alleen als
+  GitHub-secret), dus kopieën t/m 0.1.3 installeren 0.2.0 één keer met de
+  hand. Skill `local-release`, plus `npm run deps:update` / `deps:report`
   (overgenomen van GitWorkflow). De CI-workflow draait niet meer op een tag.
-  **Open:** de private updater-sleutel staat alleen als GitHub-secret; voor
-  de eerste lokale release moet hij in `~/.tauri/be-mail.key` (+ wachtwoord)
-  staan, anders kunnen geïnstalleerde kopieën niet automatisch bijwerken.
 - **Dependencies bijgewerkt** (2026-11-13): alle semver-compatibele updates
   (o.a. Tauri 2.12, vite 7.3.8, dompurify 3.4.17, rustls 0.23.46,
   quinn-proto 0.11.19), rusqlite 0.32 -> 0.42 voor RUSTSEC-2026-0459 (SQLite-CVE).

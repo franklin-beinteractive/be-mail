@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "BE-Mail",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "nl.beinteractive.bemail",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -41,7 +41,7 @@
       "endpoints": [
         "https://github.com/f-de-groot/be-mail-releases/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFCNDkxRTYzM0E4MDE5QkEKUldTNkdZQTZZeDVKcTJYYWF6MXdka1JVazc0RkRwMTRKR3c3TC9BL0x1c3czdkN3UCtoQ241bEgK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZGRjFEQkMwODYyRDE4N0QKUldSOUdDMkd3TnZ4YndmckZlckVRY2M5Z1NuVWpkR2dOVmxjS3JrdlBwOUZVYkRyQlhFVEh6WFMK"
     }
   }
 }
