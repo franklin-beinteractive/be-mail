@@ -1,5 +1,6 @@
 #!/bin/sh
-# Reclaims disk space in src-tauri/target right after a release tag is pushed.
+# Reclaims disk space in the cargo build directory right after a release tag is
+# pushed.
 #
 # Enable once per checkout: git config core.hooksPath .githooks
 #
@@ -21,15 +22,15 @@ repo_root=$(git rev-parse --show-toplevel) || exit 0
 script="$repo_root/scripts/clean-target.mjs"
 [ -f "$script" ] || exit 0
 
-log_file="$repo_root/src-tauri/target/clean-target.log"
-mkdir -p "$(dirname "$log_file")" 2>/dev/null
-
-echo "pre-push: release tag detected, cleaning src-tauri/target in the background"
-echo "          log: $log_file"
+# The build directory may be shared across repos (target-dir in
+# ~/.cargo/config.toml), so only the script knows where it is; `--log` makes it
+# write to <build dir>/clean-target.log itself.
+echo "pre-push: release tag detected, cleaning the cargo build directory in the background"
+echo "          log: clean-target.log in the build directory"
 
 # No `--force`: if a build happens to be running the script bails and says so in
 # the log, which is the right call - the next release, or `npm run clean:target`,
 # picks the work up again.
-(node "$script" --release >"$log_file" 2>&1 &) </dev/null
+(node "$script" --log >/dev/null 2>&1 &) </dev/null
 
 exit 0

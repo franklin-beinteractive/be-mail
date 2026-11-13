@@ -95,13 +95,21 @@ waar `cargo clean` juist wél het antwoord is.
 - Handmatig: `npm run clean:target` (of `npm run clean:target:dry` om eerst te
   zien wat er weggaat). Vlaggen: `--keep=N` (incremental-caches per crate,
   default 2), `--deps-age=DAYS` (default 30, `0` slaat dat deel over),
-  `--release` (ook `cargo clean --release`; staat aan in het npm-script omdat
-  releases in CI bouwen), `--dry-run`, `--force`.
-- Automatisch: `.githooks/pre-push` ziet een `refs/tags/v*`-push - precies de
-  trigger van `.github/workflows/release.yml` - en start het script
-  **losgekoppeld** op de achtergrond, zodat de tag-push en dus de start van de
-  release-build niet wacht op het verwijderen van tientallen GB's. De hook
-  eindigt altijd met exit 0 en logt naar `src-tauri/target/clean-target.log`.
+  `--own-keep=N` (builds per eigen crate of testbinary, default 3; elke
+  Cargo.toml-wijziging geeft die een nieuwe hash en laat de oude set staan),
+  `--projects=DIR` (map waarvan alle Rust-projecten de build-directory delen,
+  default de map boven deze repo, dus `D:\Desktop`; hun `cargo metadata`
+  bepaalt welke crates als "eigen" tellen), `--target-dir=DIR` (een andere
+  build-directory opruimen dan `cargo metadata` opgeeft),
+  `--release` (ook `cargo clean --release`; staat **uit** sinds releases
+  lokaal bouwen, anders begint de volgende release koud - en de
+  build-directory is gedeeld, dus het raakt ook de andere projecten),
+  `--dry-run`, `--force`.
+- Automatisch: `.githooks/pre-push` ziet een `refs/tags/v*`-push - de laatste
+  stap van `npm run release` - en start het script **losgekoppeld** op de
+  achtergrond, zodat de push niet wacht op het verwijderen van tientallen
+  GB's. De hook eindigt altijd met exit 0 en logt naar `clean-target.log` in
+  de build-directory.
 - **Eenmalig per checkout activeren:** `git config core.hooksPath .githooks`
   (Git kan hooks niet zelf uit de repo oppikken). Zonder die instelling werkt
   alleen het npm-script.
@@ -112,6 +120,32 @@ waar `cargo clean` juist wél het antwoord is.
   dat niet, gebruik `--deps-age=0`.
 
 Dit script staat identiek in de `git-workflow`-repo; verbeteringen graag in beide.
+
+## Releases (op verzoek: "maak een nieuwe release")
+
+Releases worden **lokaal gebouwd** met `npm run release`
+(`scripts/release.mjs`), net als bij GitWorkflow en Vanguard. Het bouwt de
+ondertekende NSIS- en MSI-installer, controleert de handtekeningen tegen de
+`pubkey` in `tauri.conf.json`, scant beide met Defender en publiceert ze met
+`latest.json` als latest in de publieke repo **`f-de-groot/be-mail-releases`**
+(waar de updater sinds 0.2.0 naar kijkt). Pas daarna pusht het `main` en de
+tag. In Claude Code doet de skill **`local-release`**
+(`.claude/skills/local-release/SKILL.md`) het hele traject: dependencies
+(`npm run deps:update`), versie, release-notes in `.github/release-notes.md`,
+commit `Release X.Y.Z`, tag `vX.Y.Z` en publiceren. `npm run release:dry`
+bouwt zonder iets te publiceren.
+
+- **Updater-sleutel:** `~/.tauri/be-mail.key` + `~/.tauri/be-mail-password.txt`
+  (of de env-vars `TAURI_SIGNING_PRIVATE_KEY` en `_PASSWORD`). Nooit in de repo
+  of de chat. Een nieuwe sleutel betekent dat geïnstalleerde kopieën de update
+  weigeren tot ze met de hand opnieuw installeren.
+- **Overgang vanaf 0.1.3:** 0.2.0 kreeg een nieuwe sleutel (key-id
+  `6FF1DBC0862D187D`; de oude stond alleen als GitHub-secret). Kopieën t/m
+  0.1.3 kijken nog naar `franklin-beinteractive/be-mail` en vertrouwen de
+  oude sleutel, dus die installeren 0.2.0 één keer met de hand; daarna
+  werken ze zichzelf bij vanuit `be-mail-releases`.
+- **Alleen Windows.** De oude CI-workflow (`.github/workflows/release.yml`,
+  ook macOS/Linux) start niet meer op een tag-push, alleen nog met de hand.
 
 ## Werkwijze / voorkeuren
 
