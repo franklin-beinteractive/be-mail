@@ -189,9 +189,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .mail {
   display: grid;
   grid-template-columns: var(--col-folders, 240px) 6px var(--col-list, 340px) 6px 1fr;
-  /* Rij vastpinnen op de containerhoogte; anders groeit de rij mee met een
-     lange mappenlijst en valt er in de kolommen niets te scrollen. */
-  grid-template-rows: minmax(0, 1fr);
+  /* Row 1: the toolbar across all columns. Row 2 is pinned to the remaining
+     height; otherwise it grows with a long folder list and nothing in the
+     columns can scroll. */
+  grid-template-rows: auto minmax(0, 1fr);
   height: 100vh;
 }
 .col-resizer {
@@ -501,15 +502,30 @@ img.avatar { object-fit: cover; background: var(--bg-sunken); }
   justify-content: center;
   color: var(--text-muted);
 }
-.reader-actions {
+/* Message actions: one row across the whole mail view, above the folders,
+   the search field and the reader, so every button fits on one line. */
+.mail-toolbar {
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 14px;
-  min-height: 56px;
+  padding: 8px 14px;
+  min-height: 54px;
   box-sizing: border-box;
   border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+  /* Last resort only: below, the labels fold away first. */
   flex-wrap: wrap;
+  container-type: inline-size;
+  /* The container is its own stacking context; lift it above the columns
+     (and their resize handles) so the snooze menu opens over them. */
+  position: relative;
+  z-index: 5;
+}
+/* Narrower window: reply/forward/assignment become icon buttons (their
+   aria-label keeps the name), "Nieuw bericht" keeps its label. */
+@container (max-width: 1180px) {
+  .mail-toolbar .btn-label { display: none; }
 }
 .move-select { padding: 7px 8px; }
 /* Snelle acties (Instellingen -> Snelle acties). Een categorie-knop schakelt,
@@ -548,8 +564,10 @@ img.avatar { object-fit: cover; background: var(--bg-sunken); }
   flex: none;
 }
 .thread-card.open { display: flex; flex-direction: column; }
-/* In een kaart groeit de body mee; scrollen doet .thread. */
-.thread .reader-body { flex: none; overflow: visible; }
+/* In a card the body grows with its content; .thread does the scrolling.
+   Horizontal overflow scrolls inside the card, because `contain: paint` on
+   .reader-body would otherwise clip it. */
+.thread .reader-body { flex: none; overflow: visible; overflow-x: auto; }
 .thread-card.collapsed {
   display: flex;
   align-items: center;
@@ -569,6 +587,80 @@ img.avatar { object-fit: cover; background: var(--bg-sunken); }
 .tc-from { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .thread-card.collapsed.unread .tc-from { font-weight: 700; }
 .tc-date { color: var(--text-muted); font-size: 0.8rem; flex-shrink: 0; }
+/* Folder label for a message gathered from elsewhere ("Verzonden items"). */
+.tc-folder {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.reader-meta .tc-folder { margin-left: 8px; }
+
+/* ---------- Everything with this company (reader) ---------- */
+.company {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+  flex-shrink: 0;
+}
+.company-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 14px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+.company-bar:hover { background: var(--bg-sunken); }
+.company-bar:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.company-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.company-stats { color: var(--text-muted); white-space: nowrap; }
+.company-waiting { color: var(--accent); font-weight: 600; }
+.company-chevron { margin-left: auto; color: var(--text-muted); }
+.company-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 6px 6px;
+  /* Never push the mail itself out of view. */
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.company-row {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.company-row:hover { background: var(--bg-sunken); }
+.company-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.company-row.current { background: var(--bg-sunken); cursor: default; }
+.company-row.current .cr-subject { font-weight: 600; }
+.cr-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.cr-subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cr-side { display: inline-flex; align-items: baseline; gap: 6px; flex-shrink: 0; }
+.cr-waiting { color: var(--accent); font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.cr-count { color: var(--text-muted); font-size: 0.75rem; }
+.cr-from {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .tc-preview {
   display: block;
   color: var(--text-muted);
@@ -616,6 +708,74 @@ img.avatar { object-fit: cover; background: var(--bg-sunken); }
 }
 .rsvp-label { font-weight: 600; font-size: 0.9rem; }
 
+/* ---------- Meeting block (invitation/update/cancellation) ---------- */
+.invite-card {
+  margin: 0 20px 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-sunken);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+.invite-when { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.invite-when svg { color: var(--text-muted); flex-shrink: 0; }
+/* New time/place of a moved meeting stands out; the old one is struck. */
+.invite-new { color: var(--danger); font-weight: 600; }
+.invite-old { color: var(--text-muted); text-decoration: line-through; font-style: italic; }
+.invite-where .invite-old { margin-left: 6px; }
+.invite-response { color: var(--text-muted); }
+.invite-response.danger { color: var(--danger); font-weight: 600; }
+.invite-card.cancelled .invite-when > span:not(.invite-old) { text-decoration: line-through; }
+.invite-conflict { color: var(--warn-text); background: var(--warn-bg); border-radius: 4px; padding: 2px 8px; align-self: flex-start; font-size: 0.82rem; }
+.invite-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 4px; }
+
+/* Mini day view: hour lines with a time label, events in a lane beside it. */
+.invite-day {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+.invite-hour {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--border);
+}
+.invite-hour:first-child { border-top: none; }
+.invite-hour-label {
+  position: absolute;
+  top: 2px;
+  left: 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.invite-lane { position: absolute; top: 0; bottom: 0; left: 56px; right: 8px; }
+.invite-ev {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+/* The meeting itself: accent-tinted with a dashed outline (not yet final). */
+.invite-ev.self {
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-raised));
+  border: 1px dashed var(--accent);
+  color: var(--text);
+}
+
 .attachments-bar {
   margin: 0 20px 8px;
   display: flex;
@@ -659,6 +819,13 @@ img.avatar { object-fit: cover; background: var(--bg-sunken); }
   overflow-y: auto;
   flex: 1;
   line-height: 1.4;
+  /* Mail HTML keeps its inline styles. Without containment a message could
+     use `position: fixed` + a high z-index to paint a fake screen (a "session
+     expired, sign in again" overlay) over the whole app. `contain: paint`
+     makes this box the containing block for fixed/absolute children and
+     clips them to it; `isolation` keeps their z-index inside. */
+  contain: paint;
+  isolation: isolate;
 }
 /* Outlook-parity: de Word-engine geeft <p> geen marge en mails zijn daarop
    geschreven; de browser-standaard (1em boven+onder) oogt als dubbele regels. */
@@ -976,6 +1143,10 @@ img.avatar { object-fit: cover; background: var(--bg-sunken); }
   border-top: 1px solid var(--border);
   color: var(--text-muted);
   font-size: 0.88rem;
+  /* Quoted mail HTML: same containment as .reader-body. */
+  contain: paint;
+  isolation: isolate;
+  overflow-x: auto;
 }
 
 /* ---------- Agenda ---------- */
@@ -1320,7 +1491,8 @@ img.avatar { object-fit: cover; background: var(--bg-sunken); }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 900px) {
-  .mail { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; }
+  /* Toolbar, folders, list, reader. */
+  .mail { grid-template-columns: 1fr; grid-template-rows: auto auto auto 1fr; }
   .col-resizer { display: none; }
   .folders { flex-direction: row; overflow-x: auto; }
   .folders nav { display: flex; gap: 6px; }

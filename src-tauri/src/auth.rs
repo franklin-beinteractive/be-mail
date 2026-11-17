@@ -89,16 +89,37 @@ fn token_set_from(resp: TokenResponse, previous_refresh: Option<&str>) -> TokenS
     }
 }
 
-/// Wacht op de browser-redirect en geeft de `code` (en state) terug.
-/// Opent tijdelijk een luisterend socket op 127.0.0.1:<vrije poort>.
+/// Waits for the browser redirect and returns the `code`.
+/// Listens temporarily on 127.0.0.1:<free port>.
+///
+/// Only a request carrying our `state` counts. Anything else on the port - an
+/// idle browser preconnect, a `/favicon.ico`, or another local process
+/// guessing the port - is answered with a 404 and ignored, so it can neither
+/// hang the login nor abort it with a forged `?error=`.
 async fn capture_redirect(listener: TcpListener, expected_state: &str) -> Result<String> {
-    let (mut stream, _) = tokio::time::timeout(Duration::from_secs(300), listener.accept())
-        .await
-        .context("Time-out: geen antwoord van de browser binnen 5 minuten")?
-        .context("Kon de inlog-redirect niet ontvangen")?;
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(300);
+    loop {
+        let (mut stream, _) = tokio::time::timeout_at(deadline, listener.accept())
+            .await
+            .context("Time-out: geen antwoord van de browser binnen 5 minuten")?
+            .context("Kon de inlog-redirect niet ontvangen")?;
+        if let Some(code) = handle_redirect(&mut stream, expected_state).await? {
+            return Ok(code);
+        }
+    }
+}
 
+/// Handles one connection on the redirect port. `Ok(None)` = not our
+/// callback, keep listening.
+async fn handle_redirect(
+    stream: &mut tokio::net::TcpStream,
+    expected_state: &str,
+) -> Result<Option<String>> {
     let mut buf = vec![0u8; 8192];
-    let n = stream.read(&mut buf).await.context("Kon redirect niet lezen")?;
+    let n = match tokio::time::timeout(Duration::from_secs(5), stream.read(&mut buf)).await {
+        Ok(Ok(n)) if n > 0 => n,
+        _ => return Ok(None), // idle preconnect or broken socket
+    };
     let request = String::from_utf8_lossy(&buf[..n]);
 
     // Eerste regel: "GET /callback?code=...&state=... HTTP/1.1"
@@ -120,6 +141,13 @@ async fn capture_redirect(listener: TcpListener, expected_state: &str) -> Result
             "error_description" => err_desc = Some(val),
             _ => {}
         }
+    }
+
+    if state.as_deref() != Some(expected_state) {
+        let _ = stream
+            .write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+            .await;
+        return Ok(None);
     }
 
     let (heading, detail) = if err.is_some() {
@@ -156,10 +184,8 @@ async fn capture_redirect(listener: TcpListener, expected_state: &str) -> Result
             err_desc.unwrap_or_default()
         );
     }
-    if state.as_deref() != Some(expected_state) {
-        bail!("Beveiligingsfout: onverwachte 'state' bij redirect");
-    }
-    code.ok_or_else(|| anyhow!("Geen autorisatiecode ontvangen"))
+    code.map(Some)
+        .ok_or_else(|| anyhow!("Geen autorisatiecode ontvangen"))
 }
 
 fn urldecode(s: &str) -> String {
@@ -264,7 +290,7 @@ async fn login_with_scopes(config: &AppConfig, scopes: &str) -> Result<TokenSet>
 
     let code = capture_redirect(listener, &state).await?;
 
-    let client = reqwest::Client::new();
+    let client = crate::net::api();
     let resp = client
         .post(format!("{}/oauth2/v2.0/token", config.authority()))
         .form(&[
@@ -341,7 +367,7 @@ async fn refresh_grant(
     refresh_token: &str,
     scopes: &str,
 ) -> Result<TokenSet> {
-    let client = reqwest::Client::new();
+    let client = crate::net::api();
     let resp = client
         .post(format!("{}/oauth2/v2.0/token", config.authority()))
         .form(&[

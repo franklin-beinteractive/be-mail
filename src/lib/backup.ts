@@ -1,37 +1,22 @@
-// Back-up/overzetten: export & import van instellingen en assignments naar .json.
-// De bestandskiezer komt van tauri-plugin-dialog; het lezen/schrijven zelf loopt
-// via de Rust-kern (schrijf_tekstbestand/lees_tekstbestand) zodat we geen
-// fs-scope-permissies nodig hebben. Eén-pc-model: importeren = overschrijven.
+// Backup/transfer: export & import of settings and assignments as .json.
+// The file dialog is opened by the Rust core (bewaar_json/kies_json), so the
+// webview never passes a file path. That keeps a script injection in the
+// webview from reading or overwriting arbitrary files on disk.
+// One-PC model: importing = overwriting.
 import { invoke } from "@tauri-apps/api/core";
-import { open, save } from "@tauri-apps/plugin-dialog";
-
-const JSON_FILTER = [{ name: "JSON", extensions: ["json"] }];
-
-/** Datumstempel YYYY-MM-DD voor in de standaard-bestandsnaam. */
-function vandaag(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 /**
- * Laat de gebruiker een opslaglocatie kiezen en schrijft `inhoud` daarheen.
- * Geeft het gekozen pad terug, of null als de gebruiker annuleerde.
+ * Lets the user choose a save location and writes `inhoud` there.
+ * Returns the chosen path, or null when the user cancelled.
  */
 export async function bewaarJson(basisnaam: string, inhoud: string): Promise<string | null> {
-  const pad = await save({
-    defaultPath: `${basisnaam}-${vandaag()}.json`,
-    filters: JSON_FILTER,
-  });
-  if (!pad) return null;
-  await invoke("schrijf_tekstbestand", { pad, inhoud });
-  return pad;
+  return invoke<string | null>("bewaar_json", { basisnaam, inhoud });
 }
 
 /**
- * Laat de gebruiker een .json kiezen en geeft de inhoud als tekst terug,
- * of null als de gebruiker annuleerde.
+ * Lets the user pick a .json file and returns its contents as text,
+ * or null when the user cancelled.
  */
 export async function kiesJson(): Promise<string | null> {
-  const pad = await open({ multiple: false, directory: false, filters: JSON_FILTER });
-  if (typeof pad !== "string") return null;
-  return invoke<string>("lees_tekstbestand", { pad });
+  return invoke<string | null>("kies_json");
 }

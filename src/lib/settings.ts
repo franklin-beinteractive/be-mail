@@ -124,6 +124,9 @@ export interface UiSettings {
   expandedFolders: string[];
   /** Account-id's waarvan de mappengroep is ingeklapt (standaard uitgeklapt). */
   collapsedAccounts: string[];
+  /** "Everything with this company" panel in the reader unfolded (default
+   *  folded: a single line). Remembered across restarts. */
+  companyPanelOpen?: boolean;
   /** Sleutels (uit HIDEABLE_FOLDERS) van standaardmappen die verborgen zijn. */
   hiddenFolders: string[];
   /** Tooltips (uitleg bij knoppen) tonen; standaard aan. */

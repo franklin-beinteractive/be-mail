@@ -49,7 +49,9 @@
 - [x] Standaardmappen: Verzonden, Concepten, Prullenbak, Ongewenst/Spam, Archief 🟢
 - [x] Eigen mappen aanmaken/hernoemen/verwijderen 🟢
 - [x] Bericht openen & lezen (leesvenster / apart scherm) 🟢
-- [ ] Threading / gesprekken groeperen (conversation view) 🟡
+- [~] Threading / gesprekken groeperen (conversation view) 🟡 - volledig gesprek
+  uit alle mappen + "Alles met <bedrijf>" klaar (2026-11-16); handmatig
+  koppelen/losmaken (stap 3) volgt
 - [x] Ongelezen/gelezen markeren (en teller per map) 🟢
 - [x] Vlaggen / markeren voor opvolging 🟢
 - [x] Belangrijk / gemarkeerd (favorieten) 🟢

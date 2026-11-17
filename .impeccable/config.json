@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "src/styles/app.css"
+        ],
+        "createdAt": "2026-11-16T11:58:10.000Z",
+        "reason": "Claude triage: .chip and the calendar grid event blocks use a colored left bar as the standard calendar event convention (as in Outlook/Google Calendar); present since commit 03adba8, not part of this session's changes"
+      }
+    ]
+  }
+}

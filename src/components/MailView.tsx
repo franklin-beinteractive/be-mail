@@ -9,6 +9,9 @@ import type {
   Account,
   AccountFolders,
   Attachment,
+  CalendarEvent,
+  CompanyMail,
+  InviteDetails,
   MailFolder,
   Message,
   OutlookCategory,
@@ -34,6 +37,7 @@ import {
 } from "../lib/settings";
 import Avatar from "./Avatar";
 import ComposeDialog, { type ComposeInitial } from "./ComposeDialog";
+import InviteCard, { dayWindow } from "./InviteCard";
 import {
   ArchiveIcon,
   BanIcon,
@@ -599,7 +603,19 @@ export default function MailView({
         refreshFolderUnread(-1);
       }
     } catch (e) {
-      notify(String(e), "error");
+      const msg = String(e);
+      // Deleted or moved in another mail app (Outlook, a phone) after this
+      // list loaded. Not an error on our side: drop it from the list. The
+      // Rust core already removed it from the offline cache.
+      if (msg.includes("bestaat niet meer")) {
+        setMessages((prev) => prev.filter((x) => x.id !== m.id));
+        setSearchResult((prev) => (prev ? prev.filter((x) => x.id !== m.id) : prev));
+        setSelected((prev) => (prev?.id === m.id ? null : prev));
+        if (!m.isRead) refreshFolderUnread(-1);
+        notify(t("messageGone"), "info");
+      } else {
+        notify(msg, "error");
+      }
     }
   }
 
@@ -1432,33 +1448,187 @@ export default function MailView({
     return order;
   }, [shown]);
 
-  // Het geopende bericht bovenaan in beeld zetten. Het scrollgebied (.thread)
-  // blijft bij het wisselen van bericht hetzelfde element, dus zonder dit
-  // begint een net geopend bericht op de scrollpositie van het vorige - midden
-  // in de tekst, of (in een gesprek) helemaal buiten beeld.
+  // Bring the opened message into view. The scroll area (.thread) stays the
+  // same element when switching messages, so without this a newly opened
+  // message starts at the previous one's scroll position.
+  //
+  // The earlier messages of the conversation sit above it. Scrolling the open
+  // card all the way to the top hid them completely (you could not tell there
+  // was more), so up to 40% of the pane stays for that context. Runs again
+  // when the full conversation arrives and adds cards above.
+  // (The effect itself sits below `convo`, which it depends on.)
   const openCardRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const el = openCardRef.current;
-    const box = el?.parentElement;
-    if (!el || !box) return;
-    // Verschil tussen de twee bovenkanten; werkt ongeacht positionering.
-    box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top;
-  }, [selected?.id]);
 
-  /** De conversatie rond het geopende bericht, oudste eerst. Bevat alleen wat
-   *  in de lijst geladen is: eigen antwoorden uit Verzonden items zitten er
-   *  dus niet bij zolang je in Postvak IN kijkt. */
+  // The whole conversation of the open message, fetched from every folder
+  // (your replies in Sent Items, older parts in Archive). Until it arrives -
+  // or when it fails - the thread falls back to what the list has loaded.
+  const convKey = selected?.conversationId ?? "";
+  const [fullConvo, setFullConvo] = useState<{ key: string; items: Message[] } | null>(null);
+  useEffect(() => {
+    if (!convKey) return;
+    let alive = true;
+    api
+      .getConversation(convKey)
+      .then((items) => {
+        if (alive) setFullConvo({ key: convKey, items });
+      })
+      .catch(() => {
+        /* fallback: the loaded list */
+      });
+    return () => {
+      alive = false;
+    };
+    // Also refetched per opened message, so a reply you just sent shows up.
+  }, [convKey, selected?.id]);
+
+  /** The conversation around the open message, oldest first: the loaded
+   *  list plus everything the full fetch found in other folders. */
   const convo = useMemo(() => {
     if (!selected) return [];
     const key = selected.conversationId || selected.id;
-    const items = shown.filter((m) => (m.conversationId || m.id) === key);
-    if (!items.some((m) => m.id === selected.id)) items.push(selected);
-    return items.sort(
+    // List items first: they carry local changes (read/flag) right away.
+    const byId = new Map<string, Message>();
+    for (const m of shown) {
+      if ((m.conversationId || m.id) === key) byId.set(m.id, m);
+    }
+    if (fullConvo && fullConvo.key === selected.conversationId) {
+      for (const m of fullConvo.items) if (!byId.has(m.id)) byId.set(m.id, m);
+    }
+    if (!byId.has(selected.id)) byId.set(selected.id, selected);
+    return [...byId.values()].sort(
       (a, b) =>
         new Date(a.receivedDateTime ?? 0).getTime() -
         new Date(b.receivedDateTime ?? 0).getTime()
     );
-  }, [selected, shown]);
+  }, [selected, shown, fullConvo]);
+
+  // Scroll the open card into view (see openCardRef above).
+  useEffect(() => {
+    const el = openCardRef.current;
+    const box = el?.parentElement;
+    if (!el || !box) return;
+    // Position of the open card inside the scroll content; works regardless
+    // of positioning.
+    const openTop =
+      el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+    box.scrollTop = Math.max(0, openTop - box.clientHeight * 0.4);
+  }, [selected?.id, convo.length]);
+
+  /** Folder name for a message that lives somewhere else than the open
+   *  folder ("Verzonden items", "Archief"); empty when it is right here. */
+  function otherFolderName(m: Message): string {
+    const id = m.parentFolderId;
+    if (!id || id === folderId) return "";
+    return folders.find((f) => f.id === id)?.displayName ?? "";
+  }
+
+  // ---- Everything with this company ----
+
+  /** The other party of the open message: the sender, or - for a message
+   *  you sent yourself - the first recipient who is not you. */
+  const ownAddress = (account?.mail ?? "").toLowerCase();
+  const counterpart = useMemo(() => {
+    if (!selected) return "";
+    const from = (selected.from?.emailAddress?.address ?? "").toLowerCase();
+    if (from && from !== ownAddress) return from;
+    return (
+      [...(selected.toRecipients ?? []), ...(selected.ccRecipients ?? [])]
+        .map((r) => (r.emailAddress?.address ?? "").toLowerCase())
+        .find((a) => a && a !== ownAddress) ?? ""
+    );
+  }, [selected, ownAddress]);
+
+  // Results per account + address, kept for two minutes: clicking through
+  // the mails of one customer should not search the mailbox every time.
+  const companyCache = useRef(new Map<string, { at: number; data: CompanyMail | null }>());
+  const companyKey = counterpart ? `${activeId}|${counterpart}` : "";
+  const [company, setCompany] = useState<{ key: string; data: CompanyMail | null } | null>(null);
+  useEffect(() => {
+    if (!companyKey) return;
+    const hit = companyCache.current.get(companyKey);
+    if (hit && Date.now() - hit.at < 120_000) {
+      setCompany({ key: companyKey, data: hit.data });
+      return;
+    }
+    let alive = true;
+    api
+      .companyMail(counterpart)
+      .then((data) => {
+        companyCache.current.set(companyKey, { at: Date.now(), data });
+        if (alive) setCompany({ key: companyKey, data });
+      })
+      .catch(() => {
+        /* no panel; the mail itself still reads fine */
+      });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyKey]);
+
+  /** The company's mail grouped per conversation, most recent activity
+   *  first. "Waiting" = the last message in it is not from you. */
+  const companyThreads = useMemo(() => {
+    const data = company && company.key === companyKey ? company.data : null;
+    if (!data) return [];
+    const groups = new Map<string, { key: string; latest: Message; count: number }>();
+    for (const m of data.messages) {
+      const key = m.conversationId || m.id;
+      const g = groups.get(key);
+      // Messages arrive newest first, so the first one seen is the latest.
+      if (g) g.count += 1;
+      else groups.set(key, { key, latest: m, count: 1 });
+    }
+    return [...groups.values()].map((g) => ({
+      ...g,
+      waiting:
+        (g.latest.from?.emailAddress?.address ?? "").toLowerCase() !== ownAddress,
+    }));
+  }, [company, companyKey, ownAddress]);
+  const companyLabel = company?.key === companyKey ? company.data?.key ?? "" : "";
+  const companyWaiting = companyThreads.filter((g) => g.waiting).length;
+  const companyOpen = !!settings.companyPanelOpen;
+
+  // ---- Meeting messages: when/where + your calendar that day ----
+
+  const isMeetingMsg = !!selected?.odataType?.includes("eventMessage");
+  const isInviteRequest = !!selected?.odataType?.includes("eventMessageRequest");
+  const [invite, setInvite] = useState<{
+    id: string;
+    data: InviteDetails | null;
+    day: CalendarEvent[] | null;
+  } | null>(null);
+  useEffect(() => {
+    const id = selected?.id;
+    if (!id || isImap || !isMeetingMsg) return;
+    let alive = true;
+    void (async () => {
+      try {
+        const data = await api.inviteDetails(id);
+        if (!alive) return;
+        setInvite({ id, data, day: null });
+        if (data?.start && !data.isAllDay && !data.isCancelled) {
+          const [from, to] = dayWindow(data.start);
+          const day = await api.listEvents(from, to).catch(() => null);
+          if (alive) setInvite({ id, data, day });
+        }
+      } catch {
+        /* the plain RSVP bar stays available */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [selected?.id, isImap, isMeetingMsg]);
+  const inviteData = invite && invite.id === selected?.id ? invite.data : null;
+
+  /** "Corine van Gestel" when she sent this on behalf of the `from` person. */
+  const onBehalfName = useMemo(() => {
+    const s = selected?.sender?.emailAddress;
+    const f = selected?.from?.emailAddress;
+    if (!s?.address || !f?.address) return "";
+    return s.address.toLowerCase() === f.address.toLowerCase() ? "" : senderName(s);
+  }, [selected]);
 
   function toggleThread(key: string) {
     setExpandedThreads((prev) => {
@@ -1523,11 +1693,26 @@ export default function MailView({
     if (seq === imageSeq.current) setLoadingImages(false);
   }
 
+  /** Links in a message: web links go to the default browser, mailto opens
+   *  our own compose window. Every other scheme (file:, UNC paths, custom
+   *  protocol handlers that can start programs) is ignored on purpose. */
   function onBodyClick(e: React.MouseEvent) {
     const a = (e.target as HTMLElement).closest("a");
-    if (a && a.getAttribute("href")) {
-      e.preventDefault();
-      openUrl(a.getAttribute("href")!).catch(() => {});
+    const href = a?.getAttribute("href")?.trim();
+    if (!a || !href) return;
+    e.preventDefault();
+    if (/^https?:\/\//i.test(href)) {
+      openUrl(href).catch(() => {});
+    } else if (/^mailto:/i.test(href)) {
+      const [addr, query = ""] = href.slice(7).split("?", 2);
+      const params = new URLSearchParams(query);
+      let to = addr;
+      try {
+        to = decodeURIComponent(addr);
+      } catch {
+        /* keep the raw address */
+      }
+      setCompose({ to, subject: params.get("subject") ?? "" });
     }
   }
 
@@ -1663,6 +1848,289 @@ export default function MailView({
         } as React.CSSProperties
       }
     >
+      {/* One row across all columns: every message action side by side.
+          While composing, only the (disabled) compose button stays, so the
+          row keeps its height and nothing below jumps. */}
+      <div className="mail-toolbar" role="toolbar" aria-label={t("mail")}>
+        <button
+          className="btn primary"
+          onClick={() => setCompose({})}
+          disabled={!!compose}
+          title={tip("tipCompose")}
+        >
+          <ComposeIcon size={18} /> {t("compose")}
+        </button>
+        {selected && !compose && (
+          <>
+            {/* Labels in .btn-label fold away on a narrow window (see
+                .mail-toolbar in app.css); aria-label keeps the name. */}
+            <button
+              className="btn"
+              onClick={() => setCompose(buildReply(selected, false))}
+              title={tip("tipReply")}
+              aria-label={t("reply")}
+            >
+              <ReplyIcon size={18} /> <span className="btn-label">{t("reply")}</span>
+            </button>
+            <button
+              className="btn"
+              onClick={() => setCompose(buildReply(selected, true))}
+              title={tip("tipReplyAll")}
+              aria-label={t("replyAll")}
+            >
+              <ReplyAllIcon size={18} /> <span className="btn-label">{t("replyAll")}</span>
+            </button>
+            <button
+              className="btn"
+              onClick={() => setCompose(buildForward(selected))}
+              title={tip("tipForward")}
+              aria-label={t("forward")}
+            >
+              <ForwardIcon size={18} /> <span className="btn-label">{t("forward")}</span>
+            </button>
+            <button
+              className="btn"
+              aria-label={t("maakOpdracht")}
+              onClick={async () => {
+                // Turns this mail into an assignment card (read only - nothing
+                // is ever sent).
+                try {
+                  const detail = await opdrachtenApi.opdrachtVanMail(
+                    senderName(selected.from?.emailAddress),
+                    senderAddress(selected.from?.emailAddress),
+                    selected.subject ?? "",
+                  );
+                  notify(t("opdrachtAangemaakt"));
+                  onOpdrachtAangemaakt?.(detail.aanvraag.id);
+                } catch (e) {
+                  notify(String(e), "error");
+                }
+              }}
+              title={tip("maakOpdracht")}
+            >
+              <OpdrachtenIcon size={18} /> <span className="btn-label">{t("maakOpdracht")}</span>
+            </button>
+            {/* Your own quick actions (Settings -> Quick actions). An action
+                without a chosen folder/category is unfinished and gets no
+                button; otherwise there is a nameless button that can only
+                produce an error. */}
+            {settings.quickActions
+              .filter(
+                (qa) => qa.target.trim() !== "" && !(isImap && qa.kind === "category")
+              )
+              .map((qa) => {
+                // Category actions toggle, so show whether the message already
+                // has the category - in the category's own colour.
+                const on =
+                  qa.kind === "category" &&
+                  (selected.categories ?? []).includes(qa.target);
+                return (
+                  <button
+                    key={qa.id}
+                    className={"btn quick-action" + (on ? " on" : "")}
+                    onClick={() => void runQuickAction(selected, qa)}
+                    aria-pressed={qa.kind === "category" ? on : undefined}
+                    title={
+                      qa.kind === "move"
+                        ? `${t("moveTo")}: ${qa.target}`
+                        : `${t(on ? "categoryRemove" : "categoryAdd")}: ${qa.target}`
+                    }
+                  >
+                    {qa.kind === "move" ? (
+                      <FolderIcon size={18} />
+                    ) : (
+                      <span
+                        className="qa-dot"
+                        style={{ background: catColor(qa.target) }}
+                      />
+                    )}
+                    <span className="qa-label">{qa.target}</span>
+                  </button>
+                );
+              })}
+            {settings.aiSkills.length > 0 && (
+              <select
+                className="ai-reply"
+                value=""
+                disabled={aiBusy}
+                onChange={(e) => {
+                  const skill = settings.aiSkills.find(
+                    (s) => s.id === e.target.value
+                  );
+                  if (skill) void aiReply(selected, skill);
+                }}
+                title={tip("tipAiReply")}
+              >
+                <option value="">{aiBusy ? `✨ ${t("aiGenerating")}` : "✨"}</option>
+                {settings.aiSkills.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <span className="spacer" />
+            {unsubscribeTarget(selected) && (
+              <button
+                className="btn"
+                onClick={() => unsubscribe(selected)}
+                title={tip("tipUnsubscribe")}
+              >
+                {t("unsubscribe")}
+              </button>
+            )}
+            {/* Icon-only buttons: `title` disappears when tooltips are off,
+                so each carries its name in aria-label as well. */}
+            <button
+              className="btn"
+              onClick={() => reportJunk(selected)}
+              title={tip("tipSpam")}
+              aria-label={t("tipSpam")}
+            >
+              <SpamIcon size={18} />
+            </button>
+            {!isImap && (
+              <button
+                className="btn"
+                onClick={() => blockSender(selected)}
+                title={tip("tipBlock")}
+                aria-label={t("tipBlock")}
+              >
+                <BanIcon size={18} />
+              </button>
+            )}
+            <button
+              className="btn"
+              onClick={() => toggleFlag(selected)}
+              title={tip("tipFlag")}
+              aria-label={t("tipFlag")}
+            >
+              <FlagIcon size={18} />
+            </button>
+            <button
+              className="btn"
+              onClick={() => toggleRead(selected)}
+              title={tip("tipRead")}
+              aria-label={t("tipRead")}
+            >
+              {selected.isRead ? <MailIcon size={18} /> : <MailOpenIcon size={18} />}
+            </button>
+            <button
+              className="btn"
+              onClick={() => void downloadMessage(selected)}
+              disabled={downloading === selected.id}
+              title={tip("tipDownloadMessage")}
+              aria-label={t("downloadMessage")}
+            >
+              <DownloadIcon size={18} />
+            </button>
+            <span className="snooze-wrap" ref={snoozeRef}>
+              <button
+                className={"btn snooze-btn" + (snoozeOf.has(selected.id) ? " on" : "")}
+                aria-pressed={snoozeOf.has(selected.id)}
+                onClick={() => {
+                  setSnoozeOpen((v) => {
+                    // Prefill the field on open, so a custom choice is an
+                    // adjustment instead of an empty form.
+                    if (!v) {
+                      const cur = snoozeOf.get(selected.id);
+                      setSnoozeAt(
+                        toDateTimeInput(cur ? new Date(cur.due) : tomorrowMorning())
+                      );
+                    }
+                    return !v;
+                  });
+                }}
+                title={
+                  snoozeOf.has(selected.id)
+                    ? `${t("snoozedUntil")} ${longDateTime(
+                        snoozeOf.get(selected.id)!.due,
+                        settings.lang
+                      )}`
+                    : tip("tipSnooze")
+                }
+                aria-label={t("snooze")}
+              >
+                <ClockIcon size={18} />
+              </button>
+              {snoozeOpen && (
+                <div className="snooze-menu">
+                  {snoozeOf.has(selected.id) && (
+                    <div className="snooze-due">
+                      {t("snoozedUntil")}{" "}
+                      <strong>
+                        {longDateTime(snoozeOf.get(selected.id)!.due, settings.lang)}
+                      </strong>
+                    </div>
+                  )}
+                  {/* "Later today" is three hours ahead; after 21:00 that
+                      falls on tomorrow and the button would promise something
+                      else than it does. */}
+                  {isSameDay(laterToday(), new Date()) && (
+                    <button
+                      className="suggest-item"
+                      onClick={() => void snooze(selected, laterToday())}
+                    >
+                      {t("laterToday")}
+                    </button>
+                  )}
+                  <button
+                    className="suggest-item"
+                    onClick={() => void snooze(selected, tomorrowMorning())}
+                  >
+                    {t("tomorrowMorning")}
+                  </button>
+                  <button
+                    className="suggest-item"
+                    onClick={() => void snooze(selected, nextMondayMorning())}
+                  >
+                    {t("nextWeekMorning")}
+                  </button>
+                  <div className="snooze-custom">
+                    <input
+                      type="datetime-local"
+                      value={snoozeAt}
+                      min={toDateTimeInput(new Date())}
+                      onChange={(e) => setSnoozeAt(e.target.value)}
+                    />
+                    <button
+                      className="btn"
+                      onClick={() => {
+                        const d = new Date(snoozeAt);
+                        if (!Number.isNaN(d.getTime()) && d.getTime() > Date.now()) {
+                          void snooze(selected, d);
+                        } else {
+                          notify(t("laterInvalid"), "error");
+                        }
+                      }}
+                    >
+                      {t("ok")}
+                    </button>
+                  </div>
+                  {snoozeOf.has(selected.id) && (
+                    <button
+                      className="suggest-item"
+                      onClick={() => void unsnooze(selected)}
+                    >
+                      {t("unsnooze")}
+                    </button>
+                  )}
+                </div>
+              )}
+            </span>
+            {/* Moving is done by dragging the message onto a folder. */}
+            <button
+              className="btn danger"
+              onClick={() => remove(selected)}
+              title={tip("tipDelete")}
+              aria-label={t("tipDelete")}
+            >
+              <TrashIcon size={18} />
+            </button>
+          </>
+        )}
+      </div>
+
       {/* Kolom 1: mappen, gegroepeerd per account */}
       <aside className="folders">
         <div className="folders-head">
@@ -2182,262 +2650,75 @@ export default function MailView({
           />
         ) : (
           <>
-        <div className="reader-actions">
-          <button
-            className="btn primary"
-            onClick={() => setCompose({})}
-            title={tip("tipCompose")}
-          >
-            <ComposeIcon size={18} /> {t("compose")}
-          </button>
-          {selected && (
-            <>
-              <button
-                className="btn"
-                onClick={() => setCompose(buildReply(selected, false))}
-                title={tip("tipReply")}
-              >
-                <ReplyIcon size={18} /> {t("reply")}
-              </button>
-              <button
-                className="btn"
-                onClick={() => setCompose(buildReply(selected, true))}
-                title={tip("tipReplyAll")}
-              >
-                <ReplyAllIcon size={18} /> {t("replyAll")}
-              </button>
-              <button
-                className="btn"
-                onClick={() => setCompose(buildForward(selected))}
-                title={tip("tipForward")}
-              >
-                <ForwardIcon size={18} /> {t("forward")}
-              </button>
-              <button
-                className="btn"
-                onClick={async () => {
-                  // Maakt een opdracht-kaart van deze mail (alleen lezen —
-                  // er wordt nooit iets verstuurd).
-                  try {
-                    const detail = await opdrachtenApi.opdrachtVanMail(
-                      senderName(selected.from?.emailAddress),
-                      senderAddress(selected.from?.emailAddress),
-                      selected.subject ?? "",
-                    );
-                    notify(t("opdrachtAangemaakt"));
-                    onOpdrachtAangemaakt?.(detail.aanvraag.id);
-                  } catch (e) {
-                    notify(String(e), "error");
-                  }
-                }}
-                title={tip("maakOpdracht")}
-              >
-                <OpdrachtenIcon size={18} /> {t("maakOpdracht")}
-              </button>
-              {/* Eigen snelle acties (Instellingen -> Snelle acties). Een actie
-                  zonder gekozen map/categorie is nog niet af en krijgt geen
-                  knop; anders staat er een naamloze knop die alleen een fout
-                  kan geven. */}
-              {settings.quickActions
-                .filter(
-                  (qa) => qa.target.trim() !== "" && !(isImap && qa.kind === "category")
-                )
-                .map((qa) => {
-                  // Categorie-acties schakelen, dus laat zien of het bericht de
-                  // categorie al heeft - in de kleur van de categorie zelf.
-                  const on =
-                    qa.kind === "category" &&
-                    (selected.categories ?? []).includes(qa.target);
-                  return (
-                    <button
-                      key={qa.id}
-                      className={"btn quick-action" + (on ? " on" : "")}
-                      onClick={() => void runQuickAction(selected, qa)}
-                      aria-pressed={qa.kind === "category" ? on : undefined}
-                      title={
-                        qa.kind === "move"
-                          ? `${t("moveTo")}: ${qa.target}`
-                          : `${t(on ? "categoryRemove" : "categoryAdd")}: ${qa.target}`
-                      }
-                    >
-                      {qa.kind === "move" ? (
-                        <FolderIcon size={18} />
-                      ) : (
-                        <span
-                          className="qa-dot"
-                          style={{ background: catColor(qa.target) }}
-                        />
-                      )}
-                      <span className="qa-label">{qa.target}</span>
-                    </button>
-                  );
-                })}
-              {settings.aiSkills.length > 0 && (
-                <select
-                  className="ai-reply"
-                  value=""
-                  disabled={aiBusy}
-                  onChange={(e) => {
-                    const skill = settings.aiSkills.find(
-                      (s) => s.id === e.target.value
-                    );
-                    if (skill) void aiReply(selected, skill);
-                  }}
-                  title={tip("tipAiReply")}
-                >
-                  <option value="">{aiBusy ? `✨ ${t("aiGenerating")}` : "✨"}</option>
-                  {settings.aiSkills.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <span className="spacer" />
-              {unsubscribeTarget(selected) && (
-                <button
-                  className="btn"
-                  onClick={() => unsubscribe(selected)}
-                  title={tip("tipUnsubscribe")}
-                >
-                  {t("unsubscribe")}
-                </button>
-              )}
-              <button
-                className="btn"
-                onClick={() => reportJunk(selected)}
-                title={tip("tipSpam")}
-              >
-                <SpamIcon size={18} />
-              </button>
-              {!isImap && (
-                <button
-                  className="btn"
-                  onClick={() => blockSender(selected)}
-                  title={tip("tipBlock")}
-                >
-                  <BanIcon size={18} />
-                </button>
-              )}
-              <button className="btn" onClick={() => toggleFlag(selected)} title={tip("tipFlag")}>
-                <FlagIcon size={18} />
-              </button>
-              <button
-                className="btn"
-                onClick={() => toggleRead(selected)}
-                title={tip("tipRead")}
-              >
-                {selected.isRead ? <MailIcon size={18} /> : <MailOpenIcon size={18} />}
-              </button>
-              <button
-                className="btn"
-                onClick={() => void downloadMessage(selected)}
-                disabled={downloading === selected.id}
-                title={tip("tipDownloadMessage")}
-                aria-label={t("downloadMessage")}
-              >
-                <DownloadIcon size={18} />
-              </button>
-              <span className="snooze-wrap" ref={snoozeRef}>
-                <button
-                  className={"btn snooze-btn" + (snoozeOf.has(selected.id) ? " on" : "")}
-                  aria-pressed={snoozeOf.has(selected.id)}
-                  onClick={() => {
-                    setSnoozeOpen((v) => {
-                      // Bij openen het veld vast vullen: zo is de eigen keuze
-                      // een aanpassing i.p.v. een leeg formulier.
-                      if (!v) {
-                        const cur = snoozeOf.get(selected.id);
-                        setSnoozeAt(
-                          toDateTimeInput(cur ? new Date(cur.due) : tomorrowMorning())
-                        );
-                      }
-                      return !v;
-                    });
-                  }}
-                  title={
-                    snoozeOf.has(selected.id)
-                      ? `${t("snoozedUntil")} ${longDateTime(
-                          snoozeOf.get(selected.id)!.due,
-                          settings.lang
-                        )}`
-                      : tip("tipSnooze")
-                  }
-                  aria-label={t("snooze")}
-                >
-                  <ClockIcon size={18} />
-                </button>
-                {snoozeOpen && (
-                  <div className="snooze-menu">
-                    {snoozeOf.has(selected.id) && (
-                      <div className="snooze-due">
-                        {t("snoozedUntil")}{" "}
-                        <strong>
-                          {longDateTime(snoozeOf.get(selected.id)!.due, settings.lang)}
-                        </strong>
-                      </div>
-                    )}
-                    {/* "Later vandaag" is drie uur verder; na 21:00 valt dat op
-                        morgen en zou de knop iets anders beloven dan hij doet. */}
-                    {isSameDay(laterToday(), new Date()) && (
-                      <button
-                        className="suggest-item"
-                        onClick={() => void snooze(selected, laterToday())}
-                      >
-                        {t("laterToday")}
-                      </button>
-                    )}
-                    <button
-                      className="suggest-item"
-                      onClick={() => void snooze(selected, tomorrowMorning())}
-                    >
-                      {t("tomorrowMorning")}
-                    </button>
-                    <button
-                      className="suggest-item"
-                      onClick={() => void snooze(selected, nextMondayMorning())}
-                    >
-                      {t("nextWeekMorning")}
-                    </button>
-                    <div className="snooze-custom">
-                      <input
-                        type="datetime-local"
-                        value={snoozeAt}
-                        min={toDateTimeInput(new Date())}
-                        onChange={(e) => setSnoozeAt(e.target.value)}
-                      />
-                      <button
-                        className="btn"
-                        onClick={() => {
-                          const d = new Date(snoozeAt);
-                          if (!Number.isNaN(d.getTime()) && d.getTime() > Date.now()) {
-                            void snooze(selected, d);
-                          } else {
-                            notify(t("laterInvalid"), "error");
-                          }
-                        }}
-                      >
-                        {t("ok")}
-                      </button>
-                    </div>
-                    {snoozeOf.has(selected.id) && (
-                      <button
-                        className="suggest-item"
-                        onClick={() => void unsnooze(selected)}
-                      >
-                        {t("unsnooze")}
-                      </button>
-                    )}
-                  </div>
+        {/* Everything with this company: all recent conversations with the
+            other party's domain (or the person, for gmail.com and the like),
+            so a reply on the "wrong" mail is still one click away. Hidden
+            when there is nothing besides the open conversation. */}
+        {selected && companyThreads.length > 1 && (
+          <div className={"company" + (companyOpen ? " open" : "")}>
+            <button
+              className="company-bar"
+              aria-expanded={companyOpen}
+              onClick={() => setSettings({ companyPanelOpen: !companyOpen })}
+              title={tip(company?.data?.scope === "address" ? "tipCompanyPerson" : "tipCompany")}
+            >
+              <span className="company-title">
+                {t(company?.data?.scope === "address" ? "companyPerson" : "companyAll")}{" "}
+                <strong>{companyLabel}</strong>
+              </span>
+              <span className="company-stats">
+                {companyThreads.length} {t("conversationsLabel")}
+                {companyWaiting > 0 && (
+                  <span className="company-waiting">
+                    {" · "}
+                    {companyWaiting} {t("waitingOnYou")}
+                  </span>
                 )}
               </span>
-              {/* Verplaatsen gaat door het bericht naar een map te slepen. */}
-              <button className="btn danger" onClick={() => remove(selected)} title={tip("tipDelete")}>
-                <TrashIcon size={18} />
-              </button>
-            </>
-          )}
-        </div>
+              <span className="company-chevron" aria-hidden="true">
+                {companyOpen ? "▴" : "▾"}
+              </span>
+            </button>
+            {companyOpen && (
+              <ul className="company-list">
+                {companyThreads.map((g) => {
+                  const current = g.key === (selected.conversationId || selected.id);
+                  return (
+                    <li key={g.key}>
+                      <button
+                        className={"company-row" + (current ? " current" : "")}
+                        aria-current={current || undefined}
+                        onClick={() => {
+                          if (!current) void openMessage(g.latest);
+                        }}
+                      >
+                        <span className="cr-top">
+                          <span className="cr-subject">
+                            {stripPrefix(g.latest.subject ?? "") || t("noSubject")}
+                          </span>
+                          <span className="cr-side">
+                            {g.waiting && <span className="cr-waiting">{t("waitingOnYou")}</span>}
+                            {g.count > 1 && <span className="cr-count">{g.count}</span>}
+                            <span
+                              className="tc-date"
+                              title={longDateTime(g.latest.receivedDateTime, settings.lang)}
+                            >
+                              {shortDate(g.latest.receivedDateTime, settings.lang)}
+                            </span>
+                          </span>
+                        </span>
+                        <span className="cr-from">
+                          {senderName(g.latest.from?.emailAddress)}
+                          {otherFolderName(g.latest) && ` · ${otherFolderName(g.latest)}`}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
         {!selected ? (
           <div className="reader-empty">{t("selectMessage")}</div>
         ) : (
@@ -2463,6 +2744,10 @@ export default function MailView({
                       <span className="tc-side">
                         {/* Een ingeklapt bericht met bijlage gaf niets prijs. */}
                         {cm.hasAttachments && <PaperclipIcon size={13} />}
+                        {/* Gathered from another folder: say where it lives. */}
+                        {otherFolderName(cm) && (
+                          <span className="tc-folder">{otherFolderName(cm)}</span>
+                        )}
                         <span
                           className="tc-date"
                           title={longDateTime(cm.receivedDateTime, settings.lang)}
@@ -2485,12 +2770,22 @@ export default function MailView({
                   size={40}
                 />
                 <div className="reader-meta-main">
+                  {/* Sent by a secretary/delegate: say so, like Outlook. */}
+                  {onBehalfName && (
+                    <>
+                      <strong>{onBehalfName}</strong>{" "}
+                      <span className="muted">{t("onBehalfOf")}</span>{" "}
+                    </>
+                  )}
                   <strong>{senderName(selected.from?.emailAddress)}</strong>{" "}
                   <span className="muted">
                     &lt;{senderAddress(selected.from?.emailAddress)}&gt;
                   </span>
                   <div className="muted small">
                     {longDateTime(selected.receivedDateTime, settings.lang)}
+                    {otherFolderName(selected) && (
+                      <span className="tc-folder">{otherFolderName(selected)}</span>
+                    )}
                   </div>
                   {/* Aan wie ging dit bericht? In een gesprek is dat het
                       verschil tussen "aan mij" en "ik zat in de CC". */}
@@ -2562,20 +2857,40 @@ export default function MailView({
                 )}
               </div>
             </div>
-            {!isImap && selected.odataType?.includes("eventMessageRequest") && (
-              <div className="rsvp-bar">
-                <span className="rsvp-label">{t("invitation")}:</span>
-                <button className="btn primary" onClick={() => rsvp(selected, "accept")}>
-                  ✓ {t("acceptInvite")}
-                </button>
-                <button className="btn" onClick={() => rsvp(selected, "tentative")}>
-                  ? {t("tentativeInvite")}
-                </button>
-                <button className="btn danger" onClick={() => rsvp(selected, "decline")}>
-                  ✕ {t("declineInvite")}
-                </button>
-              </div>
-            )}
+            {!isImap && isMeetingMsg && (() => {
+              // Not for a cancelled meeting: there is nothing left to answer.
+              const buttons =
+                isInviteRequest && !inviteData?.isCancelled ? (
+                  <>
+                    <button className="btn primary" onClick={() => rsvp(selected, "accept")}>
+                      ✓ {t("acceptInvite")}
+                    </button>
+                    <button className="btn" onClick={() => rsvp(selected, "tentative")}>
+                      ? {t("tentativeInvite")}
+                    </button>
+                    <button className="btn danger" onClick={() => rsvp(selected, "decline")}>
+                      ✕ {t("declineInvite")}
+                    </button>
+                  </>
+                ) : null;
+              if (inviteData) {
+                return (
+                  <InviteCard
+                    details={inviteData}
+                    subject={selected.subject ?? ""}
+                    dayEvents={invite?.day ?? null}
+                    actions={buttons}
+                  />
+                );
+              }
+              // Details still loading (or unavailable): the plain RSVP bar.
+              return buttons ? (
+                <div className="rsvp-bar">
+                  <span className="rsvp-label">{t("invitation")}:</span>
+                  {buttons}
+                </div>
+              ) : null;
+            })()}
             {attachments.length > 0 && (
               <div className="attachments-bar">
                 {attachments.map((a) => (
@@ -2729,8 +3044,11 @@ export default function MailView({
   );
 }
 
+/** Strips reply/forward prefixes, also the Dutch and German ones Outlook
+ *  writes ("Antw:", "Doorst:", "AW:", "WG:") and stacked ones
+ *  ("RE: Antw: RE: Offerte" -> "Offerte"). */
 function stripPrefix(s: string): string {
-  return s.replace(/^(re|fw|fwd)\s*:\s*/i, "");
+  return s.replace(/^\s*((re|fw|fwd|antw|doorst|aw|wg)\s*:\s*)+/i, "");
 }
 
 function joinAddresses(rs?: Recipient[] | null): string {

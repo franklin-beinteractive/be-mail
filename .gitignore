@@ -11,3 +11,6 @@ src-tauri/gen/schemas/
 
 # Local release output (scripts/release.mjs)
 release-files/
+
+# Impeccable design hook: per-session cache (absolute paths, local only)
+.impeccable/hook.cache.json

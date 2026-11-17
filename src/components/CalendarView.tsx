@@ -32,7 +32,7 @@ function addDays(d: Date, n: number): Date {
 // ---- Tijdgrid (dag/werkweek/week) ----
 
 /** Hoogte van één uur in px; moet gelijk zijn aan --hour-h in app.css. */
-const HOUR_H = 48;
+export const HOUR_H = 48;
 const DAY_MINUTES = 24 * 60;
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 /** Kortste blokhoogte in minuten: een afspraak van 5 minuten blijft leesbaar. */

@@ -10,11 +10,13 @@ import type {
   Attachment,
   AutoReplySettings,
   CalendarEvent,
+  CompanyMail,
   ComposeInput,
   EventInput,
   ImapAccountInput,
   ImapPreset,
   InlineImage,
+  InviteDetails,
   MailFolder,
   Message,
   MessageRule,
@@ -106,6 +108,13 @@ export const api = {
       top,
       folderId: folderId ?? null,
     }),
+  // The whole conversation from every folder (incl. your replies in Sent
+  // Items), newest first.
+  getConversation: (conversationId: string) =>
+    invoke<Message[]>("get_conversation", { conversationId }),
+  // All recent mail with the company behind an address (null = unusable address).
+  companyMail: (address: string) =>
+    invoke<CompanyMail | null>("company_mail", { address }),
   // Concepten: aanmaken geeft het bericht (met id) terug; verzenden van een
   // concept werkt eerst de velden/bijlagen bij zodat er geen duplicaat ontstaat.
   createDraft: (input: ComposeInput) =>
@@ -156,6 +165,10 @@ export const api = {
   // Antwoord op een vergaderuitnodiging.
   rsvpMessage: (messageId: string, response: "accept" | "tentative" | "decline") =>
     invoke<void>("rsvp_message", { messageId, response }),
+  // Time, place (and the old time when moved) of a meeting message; null
+  // for any other message.
+  inviteDetails: (messageId: string) =>
+    invoke<InviteDetails | null>("invite_details", { messageId }),
   // Spam melden = verplaatsen naar de bekende map "junkemail".
   reportJunk: (id: string) =>
     invoke<void>("move_message", { id, destinationId: "junkemail" }),

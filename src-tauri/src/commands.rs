@@ -179,6 +179,8 @@ pub fn logout(account_id: Option<String>) -> Result<(), String> {
     match kind {
         AccountKind::Imap => {
             let _ = token_store::clear_secret(&id);
+            // Close the pooled, still logged-in session as well.
+            crate::imap::forget_connection(&id);
         }
         AccountKind::Office365 => auth::logout(&id).map_err(|e| e.to_string())?,
     }
@@ -540,6 +542,12 @@ pub async fn get_message(id: String) -> Result<Message, String> {
                 let _ = cache::save_full_message(&account, &m);
                 Ok(m)
             }
+            // Deleted or moved in another mail app: the server says so, so
+            // the cached copy is stale too. Drop it instead of showing it.
+            Err(e) if e.to_string().contains(crate::graph::ITEM_GONE_MARKER) => {
+                let _ = cache::delete_message(&account, &id);
+                Err(e.to_string())
+            }
             Err(e) => cache::load_message(&account, &id)
                 .ok()
                 .flatten()
@@ -588,6 +596,17 @@ pub async fn block_sender(address: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn rsvp_message(message_id: String, response: String) -> Result<(), String> {
     client().await?.graph()?.rsvp(&message_id, &response).await.map_err(|e| e.to_string())
+}
+
+/// Meeting details (time, place, previous time when moved, your response)
+/// of an invitation, update or cancellation. `None` for any other message
+/// and for IMAP accounts (no meeting messages there yet).
+#[tauri::command]
+pub async fn invite_details(message_id: String) -> Result<Option<InviteDetails>, String> {
+    match client().await? {
+        Backend::Graph(g) => g.invite_details(&message_id).await.map_err(|e| e.to_string()),
+        Backend::Imap(_) => Ok(None),
+    }
 }
 
 // ---- Concepten ----
@@ -798,16 +817,14 @@ pub async fn fetch_remote_image(url: String) -> Result<String, String> {
     if !matches!(parsed.scheme(), "http" | "https") {
         return Err("Alleen http(s)-afbeeldingen worden opgehaald.".into());
     }
+    // The URL comes from an e-mail: never let it reach the local network.
+    // Hostnames and redirects are checked by the client itself (see net.rs).
+    if !crate::net::is_public_url(&parsed) {
+        return Err("Afbeeldingen van een lokaal adres worden niet opgehaald.".into());
+    }
 
-    let http = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(20))
-        .redirect(reqwest::redirect::Policy::limited(5))
-        // Geen referer meesturen bij redirects: dat verklapt de bron-URL.
-        .referer(false)
-        .build()
-        .map_err(|e| format!("Kon geen HTTP-client maken: {e}"))?;
-
-    let resp = http
+    // Shared client: a newsletter with 40 images reuses its connections.
+    let resp = crate::net::remote_images()
         .get(parsed)
         .header(reqwest::header::ACCEPT, "image/*")
         // Sommige CDN's weigeren verzoeken zonder user-agent.
@@ -932,18 +949,109 @@ pub async fn download_attachment(
         .map_err(|e| e.to_string())
 }
 
-/// Schrijft tekst naar een door de gebruiker gekozen pad (export/back-up).
-/// Het pad komt uit de bestandskiezer (tauri-plugin-dialog); het schrijven
-/// zelf gebeurt hier zodat we geen fs-scope-permissies nodig hebben.
+/// Lets the user pick where to save a backup and writes `inhoud` there.
+/// Returns the chosen path, or `None` when the user cancelled.
+///
+/// The save dialog is opened here in the Rust core on purpose: the webview
+/// never hands us a path. If it could, a single script injection (for example
+/// through a malicious e-mail) could overwrite any file the user can write
+/// to, such as a script in the Startup folder.
 #[tauri::command]
-pub fn schrijf_tekstbestand(pad: String, inhoud: String) -> Result<(), String> {
-    std::fs::write(&pad, inhoud).map_err(|e| format!("Kon het bestand niet opslaan: {e}"))
+pub async fn bewaar_json(
+    app: tauri::AppHandle,
+    basisnaam: String,
+    inhoud: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let today = chrono::Local::now().format("%Y-%m-%d");
+    let name: String = basisnaam
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_'))
+        .take(60)
+        .collect();
+    let picked = app
+        .dialog()
+        .file()
+        .add_filter("JSON", &["json"])
+        .set_file_name(format!("{name}-{today}.json"))
+        .blocking_save_file();
+    let Some(picked) = picked else { return Ok(None) };
+    let path = picked
+        .into_path()
+        .map_err(|e| format!("Kon het bestand niet opslaan: {e}"))?;
+    std::fs::write(&path, inhoud).map_err(|e| format!("Kon het bestand niet opslaan: {e}"))?;
+    Ok(Some(path.to_string_lossy().into_owned()))
 }
 
-/// Leest een door de gebruiker gekozen tekstbestand (import/herstel).
+/// Lets the user pick a backup file and returns its contents, or `None` when
+/// the user cancelled. Same reasoning as `bewaar_json`: the path comes from
+/// the dialog, never from the webview, so this cannot be used to read
+/// arbitrary files (SSH keys, browser profiles, other apps' data).
 #[tauri::command]
-pub fn lees_tekstbestand(pad: String) -> Result<String, String> {
-    std::fs::read_to_string(&pad).map_err(|e| format!("Kon het bestand niet lezen: {e}"))
+pub async fn kies_json(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    /// A backup is a few hundred kB at most; refuse anything absurd.
+    const MAX_BYTES: u64 = 50 * 1024 * 1024;
+    let picked = app
+        .dialog()
+        .file()
+        .add_filter("JSON", &["json"])
+        .blocking_pick_file();
+    let Some(picked) = picked else { return Ok(None) };
+    let path = picked
+        .into_path()
+        .map_err(|e| format!("Kon het bestand niet lezen: {e}"))?;
+    let len = std::fs::metadata(&path)
+        .map_err(|e| format!("Kon het bestand niet lezen: {e}"))?
+        .len();
+    if len > MAX_BYTES {
+        return Err("Dit bestand is te groot voor een back-up.".into());
+    }
+    std::fs::read_to_string(&path)
+        .map(Some)
+        .map_err(|e| format!("Kon het bestand niet lezen: {e}"))
+}
+
+/// All messages of a conversation, from every folder (Inbox, Sent Items,
+/// Archive, ...), newest first. Deleted items, junk and drafts are left out.
+#[tauri::command]
+pub async fn get_conversation(conversation_id: String) -> Result<Vec<Message>, String> {
+    let id = conversation_id.trim();
+    if id.is_empty() {
+        return Ok(Vec::new());
+    }
+    client()
+        .await?
+        .conversation(id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Everything with the company behind `address`: all recent mail in which
+/// someone from that domain takes part. Free-mail addresses (gmail.com, ...)
+/// and colleagues on your own domain are searched as that one address.
+/// `None` when the address is unusable.
+#[tauri::command]
+pub async fn company_mail(address: String) -> Result<Option<CompanyMail>, String> {
+    let cfg = require_config()?;
+    let own = cfg
+        .active_account
+        .as_ref()
+        .and_then(|id| cfg.accounts.iter().find(|a| &a.id == id))
+        .and_then(|a| a.mail.clone());
+    let Some((scope, key)) = company_scope(&address, own.as_deref()) else {
+        return Ok(None);
+    };
+    let messages = client()
+        .await?
+        .participant_mail(&key)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(Some(CompanyMail {
+        scope: scope.to_string(),
+        key,
+        messages,
+    }))
 }
 
 #[tauri::command]

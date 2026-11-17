@@ -12,11 +12,17 @@ const BASE: &str = "https://graph.microsoft.com/v1.0";
 /// Standaard tijdzone (Windows-notatie zoals Graph die verwacht).
 const DEFAULT_TZ: &str = "W. Europe Standard Time";
 
-const MSG_SELECT: &str = "id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,isRead,hasAttachments,bodyPreview,importance,flag,webLink,isDraft,categories,conversationId";
+const MSG_SELECT: &str = "id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,isRead,hasAttachments,bodyPreview,importance,flag,webLink,isDraft,categories,conversationId,parentFolderId";
+
+/// Upper bound for the conversation and company views: plenty for a reader
+/// panel, and it keeps one click from pulling in a whole mailbox.
+const GATHER_TOP: u32 = 100;
 
 pub struct GraphClient {
     token: String,
     http: reqwest::Client,
+    /// Empty for a client built from a bare token (right after login).
+    account_id: String,
 }
 
 impl GraphClient {
@@ -24,7 +30,8 @@ impl GraphClient {
         let token = auth::valid_access_token(config, account_id).await?;
         Ok(Self {
             token,
-            http: reqwest::Client::new(),
+            http: crate::net::api(),
+            account_id: account_id.to_string(),
         })
     }
 
@@ -33,8 +40,152 @@ impl GraphClient {
     pub fn from_token(token: String) -> Self {
         Self {
             token,
-            http: reqwest::Client::new(),
+            http: crate::net::api(),
+            account_id: String::new(),
         }
+    }
+
+    /// Ids of the folders whose mail does not belong in a conversation or
+    /// company view: Deleted Items and Junk Email. Folder ids never change,
+    /// so they are looked up once per account and kept for the session.
+    async fn excluded_folder_ids(&self) -> Vec<String> {
+        use std::collections::HashMap;
+        use std::sync::{Mutex, OnceLock};
+        static CACHE: OnceLock<Mutex<HashMap<String, Vec<String>>>> = OnceLock::new();
+        let cache = CACHE.get_or_init(Default::default);
+        if !self.account_id.is_empty() {
+            if let Some(ids) = cache.lock().unwrap_or_else(|e| e.into_inner()).get(&self.account_id) {
+                return ids.clone();
+            }
+        }
+        #[derive(serde::Deserialize)]
+        struct FolderId {
+            id: String,
+        }
+        let deleted_url = format!("{BASE}/me/mailFolders/deleteditems?$select=id");
+        let junk_url = format!("{BASE}/me/mailFolders/junkemail?$select=id");
+        let (deleted, junk) = tokio::join!(
+            self.get_json::<FolderId>(&deleted_url),
+            self.get_json::<FolderId>(&junk_url),
+        );
+        let ids: Vec<String> = [deleted, junk].into_iter().filter_map(|r| r.ok()).map(|f| f.id).collect();
+        // Only cache a complete answer; a failed lookup is retried next time.
+        if ids.len() == 2 && !self.account_id.is_empty() {
+            cache
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(self.account_id.clone(), ids.clone());
+        }
+        ids
+    }
+
+    /// Drops drafts and mail in Deleted Items/Junk, and sorts newest first.
+    async fn keep_relevant(&self, mut messages: Vec<Message>) -> Vec<Message> {
+        let excluded = self.excluded_folder_ids().await;
+        messages.retain(|m| {
+            m.is_draft != Some(true)
+                && !m
+                    .parent_folder_id
+                    .as_ref()
+                    .is_some_and(|f| excluded.contains(f))
+        });
+        messages.sort_by(|a, b| b.received_date_time.cmp(&a.received_date_time));
+        messages
+    }
+
+    /// Every message of a conversation, from all folders (your replies in
+    /// Sent Items, older parts in Archive). Newest first.
+    ///
+    /// No `$orderby`: Graph rejects ordering combined with a conversationId
+    /// filter ("InefficientFilter"), so sorting happens here.
+    pub async fn conversation(&self, conversation_id: &str) -> Result<Vec<Message>> {
+        // OData string literal: a single quote is escaped by doubling it.
+        let filter = format!("conversationId eq '{}'", conversation_id.replace('\'', "''"));
+        let top = GATHER_TOP.to_string();
+        let resp = self
+            .http
+            .get(format!("{BASE}/me/messages"))
+            .bearer_auth(&self.token)
+            .query(&[
+                ("$filter", filter.as_str()),
+                ("$select", MSG_SELECT),
+                ("$top", top.as_str()),
+            ])
+            .send()
+            .await
+            .context("Netwerkfout richting Office 365")?;
+        let list: GraphList<Message> = self.parse(resp).await?;
+        Ok(self.keep_relevant(list.value).await)
+    }
+
+    /// Recent mail in which `key` (a domain such as "acme.nl" or a single
+    /// address) is a participant: sender, To, CC or BCC. Newest first.
+    ///
+    /// A single address uses `participants:`. A domain cannot: Exchange
+    /// expands `participants:acme.nl` into an OR filter it then rejects
+    /// (HTTP 500 "Unrecognized filter of type ...OrFilter"). So for a domain
+    /// `from:`, `to:` and `cc:` are searched side by side and merged.
+    pub async fn participant_mail(&self, key: &str) -> Result<Vec<Message>> {
+        let messages = if key.contains('@') {
+            self.search_kql(&format!("participants:{}", kql_value(key))).await?
+        } else {
+            let value = kql_value(key);
+            let (q_from, q_to, q_cc) =
+                (format!("from:{value}"), format!("to:{value}"), format!("cc:{value}"));
+            let (from, to, cc) = tokio::join!(
+                self.search_kql(&q_from),
+                self.search_kql(&q_to),
+                self.search_kql(&q_cc),
+            );
+            // One failing field must not hide what the others found; only
+            // when all three fail is there nothing to show.
+            let mut first_err = None;
+            let mut seen = std::collections::HashSet::new();
+            let mut merged = Vec::new();
+            for result in [from, to, cc] {
+                match result {
+                    Ok(list) => {
+                        for m in list {
+                            if seen.insert(m.id.clone()) {
+                                merged.push(m);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        first_err.get_or_insert(e);
+                    }
+                }
+            }
+            if merged.is_empty() {
+                if let Some(e) = first_err {
+                    return Err(e);
+                }
+            }
+            merged
+        };
+        let mut relevant = self.keep_relevant(messages).await;
+        relevant.truncate(GATHER_TOP as usize);
+        Ok(relevant)
+    }
+
+    /// One `$search` over the whole mailbox (newest first, as Graph returns it).
+    async fn search_kql(&self, kql: &str) -> Result<Vec<Message>> {
+        let search = format!("\"{kql}\"");
+        let top = GATHER_TOP.to_string();
+        let resp = self
+            .http
+            .get(format!("{BASE}/me/messages"))
+            .bearer_auth(&self.token)
+            .query(&[
+                ("$search", search.as_str()),
+                ("$select", MSG_SELECT),
+                ("$top", top.as_str()),
+            ])
+            .send()
+            .await
+            .context("Netwerkfout richting Office 365")?;
+        let list: GraphList<Message> = self.parse(resp).await?;
+        Ok(list.value)
     }
 
     async fn get_json<T: DeserializeOwned>(&self, url: &str) -> Result<T> {
@@ -52,7 +203,7 @@ impl GraphClient {
         let status = resp.status();
         let text = resp.text().await.context("Kon antwoord niet lezen")?;
         if !status.is_success() {
-            bail!("Office 365 gaf een fout (HTTP {status}): {}", short(&text));
+            return Err(graph_error(status, &text));
         }
         serde_json::from_str::<T>(&text).context("Onverwacht antwoord van Office 365")
     }
@@ -63,7 +214,7 @@ impl GraphClient {
             Ok(())
         } else {
             let text = resp.text().await.unwrap_or_default();
-            bail!("Office 365 gaf een fout (HTTP {status}): {}", short(&text));
+            return Err(graph_error(status, &text));
         }
     }
 
@@ -247,10 +398,135 @@ impl GraphClient {
     pub async fn get_message(&self, id: &str) -> Result<Message> {
         // internetMessageHeaders alleen hier (niet in lijsten): nodig voor
         // o.a. de List-Unsubscribe-header, maar relatief zwaar.
+        // `sender` too: it differs from `from` when someone sends on behalf
+        // of someone else (a secretary sending her manager's invitation).
         let url = format!(
-            "{BASE}/me/messages/{id}?$select={MSG_SELECT},body,internetMessageHeaders",
+            "{BASE}/me/messages/{id}?$select={MSG_SELECT},sender,body,internetMessageHeaders",
         );
         self.get_json(&url).await
+    }
+
+    /// Meeting details of an invitation, update or cancellation. `None` when
+    /// the message is not a meeting message.
+    ///
+    /// No `$select`: the eventMessage properties (startDateTime,
+    /// previousStartDateTime, ...) live on derived types, and Graph only
+    /// returns those on an unrestricted read. The linked calendar item is
+    /// expanded for its id, your response and its current times.
+    pub async fn invite_details(&self, message_id: &str) -> Result<Option<InviteDetails>> {
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct ResponseStatus {
+            #[serde(default)]
+            response: Option<String>,
+        }
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct RawEvent {
+            id: String,
+            #[serde(default)]
+            start: Option<DateTimeTimeZone>,
+            #[serde(default)]
+            end: Option<DateTimeTimeZone>,
+            #[serde(default)]
+            is_all_day: Option<bool>,
+            #[serde(default)]
+            location: Option<EventLocation>,
+            #[serde(default)]
+            response_status: Option<ResponseStatus>,
+            #[serde(default)]
+            is_cancelled: Option<bool>,
+        }
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Raw {
+            #[serde(rename = "@odata.type", default)]
+            odata_type: Option<String>,
+            #[serde(default)]
+            start_date_time: Option<DateTimeTimeZone>,
+            #[serde(default)]
+            end_date_time: Option<DateTimeTimeZone>,
+            #[serde(default)]
+            is_all_day: Option<bool>,
+            #[serde(default)]
+            location: Option<EventLocation>,
+            #[serde(default)]
+            previous_start_date_time: Option<DateTimeTimeZone>,
+            #[serde(default)]
+            previous_end_date_time: Option<DateTimeTimeZone>,
+            #[serde(default)]
+            previous_location: Option<EventLocation>,
+            #[serde(default)]
+            meeting_message_type: Option<String>,
+            #[serde(default)]
+            event: Option<RawEvent>,
+        }
+
+        let url = format!(
+            "{BASE}/me/messages/{message_id}?$expand=microsoft.graph.eventMessage/event($select=id,start,end,isAllDay,location,responseStatus,isCancelled)"
+        );
+        let resp = self
+            .http
+            .get(&url)
+            .bearer_auth(&self.token)
+            .header("Prefer", format!("outlook.timezone=\"{DEFAULT_TZ}\""))
+            .send()
+            .await
+            .context("Netwerkfout richting Office 365")?;
+        let raw: Raw = self.parse(resp).await?;
+        if !raw
+            .odata_type
+            .as_deref()
+            .is_some_and(|t| t.contains("eventMessage"))
+        {
+            return Ok(None);
+        }
+
+        let local = |d: &Option<DateTimeTimeZone>| d.as_ref().and_then(to_local_wall_clock);
+        let place = |l: &Option<EventLocation>| {
+            l.as_ref()
+                .and_then(|l| l.display_name.clone())
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+        };
+        let ev = raw.event.as_ref();
+        // The calendar item has the current state; the message is the
+        // fallback (e.g. a cancellation whose item is already gone).
+        let start = ev.and_then(|e| local(&e.start)).or_else(|| local(&raw.start_date_time));
+        let end = ev.and_then(|e| local(&e.end)).or_else(|| local(&raw.end_date_time));
+        let location = ev.and_then(|e| place(&e.location)).or_else(|| place(&raw.location));
+
+        // Only report "previous" values that really differ from the new ones.
+        let previous_start = local(&raw.previous_start_date_time).filter(|p| Some(p) != start.as_ref());
+        let previous_end = local(&raw.previous_end_date_time).filter(|p| Some(p) != end.as_ref());
+        let moved = previous_start.is_some() || previous_end.is_some();
+        let previous_location = place(&raw.previous_location).filter(|p| Some(p) != location.as_ref());
+
+        let is_cancelled = ev.and_then(|e| e.is_cancelled).unwrap_or(false)
+            || raw
+                .meeting_message_type
+                .as_deref()
+                .is_some_and(|t| t.eq_ignore_ascii_case("meetingCancelled"));
+
+        Ok(Some(InviteDetails {
+            event_id: ev.map(|e| e.id.clone()),
+            is_all_day: ev
+                .and_then(|e| e.is_all_day)
+                .or(raw.is_all_day)
+                .unwrap_or(false),
+            // A moved meeting shows both old values; otherwise none.
+            previous_start: if moved { previous_start.or_else(|| start.clone()) } else { None },
+            previous_end: if moved { previous_end.or_else(|| end.clone()) } else { None },
+            start,
+            end,
+            location,
+            previous_location,
+            meeting_message_type: raw.meeting_message_type,
+            response: ev
+                .and_then(|e| e.response_status.as_ref())
+                .and_then(|r| r.response.clone()),
+            is_cancelled,
+        }))
     }
 
     /// Blokkeert een afzender via een inbox-regel: nieuwe berichten van dit
@@ -613,7 +889,7 @@ impl GraphClient {
         let status = resp.status();
         if !status.is_success() {
             let text = resp.text().await.unwrap_or_default();
-            bail!("Office 365 gaf een fout (HTTP {status}): {}", short(&text));
+            return Err(graph_error(status, &text));
         }
         let bytes = resp
             .bytes()
@@ -1131,7 +1407,26 @@ fn is_plain_address(address: &str) -> bool {
             .all(|c| !c.is_whitespace() && !c.is_control() && !"/\\?#%&'\"<>".contains(c))
 }
 
-/// Kort een lange (fout)tekst in zodat foutmeldingen leesbaar blijven.
+/// Shown when Graph no longer has the item: deleted or moved in another mail
+/// app (Outlook, a phone) after this app loaded its list. The frontend
+/// recognises it by [`ITEM_GONE_MARKER`] and drops the item from the list.
+pub const ITEM_GONE: &str =
+    "Dit bericht bestaat niet meer: het is waarschijnlijk in een andere mailapp verwijderd of verplaatst.";
+/// Stable part of [`ITEM_GONE`] (and of the IMAP equivalent "Dit bericht
+/// bestaat niet meer.") that the frontend matches on.
+pub const ITEM_GONE_MARKER: &str = "bestaat niet meer";
+
+/// A readable error for a failed Graph call. "Item not found" gets a plain
+/// sentence instead of Exchange's JSON, because it is a normal situation:
+/// the list showed a message that another client has deleted since.
+fn graph_error(status: reqwest::StatusCode, text: &str) -> anyhow::Error {
+    if status == reqwest::StatusCode::NOT_FOUND && text.contains("ErrorItemNotFound") {
+        return anyhow::anyhow!(ITEM_GONE);
+    }
+    anyhow::anyhow!("Office 365 gaf een fout (HTTP {status}): {}", short(text))
+}
+
+/// Shortens a long (error) text so error messages stay readable.
 fn short(text: &str) -> String {
     let t = text.trim();
     if t.chars().count() > 400 {
@@ -1146,9 +1441,69 @@ fn short(text: &str) -> String {
 // Tests
 // =====================================================================
 
+/// A Graph date-time in its own zone, as local wall-clock time in the account
+/// zone ("2026-11-16T14:30:00"). Meeting messages often carry UTC even when
+/// the `Prefer: outlook.timezone` header asks otherwise.
+fn to_local_wall_clock(d: &DateTimeTimeZone) -> Option<String> {
+    use chrono::{NaiveDateTime, TimeZone};
+    const FMT: &str = "%Y-%m-%dT%H:%M:%S";
+    let s = d.date_time.trim();
+    // Graph writes 7 fraction digits ("...T13:30:00.0000000"); drop them.
+    let naive = NaiveDateTime::parse_from_str(s.get(..19)?, FMT).ok()?;
+    let zone = d.time_zone.trim();
+    if zone.is_empty() || zone == DEFAULT_TZ {
+        return Some(naive.format(FMT).to_string());
+    }
+    let from: chrono_tz::Tz = zone
+        .parse()
+        .unwrap_or_else(|_| crate::caldav::windows_to_iana(zone));
+    let target = crate::caldav::windows_to_iana(DEFAULT_TZ);
+    let dt = from.from_local_datetime(&naive).earliest()?;
+    Some(dt.with_timezone(&target).naive_local().format(FMT).to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_deleted_item_gives_a_plain_sentence() {
+        let gone = graph_error(
+            reqwest::StatusCode::NOT_FOUND,
+            r#"{"error":{"code":"ErrorItemNotFound","message":"The specified object was not found in the store."}}"#,
+        )
+        .to_string();
+        assert_eq!(gone, ITEM_GONE);
+        assert!(gone.contains(ITEM_GONE_MARKER));
+        // Any other failure keeps the status and Graph's own text.
+        let other = graph_error(reqwest::StatusCode::FORBIDDEN, "{\"error\":\"denied\"}").to_string();
+        assert!(other.contains("403") && !other.contains(ITEM_GONE_MARKER));
+    }
+
+    #[test]
+    fn meeting_times_become_local_wall_clock() {
+        let dt = |d: &str, z: &str| DateTimeTimeZone {
+            date_time: d.to_string(),
+            time_zone: z.to_string(),
+        };
+        // Winter: UTC+1.
+        assert_eq!(
+            to_local_wall_clock(&dt("2026-11-16T13:30:00.0000000", "UTC")).as_deref(),
+            Some("2026-11-16T14:30:00")
+        );
+        // Summer: UTC+2.
+        assert_eq!(
+            to_local_wall_clock(&dt("2026-07-01T12:00:00.0000000", "UTC")).as_deref(),
+            Some("2026-07-01T14:00:00")
+        );
+        // Already local: unchanged.
+        assert_eq!(
+            to_local_wall_clock(&dt("2026-11-16T14:30:00.0000000", "W. Europe Standard Time"))
+                .as_deref(),
+            Some("2026-11-16T14:30:00")
+        );
+        assert_eq!(to_local_wall_clock(&dt("rubbish", "UTC")), None);
+    }
 
     #[test]
     fn kql_value_quote_alleen_bij_spaties() {

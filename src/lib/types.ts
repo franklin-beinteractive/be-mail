@@ -171,6 +171,40 @@ export interface Message {
   categories?: string[] | null;
   /** Gespreks-id voor threading. */
   conversationId?: string | null;
+  /** Folder the message is in (labels "Sent Items"/"Archive" in a thread). */
+  parentFolderId?: string | null;
+  /** Who actually sent it when that is not `from` ("X on behalf of Y").
+   *  Only filled for an opened message. */
+  sender?: Recipient | null;
+}
+
+/** Meeting details of an invitation/update/cancellation, see
+ *  `api.inviteDetails`. Times are local wall-clock ("2026-11-16T14:30:00"). */
+export interface InviteDetails {
+  eventId?: string | null;
+  start?: string | null;
+  end?: string | null;
+  isAllDay: boolean;
+  location?: string | null;
+  /** Set only when the meeting was moved: the old values. */
+  previousStart?: string | null;
+  previousEnd?: string | null;
+  previousLocation?: string | null;
+  meetingMessageType?: string | null;
+  /** "none" | "notResponded" | "accepted" | "tentativelyAccepted" | "declined" | "organizer" */
+  response?: string | null;
+  isCancelled: boolean;
+}
+
+/** All recent mail with one company (or one person), see `api.companyMail`. */
+export interface CompanyMail {
+  /** "domain" = everyone at the company; "address" = this one person
+   *  (free-mail providers, and colleagues on your own domain). */
+  scope: "domain" | "address";
+  /** The domain or address that was searched for. */
+  key: string;
+  /** Newest first; no deleted items, junk or drafts. */
+  messages: Message[];
 }
 
 export interface MessagesPage {

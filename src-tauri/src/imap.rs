@@ -16,13 +16,13 @@ use crate::models::*;
 use crate::token_store;
 use anyhow::{bail, Context, Result};
 use base64::Engine as _;
-use imap::types::NameAttribute;
+use imap_proto::NameAttribute;
 use lettre::AsyncTransport as _;
 use mail_parser::{MessageParser, MimeHeaders, PartType};
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// Scheidingsteken (SOH) binnen een samengestelde bericht-id: `map\u{1}validity\u{1}uid`.
 const SOH: char = '\u{1}';
@@ -31,13 +31,53 @@ const SOH: char = '\u{1}';
 type ImapStream = rustls::StreamOwned<rustls::ClientConnection, TcpStream>;
 type ImapSession = imap::Session<ImapStream>;
 
+/// A logged-in session plus the moment it was last used successfully.
+struct Pooled {
+    session: ImapSession,
+    last_used: Instant,
+}
+
+type SharedConn = Arc<Mutex<Option<Pooled>>>;
+
+/// A pooled session idle for longer than this is dropped and replaced instead
+/// of reused. After sleep or a network switch the old socket is often
+/// half-open, and finding that out costs a full read timeout (30 s).
+const MAX_IDLE: Duration = Duration::from_secs(5 * 60);
+
+/// Process-wide pool: one session per account and server.
+///
+/// Every Tauri command builds a fresh `ImapClient`, so a connection stored on
+/// the client itself never outlived a single command: each click paid for
+/// TCP + TLS + LOGIN. The pool keeps the session alive between commands.
+fn conn_pool() -> &'static Mutex<std::collections::HashMap<String, SharedConn>> {
+    static POOL: OnceLock<Mutex<std::collections::HashMap<String, SharedConn>>> = OnceLock::new();
+    POOL.get_or_init(Default::default)
+}
+
+/// The shared connection slot for an account. The key includes host, port
+/// and username, so changed settings never reuse a session to the old server.
+fn shared_conn(id: &str, s: &ImapSettings) -> SharedConn {
+    let key = format!("{id}{SOH}{}{SOH}{}{SOH}{}", s.imap_host, s.imap_port, s.imap_username);
+    let mut pool = conn_pool().lock().unwrap_or_else(|e| e.into_inner());
+    pool.entry(key)
+        .or_insert_with(|| Arc::new(Mutex::new(None)))
+        .clone()
+}
+
+/// Drops the pooled session(s) of an account (on unlinking it).
+pub fn forget_connection(id: &str) {
+    let prefix = format!("{id}{SOH}");
+    let mut pool = conn_pool().lock().unwrap_or_else(|e| e.into_inner());
+    pool.retain(|k, _| !k.starts_with(&prefix));
+}
+
 pub struct ImapClient {
     id: String,
     display_name: Option<String>,
     settings: ImapSettings,
     password: String,
-    /// Persistente, per-account gedeelde verbinding (lui opgezet).
-    conn: Arc<Mutex<Option<ImapSession>>>,
+    /// Persistent connection, shared per account through [`conn_pool`].
+    conn: SharedConn,
 }
 
 impl ImapClient {
@@ -52,12 +92,13 @@ impl ImapClient {
         let password = token_store::load_secret(&acc.id)
             .map_err(|e| e.to_string())?
             .ok_or_else(|| "Geen wachtwoord gevonden voor dit IMAP-account.".to_string())?;
+        let conn = shared_conn(&acc.id, &settings);
         Ok(Self {
             id: acc.id.clone(),
             display_name: acc.display_name.clone(),
             settings,
             password,
-            conn: Arc::new(Mutex::new(None)),
+            conn,
         })
     }
 
@@ -74,26 +115,56 @@ impl ImapClient {
         let password = self.password.clone();
 
         tokio::task::spawn_blocking(move || -> Result<R> {
-            let mut guard = conn
-                .lock()
-                .map_err(|_| anyhow::anyhow!("Interne fout: de IMAP-verbinding is vergrendeld."))?;
+            // The pool outlives a single command, so a panic in an earlier
+            // operation must not lock the account forever: recover the guard
+            // and start over with a fresh session.
+            let mut guard = match conn.lock() {
+                Ok(g) => g,
+                Err(poisoned) => {
+                    let mut g = poisoned.into_inner();
+                    *g = None;
+                    g
+                }
+            };
 
+            // Long idle: the socket may be half-open. Reconnect right away
+            // instead of waiting for the read timeout to find out.
+            if guard.as_ref().is_some_and(|p| p.last_used.elapsed() > MAX_IDLE) {
+                *guard = None;
+            }
             if guard.is_none() {
-                *guard = Some(connect_session(&settings, &password)?);
+                *guard = Some(Pooled {
+                    session: connect_session(&settings, &password)?,
+                    last_used: Instant::now(),
+                });
             }
 
-            // Eerste poging op de (mogelijk hergebruikte) sessie.
+            // First attempt on the (possibly reused) session.
             let first = {
-                let session = guard.as_mut().expect("sessie zojuist gezet");
-                f(session)
+                let pooled = guard.as_mut().expect("session was just set");
+                f(&mut pooled.session)
             };
             match first {
-                Ok(v) => Ok(v),
+                Ok(v) => {
+                    if let Some(p) = guard.as_mut() {
+                        p.last_used = Instant::now();
+                        // imap 3 queues unsolicited server responses (EXISTS,
+                        // flag changes) inside the session. Nothing reads
+                        // them, and a pooled session lives for hours, so
+                        // drop them instead of letting the queue grow.
+                        p.session.take_all_unsolicited().for_each(drop);
+                    }
+                    Ok(v)
+                }
                 Err(_) => {
-                    // Verbinding kan verlopen zijn: eenmalig opnieuw verbinden en herproberen.
+                    // The connection may have expired: reconnect once and retry.
+                    *guard = None;
                     let mut fresh = connect_session(&settings, &password)?;
                     let retry = f(&mut fresh);
-                    *guard = Some(fresh);
+                    *guard = Some(Pooled {
+                        session: fresh,
+                        last_used: Instant::now(),
+                    });
                     retry
                 }
             }
@@ -388,6 +459,53 @@ impl ImapClient {
     ) -> Result<MessagesPage> {
         self.search_raw(format!("TEXT {}", imap_quote(query)), top, folder_id)
             .await
+    }
+
+    /// Every message of a conversation from Inbox, Sent and Archive, newest
+    /// first. `conversation_id` is the root Message-ID (see `build_message`):
+    /// the root carries it as its own Message-ID, replies in References or
+    /// In-Reply-To.
+    pub async fn conversation(&self, conversation_id: &str) -> Result<Vec<Message>> {
+        let q = imap_quote(conversation_id);
+        let criteria = format!(
+            "OR HEADER Message-ID {q} OR HEADER References {q} HEADER In-Reply-To {q}"
+        );
+        self.search_gather_folders(criteria).await
+    }
+
+    /// Recent mail with a domain or a single address as sender or recipient,
+    /// from Inbox, Sent and Archive, newest first. IMAP SEARCH matches on
+    /// substrings, so a domain is searched as "@domain" (otherwise "acme.nl"
+    /// would also match "notacme.nl").
+    pub async fn participant_mail(&self, key: &str) -> Result<Vec<Message>> {
+        let needle = if key.contains('@') { key.to_string() } else { format!("@{key}") };
+        let q = imap_quote(&needle);
+        let criteria = format!("OR FROM {q} OR TO {q} CC {q}");
+        self.search_gather_folders(criteria).await
+    }
+
+    /// Runs one SEARCH in Inbox, Sent and Archive and merges the results.
+    /// Sent/Archive are skipped when the account has no such folder, and a
+    /// failure there does not hide what Inbox found.
+    async fn search_gather_folders(&self, criteria: String) -> Result<Vec<Message>> {
+        const TOP: u32 = 100;
+        let mut out: Vec<Message> = Vec::new();
+        for alias in ["inbox", "sentitems", "archive"] {
+            // resolve_mailbox hands the alias back unchanged when the
+            // special folder is unknown: then there is nothing to search.
+            if alias != "inbox" && self.resolve_mailbox(alias) == alias {
+                continue;
+            }
+            match self.search_raw(criteria.clone(), TOP, Some(alias)).await {
+                Ok(page) => out.extend(page.messages),
+                Err(e) if alias == "inbox" => return Err(e),
+                Err(_) => {}
+            }
+        }
+        out.retain(|m| m.is_draft != Some(true));
+        out.sort_by(|a, b| b.received_date_time.cmp(&a.received_date_time));
+        out.truncate(TOP as usize);
+        Ok(out)
     }
 
     /// Voert een kant-en-klare SEARCH-expressie uit en bouwt er berichten van.
@@ -747,7 +865,9 @@ impl ImapClient {
             .ok_or_else(|| anyhow::anyhow!("Er is geen Concepten-map ingesteld voor dit account."))?;
         self.with_session(move |session| {
             session
-                .append_with_flags(&drafts, &raw, &[imap::types::Flag::Draft])
+                .append(&drafts, &raw)
+                .flag(imap::types::Flag::Draft)
+                .finish()
                 .map_err(|e| anyhow::anyhow!(translate(&e)))?;
             let (validity, uid) = relocate_by_message_id(session, &drafts, Some(&message_id))?;
             Ok(minimal_message(make_id(&drafts, validity, uid), true))
@@ -766,7 +886,9 @@ impl ImapClient {
         let (old_mailbox, old_validity, old_uid) = parse_id(id)?;
         self.with_session(move |session| {
             session
-                .append_with_flags(&drafts, &raw, &[imap::types::Flag::Draft])
+                .append(&drafts, &raw)
+                .flag(imap::types::Flag::Draft)
+                .finish()
                 .map_err(|e| anyhow::anyhow!(translate(&e)))?;
             // Oud concept opruimen (best effort: het nieuwe staat er al).
             if select_and_check(session, &old_mailbox, old_validity).is_ok() {
@@ -956,7 +1078,9 @@ impl ImapClient {
     async fn append_seen(&self, mailbox: String, raw: Vec<u8>) -> Result<()> {
         self.with_session(move |session| {
             session
-                .append_with_flags(&mailbox, &raw, &[imap::types::Flag::Seen])
+                .append(&mailbox, &raw)
+                .flag(imap::types::Flag::Seen)
+                .finish()
                 .map_err(|e| anyhow::anyhow!(translate(&e)))?;
             Ok(())
         })
@@ -1097,9 +1221,9 @@ fn translate(e: &imap::Error) -> String {
         Error::Io(io) => format!("Netwerkfout bij de mailserver: {io}"),
         Error::No(msg) => format!(
             "De mailserver weigerde de opdracht (mogelijk onjuiste gebruikersnaam of wachtwoord): {}",
-            msg.trim()
+            msg.information.trim()
         ),
-        Error::Bad(msg) => format!("De mailserver gaf een fout: {}", msg.trim()),
+        Error::Bad(msg) => format!("De mailserver gaf een fout: {}", msg.information.trim()),
         Error::Parse(_) => "Kon het antwoord van de mailserver niet verwerken.".to_string(),
         Error::Validate(_) => "Ongeldige invoer voor de mailserver.".to_string(),
         _ => format!("IMAP-fout: {e}"),
@@ -1209,6 +1333,7 @@ fn build_message(
         id: make_id(mailbox, uidvalidity, uid),
         subject,
         from,
+        sender: None,
         to_recipients,
         cc_recipients,
         bcc_recipients,
@@ -1225,6 +1350,7 @@ fn build_message(
         internet_message_headers,
         categories: None,
         conversation_id,
+        parent_folder_id: Some(mailbox.to_string()),
     }
 }
 
@@ -1295,9 +1421,51 @@ fn preview_text(t: &str) -> String {
     collapsed.chars().take(200).collect()
 }
 
-/// Wikkelt een zoekterm veilig in dubbele aanhalingstekens (IMAP quoted string).
+/// The SPECIAL-USE folders (RFC 6154) the app needs to know about.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SpecialUse {
+    Sent,
+    Drafts,
+    Junk,
+    Trash,
+    Archive,
+}
+
+/// Reads a SPECIAL-USE attribute from a LIST response.
+///
+/// imap-proto 0.16 (imap 3.x) parses these into their own variants; 0.10
+/// (imap 2.x) handed them over as free text. The `Extension` fallback keeps a
+/// server that writes them in an unusual case working too.
+fn special_use(attr: &NameAttribute) -> Option<SpecialUse> {
+    match attr {
+        NameAttribute::Sent => Some(SpecialUse::Sent),
+        NameAttribute::Drafts => Some(SpecialUse::Drafts),
+        NameAttribute::Junk => Some(SpecialUse::Junk),
+        NameAttribute::Trash => Some(SpecialUse::Trash),
+        NameAttribute::Archive => Some(SpecialUse::Archive),
+        NameAttribute::Extension(c) => match c.to_ascii_lowercase().as_str() {
+            "\\sent" => Some(SpecialUse::Sent),
+            "\\drafts" => Some(SpecialUse::Drafts),
+            "\\junk" => Some(SpecialUse::Junk),
+            "\\trash" => Some(SpecialUse::Trash),
+            "\\archive" => Some(SpecialUse::Archive),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// Wraps a search term safely in double quotes (IMAP quoted string).
+/// CR, LF and NUL are not allowed inside a quoted string (RFC 3501); left in,
+/// a line break would end the command and let the rest of the term run as a
+/// new IMAP command (the term can come from a received message's Message-ID).
 fn imap_quote(s: &str) -> String {
-    let escaped = s.replace('\\', "\\\\").replace('"', "\\\"");
+    let escaped: String = s
+        .chars()
+        .filter(|c| !matches!(c, '\r' | '\n' | '\0'))
+        .collect::<String>()
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"");
     format!("\"{escaped}\"")
 }
 
@@ -1400,6 +1568,7 @@ fn minimal_message(id: String, is_draft: bool) -> Message {
         id,
         subject: None,
         from: None,
+        sender: None,
         to_recipients: None,
         cc_recipients: None,
         bcc_recipients: None,
@@ -1416,6 +1585,7 @@ fn minimal_message(id: String, is_draft: bool) -> Message {
         internet_message_headers: None,
         categories: None,
         conversation_id: None,
+        parent_folder_id: None,
     }
 }
 
@@ -1586,18 +1756,16 @@ fn resolve_special_folders(session: &mut ImapSession) -> Result<SpecialFolders> 
         }
         let raw = n.name().to_string();
         for attr in n.attributes() {
-            if let NameAttribute::Custom(c) = attr {
-                let target = match c.as_ref() {
-                    "\\Sent" => &mut sf.sent,
-                    "\\Drafts" => &mut sf.drafts,
-                    "\\Junk" => &mut sf.junk,
-                    "\\Trash" => &mut sf.trash,
-                    "\\Archive" => &mut sf.archive,
-                    _ => continue,
-                };
-                if target.is_none() {
-                    *target = Some(raw.clone());
-                }
+            let Some(kind) = special_use(attr) else { continue };
+            let target = match kind {
+                SpecialUse::Sent => &mut sf.sent,
+                SpecialUse::Drafts => &mut sf.drafts,
+                SpecialUse::Junk => &mut sf.junk,
+                SpecialUse::Trash => &mut sf.trash,
+                SpecialUse::Archive => &mut sf.archive,
+            };
+            if target.is_none() {
+                *target = Some(raw.clone());
             }
         }
     }
@@ -1674,6 +1842,35 @@ pub async fn verify_imap_settings(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// SPECIAL-USE attributes from a real LIST line, through the same parser
+    /// the imap crate uses. Guards the imap 2 -> 3 switch, where these moved
+    /// from free text to their own variants: a miss here means the app can
+    /// no longer find Sent/Trash and silently stops saving sent copies.
+    #[test]
+    fn special_use_folders_are_recognised_from_a_list_response() {
+        let attrs_of = |line: &'static [u8]| -> Vec<NameAttribute<'static>> {
+            match imap_proto::parser::parse_response(line) {
+                Ok((_, imap_proto::Response::MailboxData(imap_proto::MailboxDatum::List {
+                    name_attributes,
+                    ..
+                }))) => name_attributes,
+                other => panic!("unexpected parse: {other:?}"),
+            }
+        };
+        let kinds = |line: &'static [u8]| -> Vec<SpecialUse> {
+            attrs_of(line).iter().filter_map(special_use).collect()
+        };
+        assert_eq!(
+            kinds(b"* LIST (\\HasNoChildren \\Sent) \"/\" \"Sent Items\"\r\n"),
+            vec![SpecialUse::Sent]
+        );
+        assert_eq!(kinds(b"* LIST (\\Trash) \".\" \"INBOX.Trash\"\r\n"), vec![SpecialUse::Trash]);
+        assert_eq!(kinds(b"* LIST (\\Drafts) \"/\" Drafts\r\n"), vec![SpecialUse::Drafts]);
+        assert_eq!(kinds(b"* LIST (\\Junk) \"/\" Spam\r\n"), vec![SpecialUse::Junk]);
+        assert_eq!(kinds(b"* LIST (\\Archive) \"/\" Archief\r\n"), vec![SpecialUse::Archive]);
+        assert!(kinds(b"* LIST (\\HasNoChildren) \"/\" INBOX\r\n").is_empty());
+    }
 
     #[test]
     fn imap_date_gebruikt_rfc3501_formaat() {

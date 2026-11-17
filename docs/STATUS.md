@@ -60,6 +60,74 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
 
 ## ✅ Af
 
+- **Agenda bij uitnodigingen (2026-11-16)**: (nog niet gecommit, met nepdata in
+  de browser-harness bekeken, nog niet tegen de echte Graph-API)
+  - Bij een uitnodiging, wijziging of annulering staat boven de knoppen een
+    blok (`InviteCard.tsx`): datum en tijd, locatie, je antwoord tot nu toe
+    en bij een verplaatste vergadering de oude tijd/plek doorgestreept (zoals
+    Outlook). Daaronder een mini-dagweergave van je eigen agenda rond de
+    vergadering (1 uur ervoor tot 1 uur erna, max. 8 uur), met overlappende
+    afspraken naast elkaar en een melding "Overlapt met N andere afspraken".
+    Bij een annulering: geen knoppen, wel "geannuleerd".
+  - Rust: `invite_details` haalt de eventMessage zonder `$select` op (de
+    afgeleide velden als `previousStartDateTime` komen anders niet mee) en
+    expandeert de gekoppelde afspraak; tijden worden naar lokale wandkloktijd
+    omgerekend (`to_local_wall_clock`, UTC -> Europe/Amsterdam met zomertijd).
+  - Kop: "Corine van Gestel namens Bart van Esch" als `sender` en `from`
+    verschillen (`sender` alleen bij één geopend bericht opgehaald).
+  - IMAP: nog geen uitnodigingen (iMIP/.ics); daar verandert niets.
+  - **Nog te controleren tegen de echte tenant:** of `previousStartDateTime`
+    bij een verplaatste vergadering echt gevuld is, en bij een terugkerende
+    vergadering of het eigen item niet dubbel in de dagweergave staat.
+
+- **Gesprekken bij elkaar (2026-11-16, stap 1 + 2 van 3)**: (nog niet gecommit,
+  met nepdata in de browser-harness bekeken, nog niet tegen de echte Graph-API)
+  - Stap 1 - volledig gesprek: het leesvenster haalt het hele gesprek op uit
+    alle mappen (`get_conversation`), dus ook je antwoorden uit Verzonden items
+    en oudere delen uit Archief. Een bericht uit een andere map krijgt een
+    maplabel. Verwijderde items, ongewenste e-mail en concepten blijven weg.
+    Graph: `$filter=conversationId eq '...'` (sorteren in Rust: Graph weigert
+    `$orderby` bij dit filter). IMAP: SEARCH op Message-ID/References/
+    In-Reply-To in Postvak IN, Verzonden en Archief.
+  - Stap 2 - "Alles met <bedrijf>": balk boven het gesprek met alle recente
+    gesprekken met het domein van de andere partij (`company_mail`), per
+    gesprek met "wacht op jou" als het laatste bericht niet van jou is. Bij
+    gmail.com e.d. en bij collega's op je eigen domein: per persoon. Open/dicht
+    wordt onthouden (`companyPanelOpen`). Graph: `$search="participants:acme.nl"`;
+    IMAP: `OR FROM "@acme.nl" OR TO ... CC ...`.
+  - `stripPrefix` haalt nu ook "Antw:", "Doorst:", "AW:", "WG:" en gestapelde
+    voorvoegsels weg (ook bij beantwoorden/doorsturen).
+  - **Nog te controleren tegen de echte tenant:** of `participants:<domein>`
+    in Graph-`$search` alle adressen op dat domein vindt (zo werkt het in
+    Outlook/eDiscovery-KQL, maar hier nog niet live gezien).
+  - **Stap 3 (later):** handmatig koppelen/losmaken. Afgesproken: koppeling
+    mag op de server (Office 365: verborgen eigenschap op de mail).
+
+- **Beveiligings- en snelheidsronde (2026-11-16)**: (nog niet gecommit, nog niet
+  end-to-end in de app getest)
+  - CalDAV stuurt het IMAP-wachtwoord niet meer ongevraagd mee: alleen naar de
+    ingestelde agenda-host of na een 401 met Basic-uitdaging. Voorheen ging het
+    bij de agenda-detectie naar `https://<maildomein>/.well-known/caldav`, vaak
+    gewoon de website bij een hostingpartij. Omleiding https -> http wordt
+    geweigerd.
+  - Back-up export/import: de bestandskiezer draait nu in Rust
+    (`bewaar_json`/`kies_json`); de webview geeft geen pad meer door.
+    `schrijf_tekstbestand`/`lees_tekstbestand` (vrij lezen/schrijven van elk
+    bestand) en de `dialog:*`-rechten zijn weg.
+  - `fetch_remote_image` haalt alleen nog openbare adressen op (geen
+    localhost/LAN/169.254.x, ook niet via redirect of DNS) - `src-tauri/src/net.rs`.
+  - Mail-HTML in het leesvenster en het citaat zit in `contain: paint`, zodat een
+    mail met `position: fixed` geen nep-scherm over de app kan leggen.
+  - Links in mails: alleen http(s) naar de browser, `mailto:` opent het eigen
+    opstelvenster, de rest wordt genegeerd.
+  - OAuth-redirect: verbindingen zonder onze `state` worden genegeerd (een lege
+    preconnect liet de login 5 minuten hangen; een vervalste `?error=` brak hem af).
+  - `imap_quote` haalt CR/LF/NUL weg (geen IMAP-commando-injectie via Message-ID).
+  - Snelheid: één gedeelde HTTP-client voor Graph/login/CalDAV/afbeeldingen
+    (voorheen per actie een nieuwe TLS-handshake), en IMAP-sessies worden nu echt
+    per account hergebruikt (pool; na 5 min stilte opnieuw verbinden). Voorheen
+    deed elke klik TCP + TLS + LOGIN.
+
 - **Uitgebreid zoeken (2026-07-27 + 2026-08-14, issue #13)**: pijltje naast het
   zoekvak klapt een formulier open met Van, Aan, CC, Onderwerp, Trefwoorden,
   datum van/tot, leesstatus en "heeft bijlagen" - zoals het Outlook-paneel uit
@@ -515,6 +583,24 @@ offline cachen, en "stale-while-revalidate" (cache direct tonen terwijl
 vers laadt) als snelheidsverbetering bovenop de offline cache.
 
 ## 📌 Openstaand / opmerkingen
+
+- **IMAP met een echte server nalopen na de overstap naar imap 3 (2026-11-16).**
+  `imap` 2.4.1 trok `imap-proto 0.10.2` mee (code die een toekomstige
+  Rust-versie weigert). Omgezet naar `imap = "=3.0.0-alpha.15"` (exact
+  gepind: alpha) met `imap-proto 0.16`; de future-incompat-melding is weg.
+  Wat er veranderde in `imap.rs`: APPEND is een builder
+  (`append(..).flag(..).finish()`), foutteksten zitten in `.information`, en
+  SPECIAL-USE-mappen (`\Sent`, `\Trash`, ...) zijn eigen varianten in plaats
+  van vrije tekst - zonder aanpassing waren Verzonden/Prullenbak stil niet
+  meer gevonden (nu afgedekt door een test op echte LIST-regels). Ook worden
+  ongevraagde serverberichten na elke actie weggegooid: imap 3 bewaart ze in
+  de sessie, en die leeft sinds de pool urenlang. Nog niet getest tegen een
+  echte IMAP-server: account toevoegen (mapdetectie), lezen, verzenden met
+  Verzonden-kopie, concept opslaan, verplaatsen. Zodra er een stabiele
+  `imap` 3.0 is: pin loslaten.
+- `@tauri-apps/plugin-dialog` (npm) is verwijderd op 2026-11-16: de
+  bestandskiezer draait sindsdien in Rust. De Rust-crate
+  `tauri-plugin-dialog` blijft nodig.
 
 - **Automatische cloud-sync via OneDrive (Graph) - GEPLAND, nog niet
   gebouwd.** Bovenop de handmatige .json-export (2026-07-10) is dit de

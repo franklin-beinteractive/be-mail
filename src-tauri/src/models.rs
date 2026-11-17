@@ -89,6 +89,11 @@ pub struct Message {
     pub subject: Option<String>,
     #[serde(default)]
     pub from: Option<Recipient>,
+    /// Who actually sent it, when that differs from `from`: a secretary or
+    /// delegate sending "on behalf of" someone. Only filled for one opened
+    /// message (Graph), not in lists.
+    #[serde(default)]
+    pub sender: Option<Recipient>,
     #[serde(default)]
     pub to_recipients: Option<Vec<Recipient>>,
     #[serde(default)]
@@ -123,6 +128,122 @@ pub struct Message {
     /// Gespreks-id voor threading (berichten groeperen).
     #[serde(default)]
     pub conversation_id: Option<String>,
+    /// Folder the message lives in. A conversation is gathered from every
+    /// folder, so the reader can label "Sent Items" or "Archive" per message.
+    /// IMAP: the mailbox path (the same value as the folder id).
+    #[serde(default)]
+    pub parent_folder_id: Option<String>,
+}
+
+/// Meeting details of an invitation, update or cancellation (a Graph
+/// eventMessage), for the block above the RSVP buttons. All times are local
+/// wall-clock times in the account time zone ("2026-11-16T14:30:00"), the
+/// same convention the calendar view uses.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InviteDetails {
+    /// Id of the meeting in your calendar (to highlight it in the day view).
+    pub event_id: Option<String>,
+    pub start: Option<String>,
+    pub end: Option<String>,
+    pub is_all_day: bool,
+    pub location: Option<String>,
+    /// Only set when the organiser moved the meeting: the old times/place,
+    /// shown struck through (like Outlook).
+    pub previous_start: Option<String>,
+    pub previous_end: Option<String>,
+    pub previous_location: Option<String>,
+    /// Graph's meetingMessageType: "meetingRequest", "meetingCancelled", ...
+    pub meeting_message_type: Option<String>,
+    /// Your answer so far: "none", "notResponded", "accepted",
+    /// "tentativelyAccepted", "declined" or "organizer".
+    pub response: Option<String>,
+    pub is_cancelled: bool,
+}
+
+/// All recent mail with one company (or one person), for the "everything
+/// with this customer" panel in the reader.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompanyMail {
+    /// "domain" (everyone at the company) or "address" (one person: free-mail
+    /// providers such as gmail.com, and colleagues on your own domain).
+    pub scope: String,
+    /// The domain or address that was searched for.
+    pub key: String,
+    /// Newest first, across Inbox, Sent Items and the other folders. Deleted
+    /// items, junk and drafts are left out.
+    pub messages: Vec<Message>,
+}
+
+/// Domains of free-mail and consumer ISP mailboxes. Grouping on one of these
+/// would lump unrelated private customers together, so those fall back to the
+/// sender's own address.
+const FREE_MAIL_DOMAINS: &[&str] = &[
+    "gmail.com", "googlemail.com", "hotmail.com", "hotmail.nl", "hotmail.be", "outlook.com",
+    "outlook.nl", "outlook.be", "live.com", "live.nl", "live.be", "msn.com", "yahoo.com",
+    "yahoo.nl", "ymail.com", "icloud.com", "me.com", "mac.com", "aol.com", "gmx.com", "gmx.net",
+    "gmx.de", "proton.me", "protonmail.com", "pm.me", "ziggo.nl", "kpnmail.nl", "kpnplanet.nl",
+    "planet.nl", "hetnet.nl", "home.nl", "xs4all.nl", "telfort.nl", "upcmail.nl", "chello.nl",
+    "casema.nl", "online.nl", "tele2.nl", "quicknet.nl", "zeelandnet.nl", "freeler.nl",
+    "caiway.nl", "solcon.nl", "telenet.be", "skynet.be", "proximus.be",
+];
+
+/// Decides what "this customer" means for an address: `("domain", domain)`
+/// for a company, `("address", address)` for free-mail and for colleagues on
+/// your own domain (otherwise "the company" would be all of your mail).
+/// `None` when the input is not a usable e-mail address.
+pub fn company_scope(address: &str, own_address: Option<&str>) -> Option<(&'static str, String)> {
+    let addr = address.trim().to_ascii_lowercase();
+    let (local, domain) = addr.rsplit_once('@')?;
+    let valid = |s: &str| {
+        !s.is_empty()
+            && s.chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | '+'))
+    };
+    if !valid(local) || !valid(domain) || !domain.contains('.') {
+        return None;
+    }
+    let own_domain = own_address
+        .and_then(|o| o.trim().to_ascii_lowercase().rsplit_once('@').map(|(_, d)| d.to_string()));
+    if FREE_MAIL_DOMAINS.contains(&domain) || own_domain.as_deref() == Some(domain) {
+        Some(("address", addr.clone()))
+    } else {
+        Some(("domain", domain.to_string()))
+    }
+}
+
+#[cfg(test)]
+mod company_scope_tests {
+    use super::company_scope;
+
+    #[test]
+    fn a_company_groups_on_its_domain() {
+        assert_eq!(
+            company_scope("Jan@Acme.nl", Some("me@be-interactive.nl")),
+            Some(("domain", "acme.nl".to_string()))
+        );
+    }
+
+    #[test]
+    fn free_mail_and_colleagues_group_on_the_address() {
+        assert_eq!(
+            company_scope("piet@gmail.com", Some("me@be-interactive.nl")),
+            Some(("address", "piet@gmail.com".to_string()))
+        );
+        assert_eq!(
+            company_scope("collega@be-interactive.nl", Some("me@be-interactive.nl")),
+            Some(("address", "collega@be-interactive.nl".to_string()))
+        );
+    }
+
+    #[test]
+    fn rejects_anything_that_is_not_a_plain_address() {
+        assert_eq!(company_scope("Jan Jansen", None), None);
+        assert_eq!(company_scope("a@b", None), None);
+        assert_eq!(company_scope("x\"y@acme.nl", None), None);
+        assert_eq!(company_scope("x@acme.nl OR subject:x", None), None);
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

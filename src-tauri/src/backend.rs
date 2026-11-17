@@ -166,6 +166,20 @@ impl Backend {
             Backend::Imap(i) => i.search_messages(query, top, folder_id).await,
         }
     }
+    /// The whole conversation across folders, newest first.
+    pub async fn conversation(&self, conversation_id: &str) -> Result<Vec<Message>> {
+        match self {
+            Backend::Graph(g) => g.conversation(conversation_id).await,
+            Backend::Imap(i) => i.conversation(conversation_id).await,
+        }
+    }
+    /// Recent mail with a domain or address as a participant, newest first.
+    pub async fn participant_mail(&self, key: &str) -> Result<Vec<Message>> {
+        match self {
+            Backend::Graph(g) => g.participant_mail(key).await,
+            Backend::Imap(i) => i.participant_mail(key).await,
+        }
+    }
     pub async fn set_read(&self, id: &str, is_read: bool) -> Result<()> {
         match self {
             Backend::Graph(g) => g.set_read(id, is_read).await,

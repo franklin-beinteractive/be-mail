@@ -47,9 +47,15 @@ dirs = "5"
 # RUSTSEC-2026-0459.
 rusqlite = { version = "0.42", features = ["bundled"] }
 # --- IMAP-accounts (Fase 3/4) ---
-# Sync IMAP-client zonder eigen TLS (default-features uit = geen native-tls/OpenSSL);
-# we voeren zelf een rustls-stream aan, consistent met reqwest elders.
-imap = { version = "2", default-features = false }
+# Sync IMAP client without its own TLS (default-features off = no native-tls/
+# OpenSSL); we feed it our own rustls stream, consistent with reqwest elsewhere.
+# 3.x because 2.x pulls in imap-proto 0.10, which a future Rust release will
+# refuse to compile. Pinned exactly: 3.0 is still alpha and its API can change
+# between alphas.
+imap = { version = "=3.0.0-alpha.15", default-features = false }
+# imap 3 no longer re-exports `NameAttribute` (needed to read SPECIAL-USE
+# folders); same version imap itself uses, so no second copy is built.
+imap-proto = "0.16"
 # rustls met ring (geen aws-lc-sys/NASM-buildvereiste op Windows); expliciete
 # provider in lib.rs voorkomt de "geen default CryptoProvider"-paniek.
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }

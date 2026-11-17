@@ -94,7 +94,9 @@ impl CaldavClient {
         })
     }
 
-    /// Verstuurt een verzoek en volgt redirects zelf (behoud van auth + body).
+    /// Sends a request and follows redirects itself (keeping auth + body).
+    /// The configured calendar host was verified during discovery, so it gets
+    /// the credentials right away instead of after a 401 round trip.
     async fn send(
         &self,
         method: Method,
@@ -102,7 +104,8 @@ impl CaldavClient {
         headers: &[(&str, &str)],
         body: Option<&str>,
     ) -> Result<DavResponse> {
-        dav_send(
+        let trusted = host_of(&self.calendar_url);
+        dav_send_with(
             &self.http,
             &self.username,
             &self.password,
@@ -110,6 +113,7 @@ impl CaldavClient {
             url,
             headers,
             body,
+            trusted.as_deref(),
         )
         .await
     }
@@ -610,14 +614,22 @@ struct DavResponse {
     final_url: String,
 }
 
+/// One shared client (connection pool) instead of a new one per command.
 fn build_http() -> std::result::Result<Client, String> {
-    Client::builder()
+    static CLIENT: std::sync::OnceLock<Client> = std::sync::OnceLock::new();
+    if let Some(c) = CLIENT.get() {
+        return Ok(c.clone());
+    }
+    let c = Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .timeout(StdDuration::from_secs(30))
         .build()
-        .map_err(|e| format!("Kon de agenda-verbinding niet opzetten: {e}"))
+        .map_err(|e| format!("Kon de agenda-verbinding niet opzetten: {e}"))?;
+    Ok(CLIENT.get_or_init(|| c).clone())
 }
 
+/// Discovery variant: no host is trusted up front, so credentials are only
+/// sent to a server that asks for them (see [`dav_send_with`]).
 async fn dav_send(
     http: &Client,
     user: &str,
@@ -627,11 +639,49 @@ async fn dav_send(
     headers: &[(&str, &str)],
     body: Option<&str>,
 ) -> Result<DavResponse> {
+    dav_send_with(http, user, pass, method, url, headers, body, None).await
+}
+
+/// True when a 401 response offers HTTP Basic authentication.
+fn offers_basic(resp: &reqwest::Response) -> bool {
+    resp.headers()
+        .get_all(reqwest::header::WWW_AUTHENTICATE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .any(|v| v.trim_start().to_ascii_lowercase().starts_with("basic"))
+}
+
+/// Sends a WebDAV request, follows redirects itself and adds Basic auth.
+///
+/// The password is the user's mail password, so it is guarded:
+/// - It is only sent to `trusted_host` (the configured calendar) or to a host
+///   that answered 401 with a Basic challenge. Discovery probes
+///   `https://<mail domain>/.well-known/caldav`, which is often a plain
+///   website at a hosting company; sending credentials preemptively would
+///   hand the mail password to that web server.
+/// - A redirect from https to http is refused: Basic auth over plain http is
+///   the password in clear text on the network.
+#[allow(clippy::too_many_arguments)]
+async fn dav_send_with(
+    http: &Client,
+    user: &str,
+    pass: &str,
+    method: Method,
+    url: &str,
+    headers: &[(&str, &str)],
+    body: Option<&str>,
+    trusted_host: Option<&str>,
+) -> Result<DavResponse> {
     let mut current = url.to_string();
-    for _ in 0..6 {
-        let mut req = http
-            .request(method.clone(), &current)
-            .basic_auth(user, Some(pass));
+    let mut auth_host: Option<String> = trusted_host.map(str::to_ascii_lowercase);
+    // 6 redirects plus at most one 401 retry per hop.
+    for _ in 0..12 {
+        let host = host_of(&current).map(|h| h.to_ascii_lowercase());
+        let with_auth = host.is_some() && host == auth_host;
+        let mut req = http.request(method.clone(), &current);
+        if with_auth {
+            req = req.basic_auth(user, Some(pass));
+        }
         for (k, v) in headers {
             req = req.header(*k, *v);
         }
@@ -644,16 +694,29 @@ async fn dav_send(
             .map_err(|e| anyhow!("Netwerkfout richting de agenda-server: {e}"))?;
         let status = resp.status();
 
-        // Cross-host redirect zelf volgen (reqwest zou anders auth + body droppen).
+        // The server asks for credentials: retry this URL once with them.
+        if status == StatusCode::UNAUTHORIZED && !with_auth && offers_basic(&resp) {
+            auth_host = host;
+            continue;
+        }
+
+        // Follow redirects ourselves (reqwest would drop auth + body cross-host).
         if matches!(status.as_u16(), 301 | 302 | 307 | 308) {
             if let Some(loc) = resp
                 .headers()
                 .get(reqwest::header::LOCATION)
                 .and_then(|v| v.to_str().ok())
             {
-                let next = Url::parse(&current)
-                    .and_then(|b| b.join(loc))
+                let base = Url::parse(&current)
                     .map_err(|e| anyhow!("Ongeldige redirect van de agenda-server: {e}"))?;
+                let next = base
+                    .join(loc)
+                    .map_err(|e| anyhow!("Ongeldige redirect van de agenda-server: {e}"))?;
+                if !matches!(next.scheme(), "http" | "https")
+                    || (base.scheme() == "https" && next.scheme() != "https")
+                {
+                    bail!("De agenda-server stuurt door naar een onbeveiligd adres; geweigerd.");
+                }
                 current = next.to_string();
                 continue;
             }
@@ -1448,7 +1511,7 @@ fn account_tz() -> Tz {
 }
 
 /// Kleine Windows<->IANA-tabel (onbekend => UTC). `chrono-tz` doet de DST.
-fn windows_to_iana(win: &str) -> Tz {
+pub(crate) fn windows_to_iana(win: &str) -> Tz {
     match win {
         "W. Europe Standard Time" => Tz::Europe__Amsterdam,
         "Central Europe Standard Time" => Tz::Europe__Prague,

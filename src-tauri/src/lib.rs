@@ -13,6 +13,7 @@ mod download;
 mod graph;
 mod imap;
 mod models;
+mod net;
 mod notifier;
 mod opdrachten;
 mod token_store;
@@ -45,8 +46,8 @@ pub fn run() {
             commands::get_config,
             commands::save_config,
             commands::set_notifications_enabled,
-            commands::schrijf_tekstbestand,
-            commands::lees_tekstbestand,
+            commands::bewaar_json,
+            commands::kies_json,
             commands::auth_status,
             commands::login,
             commands::logout,
@@ -70,6 +71,8 @@ pub fn run() {
             commands::move_message,
             commands::send_message,
             commands::search_messages,
+            commands::get_conversation,
+            commands::company_mail,
             commands::claude_key_status,
             commands::set_claude_key,
             commands::ai_reply,
@@ -93,6 +96,7 @@ pub fn run() {
             commands::list_categories,
             commands::set_message_categories,
             commands::rsvp_message,
+            commands::invite_details,
             commands::block_sender,
             commands::list_events,
             commands::create_event,
