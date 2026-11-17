@@ -21,7 +21,7 @@ Authorization Code Flow met PKCE, public/native client (geen client secret).
 ### 1. Windows Credential Manager: max 2560 bytes per credential
 
 Eén credential-blob mag op Windows max **2560 bytes** (UTF-16, ~1280 tekens) zijn.
-Microsoft-tokens (access + refresh + `groups`-claims) zijn samen vaak 3–4 KB, dus
+Microsoft-tokens (access + refresh + `groups`-claims) zijn samen vaak 3-4 KB, dus
 één `keyring::Entry::set_password(hele_json)` faalt met *"Kon tokens niet opslaan in
 de keychain"* - afhankelijk van de tenant/gebruiker (grotere `groups`-claim = groter
 token). `token_store.rs` splitst de JSON daarom in stukken van 1000 tekens over
@@ -125,8 +125,9 @@ Dit script staat identiek in de `git-workflow`-repo; verbeteringen graag in beid
 
 Releases worden **lokaal gebouwd** met `npm run release`
 (`scripts/release.mjs`), net als bij GitWorkflow en Vanguard. Het bouwt de
-ondertekende NSIS- en MSI-installer, controleert de handtekeningen tegen de
-`pubkey` in `tauri.conf.json`, scant beide met Defender en publiceert ze met
+ondertekende NSIS-installer (alleen de setup.exe, geen MSI meer sinds 0.2.0),
+controleert de handtekening tegen de `pubkey` in `tauri.conf.json`, scant hem
+met Defender en publiceert hem met
 `latest.json` als latest in de publieke repo **`f-de-groot/be-mail-releases`**
 (waar de updater sinds 0.2.0 naar kijkt). Pas daarna pusht het `main` en de
 tag. In Claude Code doet de skill **`local-release`**

@@ -1,6 +1,6 @@
 ---
 name: local-release
-description: Build a BE-Mail release on this machine and publish it on GitHub in one go - dependency update, version bump, release notes, release commit and tag, then `npm run release` builds the signed installers (.exe and .msi) and latest.json, scans them with Defender, publishes them as latest in f-de-groot/be-mail-releases and pushes the tag. Use when the user asks to make, prepare or publish a release, "maak een (lokale) release", "release klaarzetten" or "nieuwe release".
+description: Build a BE-Mail release on this machine and publish it on GitHub in one go - dependency update, version bump, release notes, release commit and tag, then `npm run release` builds the signed installer (.exe only) and latest.json, scans it with Defender, publishes them as latest in f-de-groot/be-mail-releases and pushes the tag. Use when the user asks to make, prepare or publish a release, "maak een (lokale) release", "release klaarzetten" or "nieuwe release".
 ---
 
 # Local release
@@ -113,11 +113,11 @@ and takes a while; later ones are much shorter.
 
 It checks versions, the updater endpoint, a clean tree on `main`, the tag on
 `HEAD`, release notes that start with this version, that the release does not
-exist yet and that the updater key can sign. Then it builds the NSIS and MSI
-installers, verifies both signatures against the pubkey in `tauri.conf.json`,
-scans both with the local Defender, writes `latest.json`, creates the release
-as a draft with three files (both installers and `latest.json`, which carries
-the signatures), publishes it as latest, pushes `main` and the tag, and
+exist yet and that the updater key can sign. Then it builds the NSIS
+installer (no MSI), verifies its signature against the pubkey in
+`tauri.conf.json`, scans it with the local Defender, writes `latest.json`,
+creates the release as a draft with two files (the setup.exe and
+`latest.json`, which carries the signature), publishes it as latest, pushes `main` and the tag, and
 checks that the updater endpoint serves the new version.
 
 When it stops:

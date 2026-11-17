@@ -16,14 +16,14 @@
 //      reports the repository checks as warnings and builds anyway. The key
 //      signs a probe file first, so a wrong password fails now rather than
 //      after a long build.
-//   2. `npm ci` and `tauri build --bundles nsis,msi` with the updater key, so
-//      every installer gets a .sig.
-//   3. Every .sig is verified against the pubkey in tauri.conf.json: an update
+//   2. `npm ci` and `tauri build --bundles nsis` with the updater key, so the
+//      installer gets a .sig. Only the NSIS setup.exe ships; no MSI.
+//   3. The .sig is verified against the pubkey in tauri.conf.json: an update
 //      signed with another key is downloaded by installed copies and then
 //      refused, which nobody notices until they wonder why nothing updates.
-//      The local Defender scans both installers.
-//   4. latest.json (which carries the signatures), then a DRAFT release with
-//      the installers and latest.json, published only once every upload is
+//      The local Defender scans the installer.
+//   4. latest.json (which carries the signature), then a DRAFT release with
+//      the installer and latest.json, published only once every upload is
 //      in. The updater reads releases/latest/download/latest.json and must
 //      never see half a release.
 //   5. `git push origin main vX.Y.Z`, so the source repo only gets the tag
@@ -331,8 +331,12 @@ function updaterNotes() {
     .trim()
 }
 
-/** The updater manifest. Plain `windows-x86_64` is what the updater asks for; it gets NSIS. */
-function updaterManifest(nsis, msi) {
+/**
+ * The updater manifest. Plain `windows-x86_64` is what the updater asks for; it
+ * gets NSIS. Copies installed from the 0.2.0 MSI ask for `windows-x86_64-msi`
+ * first and fall back to plain `windows-x86_64`.
+ */
+function updaterManifest(nsis) {
   const entry = ({ sig, name }) => ({
     signature: fs.readFileSync(sig, 'utf8').trim(),
     url: `https://github.com/${RELEASES_REPO}/releases/download/${tag}/${name}`,
@@ -344,7 +348,6 @@ function updaterManifest(nsis, msi) {
     platforms: {
       'windows-x86_64': entry(nsis),
       'windows-x86_64-nsis': entry(nsis),
-      'windows-x86_64-msi': entry(msi),
     },
   }
 }
@@ -401,17 +404,15 @@ heading('Building')
 step('npm', ['ci', '--no-audit', '--no-fund'])
 // Two seconds of slack for file systems with coarse timestamps.
 const buildStart = Date.now() - 2000
-step('npx', ['tauri', 'build', '--bundles', 'nsis,msi'], { env: { ...process.env, ...keyEnv } })
+step('npx', ['tauri', 'build', '--bundles', 'nsis'], { env: { ...process.env, ...keyEnv } })
 
 heading('Verifying')
 const nsis = findInstaller('nsis', (name) => name.endsWith('-setup.exe'), buildStart)
-const msi = findInstaller('msi', (name) => name.endsWith('.msi'), buildStart)
 verifySignature(nsis)
-verifySignature(msi)
 
-// The .sig files stay local: latest.json carries each signature inline and
-// the updater never downloads a .sig.
-const assets = [nsis.file, msi.file].map((file) => {
+// The .sig file stays local: latest.json carries the signature inline and the
+// updater never downloads a .sig.
+const assets = [nsis.file].map((file) => {
   const copy = path.join(outDir, path.basename(file))
   fs.copyFileSync(file, copy)
   return copy
@@ -420,7 +421,7 @@ for (const file of assets) console.log(defenderScan(file))
 const notesFile = path.join(outDir, 'notes.md')
 const manifestFile = path.join(outDir, 'latest.json')
 fs.writeFileSync(notesFile, releaseNotes(nsis.name))
-fs.writeFileSync(manifestFile, JSON.stringify(updaterManifest(nsis, msi), null, 2))
+fs.writeFileSync(manifestFile, JSON.stringify(updaterManifest(nsis), null, 2))
 assets.push(manifestFile)
 
 if (dryRun) {
