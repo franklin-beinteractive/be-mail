@@ -60,8 +60,8 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
 
 ## ✅ Af
 
-- **Agenda bij uitnodigingen (2026-11-16)**: (nog niet gecommit, met nepdata in
-  de browser-harness bekeken, nog niet tegen de echte Graph-API)
+- **Agenda bij uitnodigingen (2026-11-16)**: (in 0.3.0; in de echte app
+  nagelopen tegen Office 365 op 2026-11-17)
   - Bij een uitnodiging, wijziging of annulering staat boven de knoppen een
     blok (`InviteCard.tsx`): datum en tijd, locatie, je antwoord tot nu toe
     en bij een verplaatste vergadering de oude tijd/plek doorgestreept (zoals
@@ -80,8 +80,8 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
     bij een verplaatste vergadering echt gevuld is, en bij een terugkerende
     vergadering of het eigen item niet dubbel in de dagweergave staat.
 
-- **Gesprekken bij elkaar (2026-11-16, stap 1 + 2 van 3)**: (nog niet gecommit,
-  met nepdata in de browser-harness bekeken, nog niet tegen de echte Graph-API)
+- **Gesprekken bij elkaar (2026-11-16, stap 1 + 2 van 3)**: (in 0.3.0;
+  in de echte app nagelopen tegen Office 365 op 2026-11-17)
   - Stap 1 - volledig gesprek: het leesvenster haalt het hele gesprek op uit
     alle mappen (`get_conversation`), dus ook je antwoorden uit Verzonden items
     en oudere delen uit Archief. Een bericht uit een andere map krijgt een
@@ -97,14 +97,18 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
     IMAP: `OR FROM "@acme.nl" OR TO ... CC ...`.
   - `stripPrefix` haalt nu ook "Antw:", "Doorst:", "AW:", "WG:" en gestapelde
     voorvoegsels weg (ook bij beantwoorden/doorsturen).
-  - **Nog te controleren tegen de echte tenant:** of `participants:<domein>`
-    in Graph-`$search` alle adressen op dat domein vindt (zo werkt het in
-    Outlook/eDiscovery-KQL, maar hier nog niet live gezien).
+  - **Live gebleken (2026-11-17):** `participants:<domein>` geeft in Graph een
+    HTTP 500 ("Unrecognized filter of type ...OrFilter"); met één adres werkt
+    het wel. Voor een domein zoekt de app nu `from:`, `to:` en `cc:` los en
+    voegt samen. **Nog te controleren:** voor opthoog.nl gaf elk veld 100
+    treffers (het maximum); mogelijk matcht Exchange ook op het woord in
+    namen/tekst, zodat interne mails over het project meekomen. Open vraag
+    aan Franklin: de balk bij collega's (eigen domein) weglaten?
   - **Stap 3 (later):** handmatig koppelen/losmaken. Afgesproken: koppeling
     mag op de server (Office 365: verborgen eigenschap op de mail).
 
-- **Beveiligings- en snelheidsronde (2026-11-16)**: (nog niet gecommit, nog niet
-  end-to-end in de app getest)
+- **Beveiligings- en snelheidsronde (2026-11-16)**: (in 0.3.0; Office 365
+  nagelopen in de echte app, IMAP/CalDAV nog niet tegen een echte server)
   - CalDAV stuurt het IMAP-wachtwoord niet meer ongevraagd mee: alleen naar de
     ingestelde agenda-host of na een 401 met Basic-uitdaging. Voorheen ging het
     bij de agenda-detectie naar `https://<maildomein>/.well-known/caldav`, vaak
