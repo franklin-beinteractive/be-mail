@@ -1728,7 +1728,7 @@ export default function MailView({ onActiveAccountChange }: MailViewProps = {}) 
             (isActiveGroup && f.id === folderId ? " active" : "") +
             (hintHere ? ` drop-${hintHere}` : "")
           }
-          style={{ paddingLeft: depth * 14 }}
+          style={{ paddingLeft: 8 + depth * 14 }}
           draggable={isActiveGroup}
           onDragStart={(e) => {
             setDragFolderId(f.id);
