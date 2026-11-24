@@ -19,19 +19,17 @@ import SetupScreen from "./components/SetupScreen";
 import LoginScreen from "./components/LoginScreen";
 import MailView from "./components/MailView";
 import CalendarView from "./components/CalendarView";
-import OpdrachtenView from "./components/opdrachten/OpdrachtenView";
 import SettingsView from "./components/SettingsView";
 import HelpView from "./components/HelpView";
 import {
   CalendarIcon,
   HelpIcon,
   MailIcon,
-  OpdrachtenIcon,
   SettingsIcon,
 } from "./components/Icons";
 
 type Phase = "loading" | "setup" | "login" | "app";
-type Section = "mail" | "calendar" | "opdrachten" | "settings" | "help";
+type Section = "mail" | "calendar" | "settings" | "help";
 
 export default function App() {
   const [settings, setSettingsState] = useState<UiSettings>(() => loadSettings());
@@ -44,8 +42,6 @@ export default function App() {
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
   const [section, setSection] = useState<Section>("mail");
   const [toast, setToast] = useState<{ msg: string; kind: "info" | "error" } | null>(null);
-  // Kaart die de opdrachten-sectie direct moet openen (mail → opdracht).
-  const [opdrachtFocus, setOpdrachtFocus] = useState<number | null>(null);
 
   const t = translator(settings.lang);
   // Voor title-attributen: geen tooltip als de gebruiker ze uitzet.
@@ -222,14 +218,6 @@ export default function App() {
                   <span>{t("calendar")}</span>
                 </button>
               )}
-              <button
-                className={"rail-btn" + (section === "opdrachten" ? " active" : "")}
-                onClick={() => setSection("opdrachten")}
-                title={tip("opdrachten")}
-              >
-                <OpdrachtenIcon size={24} />
-                <span>{t("opdrachten")}</span>
-              </button>
               <span className="rail-spacer" />
               <button
                 className={"rail-btn" + (section === "settings" ? " active" : "")}
@@ -251,21 +239,9 @@ export default function App() {
 
             <main className="content">
               {section === "mail" && (
-                <MailView
-                  onOpdrachtAangemaakt={(id) => {
-                    setOpdrachtFocus(id);
-                    setSection("opdrachten");
-                  }}
-                  onActiveAccountChange={setActiveAccountId}
-                />
+                <MailView onActiveAccountChange={setActiveAccountId} />
               )}
               {section === "calendar" && anyHasCalendar && <CalendarView />}
-              {section === "opdrachten" && (
-                <OpdrachtenView
-                  focusKaartId={opdrachtFocus}
-                  onFocusVerwerkt={() => setOpdrachtFocus(null)}
-                />
-              )}
               {section === "help" && <HelpView />}
               {section === "settings" && (
                 <SettingsView

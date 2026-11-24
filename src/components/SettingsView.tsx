@@ -1,24 +1,17 @@
-// Instellingen, verdeeld over tabbladen: Algemeen (accounts, weergave, gedrag,
-// verbinding), E-mail (mappen, lijst, regels, afwezigheid, handtekeningen, AI),
-// Agenda en Opdrachten (termijnen, autoaanvullen-lijsten, mailteksten).
+// Settings, split over tabs: General (accounts, display, behaviour,
+// connection), Mail (folders, list, rules, out of office, signatures, AI)
+// and Calendar.
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { bewaarJson, kiesJson } from "../lib/backup";
 import { useApp } from "../lib/ctx";
-import { OPDR_MERGE_TAGS } from "../lib/opdrachten-mail";
-import { opdrachtenApi } from "../lib/opdrachten-api";
-import type { OpdrachtInstellingen } from "../lib/opdrachten-types";
 import {
   COMPOSE_FONT_SIZES,
-  defaultSettings,
+  mergeSettings,
   FONT_CHOICES,
   HIDEABLE_FOLDERS,
-  OPDR_MAIL_KLANT_STANDAARD,
-  OPDR_MAIL_PLANNING_STANDAARD,
   signatureHtml,
   type AiSkill,
-  type OpdrachtKlantContact,
-  type OpdrachtPersoon,
   type QuickAction,
   type Signature,
 } from "../lib/settings";
@@ -35,10 +28,7 @@ import { PlusIcon, TrashIcon } from "./Icons";
 // Zelfde tijdzone als de Rust-kern (graph.rs DEFAULT_TZ).
 const TZ = "W. Europe Standard Time";
 
-type SettingsTab = "algemeen" | "mail" | "agenda" | "opdrachten";
-
-/** Sleutel in UiSettings van een persoonlijst (naam + e-mail). */
-type PersoonLijstKey = "opdrUitvoerders" | "opdrPlanners";
+type SettingsTab = "algemeen" | "mail" | "agenda";
 
 /** Graph-dateTime → waarde voor <input type="datetime-local">. */
 function toLocalInput(dt?: { dateTime: string } | null): string {
@@ -65,8 +55,6 @@ export default function SettingsView({
   const [imapDialog, setImapDialog] = useState(false);
   // Notificatie-instelling leeft in config.json (de Rust-poller leest die).
   const [notifEnabled, setNotifEnabled] = useState(true);
-  // Termijnen van de opdrachten-module (leven in opdrachten.db, niet in localStorage).
-  const [opdrInst, setOpdrInst] = useState<OpdrachtInstellingen | null>(null);
   // Gekoppelde accounts (multi-account).
   const [accInfo, setAccInfo] = useState<AccountsInfo>({ accounts: [], active: null });
   const [linking, setLinking] = useState(false);
@@ -127,7 +115,6 @@ export default function SettingsView({
       .catch(() => {});
     api.listAccounts().then(setAccInfo).catch(() => {});
     api.claudeKeyStatus().then(setAiKeySet).catch(() => {});
-    opdrachtenApi.getInstellingen().then(setOpdrInst).catch(() => {});
   }, []);
 
   // Regels + afwezigheid zijn Graph-only: voor een IMAP-account niet ophalen
@@ -145,60 +132,6 @@ export default function SettingsView({
       .then(setOof)
       .catch(() => setOofBlocked(true));
   }, [graphOnly]);
-
-  // ── Opdrachten: autoaanvullen-lijsten + mailteksten ──
-
-  function patchPersoon(key: PersoonLijstKey, id: string, patch: Partial<OpdrachtPersoon>) {
-    setSettings({ [key]: settings[key].map((p) => (p.id === id ? { ...p, ...patch } : p)) });
-  }
-
-  function patchKlant(id: string, patch: Partial<OpdrachtKlantContact>) {
-    setSettings({
-      opdrKlanten: settings.opdrKlanten.map((k) => (k.id === id ? { ...k, ...patch } : k)),
-    });
-  }
-
-  /** Uitvoerders- of plannerslijst (naam + e-mailadres) als instellingen-blok. */
-  function persoonLijstBlok(key: PersoonLijstKey, kop: string) {
-    return (
-      <section className="settings-block">
-        <h2>{kop}</h2>
-        <p className="muted small">{t("opdrSetLijstHint")}</p>
-        {settings[key].map((p) => (
-          <div key={p.id} className="setting-row">
-            <input
-              style={{ flex: 1, minWidth: 0 }}
-              placeholder={t("opdrNaam")}
-              value={p.naam}
-              onChange={(e) => patchPersoon(key, p.id, { naam: e.target.value })}
-            />
-            <input
-              style={{ flex: 1, minWidth: 0 }}
-              placeholder={t("opdrSetEmail")}
-              value={p.email}
-              onChange={(e) => patchPersoon(key, p.id, { email: e.target.value })}
-            />
-            <button
-              className="icon-btn"
-              onClick={() => setSettings({ [key]: settings[key].filter((x) => x.id !== p.id) })}
-              aria-label={t("delete")}
-              title={tip("delete")}
-            >
-              <TrashIcon size={16} />
-            </button>
-          </div>
-        ))}
-        <button
-          className="btn"
-          onClick={() =>
-            setSettings({ [key]: [...settings[key], { id: crypto.randomUUID(), naam: "", email: "" }] })
-          }
-        >
-          <PlusIcon size={18} /> {t("opdrSetVoegToe")}
-        </button>
-      </section>
-    );
-  }
 
   async function saveClaudeKey() {
     try {
@@ -348,7 +281,6 @@ export default function SettingsView({
         schemaVersie: 1,
         geexporteerdOp: new Date().toISOString(),
         ui: settings,
-        opdrachtInstellingen: opdrInst ?? undefined,
       };
       const pad = await bewaarJson("bemail-instellingen", JSON.stringify(payload, null, 2));
       if (pad) notify(t("backupOpgeslagen"), "info");
@@ -367,39 +299,8 @@ export default function SettingsView({
         notify(t("backupVerkeerdBestand"), "error");
         return;
       }
-      setSettings({ ...defaultSettings, ...data.ui });
-      if (data.opdrachtInstellingen) {
-        for (const [sleutel, waarde] of Object.entries(data.opdrachtInstellingen)) {
-          try {
-            setOpdrInst(await opdrachtenApi.zetInstelling(sleutel, String(waarde)));
-          } catch {
-            /* onbekende/oude sleutel: overslaan */
-          }
-        }
-      }
+      setSettings(mergeSettings(data.ui));
       notify(t("backupGeimporteerd"), "info");
-    } catch (e) {
-      notify(String(e), "error");
-    }
-  }
-
-  async function exportAssignments() {
-    try {
-      const json = await opdrachtenApi.exportOpdrachten();
-      const pad = await bewaarJson("bemail-assignments", json);
-      if (pad) notify(t("backupOpgeslagen"), "info");
-    } catch (e) {
-      notify(String(e), "error");
-    }
-  }
-
-  async function importAssignments() {
-    try {
-      if (!(await confirm(t("backupImportAssignmentsBevestig")))) return;
-      const raw = await kiesJson();
-      if (!raw) return;
-      const n = await opdrachtenApi.importOpdrachten(raw);
-      notify(`${t("backupGeimporteerd")} (${n})`, "info");
     } catch (e) {
       notify(String(e), "error");
     }
@@ -415,7 +316,6 @@ export default function SettingsView({
             ["algemeen", t("settingsTabGeneral")],
             ["mail", t("mail")],
             ["agenda", t("calendar")],
-            ["opdrachten", t("opdrachten")],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -589,15 +489,6 @@ export default function SettingsView({
             {t("backupExporteren")}
           </button>
           <button className="btn" onClick={importInstellingen}>
-            {t("backupImporteren")}
-          </button>
-        </div>
-        <div className="setting-row">
-          <span style={{ flex: 1 }}>{t("backupAssignments")}</span>
-          <button className="btn" onClick={exportAssignments}>
-            {t("backupExporteren")}
-          </button>
-          <button className="btn" onClick={importAssignments}>
             {t("backupImporteren")}
           </button>
         </div>
@@ -1073,134 +964,6 @@ export default function SettingsView({
           <h2>{t("calendar")}</h2>
           <p className="muted">{t("settingsCalendarEmpty")}</p>
         </section>
-      )}
-
-      {tab === "opdrachten" && (
-      <>
-      <section className="settings-block">
-        <h2>{t("opdrSetTermijnen")}</h2>
-        <p className="muted small">{t("opdrSetTermijnenHint")}</p>
-        {opdrInst &&
-          (
-            [
-              ["werkdagen_planning_herinnering", t("opdrSetPlanningHerinnering"), opdrInst.werkdagen_planning_herinnering],
-              ["werkdagen_klant_informeren_herhaal", t("opdrSetKlantInformerenHerhaal"), opdrInst.werkdagen_klant_informeren_herhaal],
-              ["dagen_heropenbaar", t("opdrSetHeropenbaar"), opdrInst.dagen_heropenbaar],
-              ["werkdagen_op_schema_check", t("opdrSetOpSchema"), opdrInst.werkdagen_op_schema_check],
-            ] as const
-          ).map(([sleutel, label, waarde]) => (
-            <div key={sleutel} className="setting-row">
-              <span>{label}</span>
-              <input
-                type="number"
-                min="0"
-                style={{ width: 80 }}
-                defaultValue={waarde}
-                onBlur={async (e) => {
-                  const v = Math.max(0, parseInt(e.target.value, 10) || 0);
-                  if (v === waarde) return;
-                  try {
-                    setOpdrInst(await opdrachtenApi.zetInstelling(sleutel, String(v)));
-                  } catch (err) {
-                    notify(String(err), "error");
-                  }
-                }}
-              />
-            </div>
-          ))}
-      </section>
-
-      {persoonLijstBlok("opdrUitvoerders", t("opdrSetUitvoerders"))}
-      {persoonLijstBlok("opdrPlanners", t("opdrSetPlanners"))}
-
-      <section className="settings-block">
-        <h2>{t("opdrSetKlanten")}</h2>
-        <p className="muted small">{t("opdrSetLijstHint")}</p>
-        {settings.opdrKlanten.map((k) => (
-          <div key={k.id} className="setting-row">
-            <input
-              style={{ flex: 1, minWidth: 0 }}
-              placeholder={t("opdrBedrijf")}
-              value={k.bedrijf}
-              onChange={(e) => patchKlant(k.id, { bedrijf: e.target.value })}
-            />
-            <input
-              style={{ flex: 1, minWidth: 0 }}
-              placeholder={t("opdrSetContactpersoon")}
-              value={k.contactpersoon}
-              onChange={(e) => patchKlant(k.id, { contactpersoon: e.target.value })}
-            />
-            <input
-              style={{ flex: 1, minWidth: 0 }}
-              placeholder={t("opdrSetEmail")}
-              value={k.email}
-              onChange={(e) => patchKlant(k.id, { email: e.target.value })}
-            />
-            <button
-              className="icon-btn"
-              onClick={() =>
-                setSettings({ opdrKlanten: settings.opdrKlanten.filter((x) => x.id !== k.id) })
-              }
-              aria-label={t("delete")}
-              title={tip("delete")}
-            >
-              <TrashIcon size={16} />
-            </button>
-          </div>
-        ))}
-        <button
-          className="btn"
-          onClick={() =>
-            setSettings({
-              opdrKlanten: [
-                ...settings.opdrKlanten,
-                { id: crypto.randomUUID(), bedrijf: "", contactpersoon: "", email: "" },
-              ],
-            })
-          }
-        >
-          <PlusIcon size={18} /> {t("opdrSetVoegToe")}
-        </button>
-      </section>
-
-      <section className="settings-block">
-        <h2>{t("opdrSetMailTeksten")}</h2>
-        <p className="muted small">
-          {t("opdrSetMailHint")} {OPDR_MERGE_TAGS.map((m) => `{${m}}`).join(" ")}
-        </p>
-        {(
-          [
-            ["opdrMailPlanning", t("opdrMailNaarPlanning"), OPDR_MAIL_PLANNING_STANDAARD],
-            ["opdrMailKlant", t("opdrMailNaarKlant"), OPDR_MAIL_KLANT_STANDAARD],
-          ] as const
-        ).map(([key, label, standaard]) => (
-          <div key={key} className="sig-item">
-            <div className="sig-head">
-              <label className="sig-name">
-                <span className="muted small">
-                  {label} - {t("subject")}
-                </span>
-                <input
-                  value={settings[key].onderwerp}
-                  onChange={(e) => setSettings({ [key]: { ...settings[key], onderwerp: e.target.value } })}
-                />
-              </label>
-              <button className="btn" onClick={() => setSettings({ [key]: standaard })}>
-                {t("opdrSetHerstel")}
-              </button>
-            </div>
-            <label className="setting-col">
-              <span className="muted small">{t("opdrSetTekstLabel")}</span>
-              <textarea
-                rows={9}
-                value={settings[key].tekst}
-                onChange={(e) => setSettings({ [key]: { ...settings[key], tekst: e.target.value } })}
-              />
-            </label>
-          </div>
-        ))}
-      </section>
-      </>
       )}
       </div>
 

@@ -172,8 +172,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   cursor: pointer;
   font-size: 0.72rem;
 }
-/* Lange labels (bv. "Assignments") binnen de knop houden: afbreken met
-   streepje i.p.v. overlopen; <html lang> stuurt de afbreekregels. */
+/* Keep long labels (e.g. "Instellingen") inside the button: hyphenate
+   instead of overflowing; <html lang> drives the hyphenation rules. */
 .rail-btn span {
   max-width: 100%;
   overflow-wrap: break-word;
@@ -522,7 +522,7 @@ img.avatar { object-fit: cover; background: var(--bg-sunken); }
   position: relative;
   z-index: 5;
 }
-/* Narrower window: reply/forward/assignment become icon buttons (their
+/* Narrower window: reply/forward become icon buttons (their
    aria-label keeps the name), "Nieuw bericht" keeps its label. */
 @container (max-width: 1180px) {
   .mail-toolbar .btn-label { display: none; }
@@ -1360,7 +1360,7 @@ img.avatar { object-fit: cover; background: var(--bg-sunken); }
 
 /* ---------- Instellingen ---------- */
 .settings { padding: 24px 32px; overflow-y: auto; height: 100vh; }
-/* Tabbladen bovenin Instellingen (Algemeen / E-mail / Agenda / Opdrachten). */
+/* Tabs at the top of Settings (General / Mail / Calendar). */
 .settings-tabs {
   display: flex;
   gap: 4px;

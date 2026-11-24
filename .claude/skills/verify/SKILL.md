@@ -1,19 +1,18 @@
 ---
 name: verify
-description: BE-Mail (Tauri 2 + React) end-to-end verifiëren op Windows — bouwen, starten, het echte venster aansturen met toetsenbord/muis en screenshots vastleggen.
+description: BE-Mail (Tauri 2 + React) end-to-end verifiëren op Windows - bouwen, starten, het echte venster aansturen met toetsenbord/muis en screenshots vastleggen.
 ---
 
-# Milky verifiëren (Tauri desktop, Windows)
+# BE-Mail verifiëren (Tauri desktop, Windows)
 
 ## Bouwen & starten
 
 ```powershell
-cd src-tauri; cargo test          # domeinlogica (statusmachine, werkdagen, acties)
+cd src-tauri; cargo test          # unit-tests van de Rust-kern
 npm run tauri dev                  # start dev-server + app-venster (achtergrond)
 ```
 
 - Eerste cargo-build duurt minuten; daarna seconden.
-- Dev-build gebruikt `%APPDATA%\BE-Mail\opdrachten-dev.db` (prod: `opdrachten.db`).
 - Wachten tot de app draait: poll op proces `be-mail.exe`.
 
 ## Het venster aansturen
@@ -21,7 +20,7 @@ npm run tauri dev                  # start dev-server + app-venster (achtergrond
 Het app-venster (titel "BE-Mail") is met keyboard + muis te
 automatiseren vanuit PowerShell. **Essentieel:**
 
-1. **`SetProcessDPIAware()` als eerste aanroepen** — elk PowerShell-proces is
+1. **`SetProcessDPIAware()` als eerste aanroepen** - elk PowerShell-proces is
    vers; zonder dit kloppen cursor-coördinaten niet op monitors met schaling
    of negatieve coördinaten (venster kan op tweede monitor staan).
 2. `GetWindowRect` op `(Get-Process be-mail).MainWindowHandle` → alle klik- en
@@ -29,9 +28,8 @@ automatiseren vanuit PowerShell. **Essentieel:**
 3. Kliks via `SetCursorPos` + `mouse_event(2/4)`; **verifieer met
    `GetCursorPos` dat de cursor op het doel staat vóór de klik** (de fysieke
    muis van de gebruiker kan storen) en retry anders.
-4. Toetsenbord via `[System.Windows.Forms.SendKeys]::SendWait()` — de app is
-   toetsenbord-vriendelijk: `N` = nieuwe aanvraag, `1/2/3` = tabs,
-   `↑/↓` = selectie, `Esc` = sluiten, Enter bevestigt modals/velden.
+4. Toetsenbord via `[System.Windows.Forms.SendKeys]::SendWait()`;
+   `Esc` sluit dialogen, Enter bevestigt modals/velden.
 5. Scrollen: `mouse_event(0x0800, 0, 0, -120, ...)` met **signed int** delta
    (dus P/Invoke-signatuur met `int d`, geen uint-gegoochel), cursor eerst
    boven het te scrollen paneel zetten.
@@ -40,26 +38,18 @@ automatiseren vanuit PowerShell. **Essentieel:**
 
 ## Flows die de kern dekken
 
-1. **Snel vastleggen**: `N` → naam + omschrijving → Enter → kaart verschijnt
-   in actielijst met status Binnengekomen. Probe: Enter met lege naam →
-   rode fout "Klantnaam is verplicht".
-2. **Statusflow**: rij-knop "In behandeling" → detail openen → uren invullen
-   (blur = opslaan) → "Naar planning sturen" → kaart naar wachtkamer →
-   "Planning gaf een datum terug…" + datum (nl-formaat `dd-mm-jjjj` typen in
-   date-input) → kaart komt ORANJE terug in actielijst ("Klant informeren",
-   de afgedwongen stap) → "✓ Klant geïnformeerd" → wachtkamer.
-3. **Feedback-lus**: → In uitvoering → controle → "Feedback → nieuwe ronde"
-   + tekst → status terug naar Tijd inschatten met R2-badge, sectie
-   "Rondes (2)", tijdlijn logt alles in het Nederlands.
-4. **Herinneringen zonder wachten**: Instellingen (⚙) → "Demo-data laden"
-   (alleen dev-build) zet geantidateerde kaarten neer: rode
-   planning-herinnering, verlopen klant-informeren, heropenbare kaart enz.
+1. **Mail**: map kiezen → bericht openen in het leesvenster → beantwoorden of
+   doorsturen opent het opstelvenster met het aangehaalde origineel.
+2. **Agenda** (alleen accounts met agenda): de rail-knop Agenda tonen,
+   dag/week/maand wisselen, een afspraak openen.
+3. **Instellingen**: de tabbladen Algemeen / E-mail / Agenda; een wijziging
+   (bv. thema) blijft na herstart staan.
 
 ## Valkuilen
 
-- Statusknop-posities verschuiven per status; maak per stap een screenshot
-  en bepaal de coördinaten daaruit i.p.v. blind te klikken.
-- localhost:1420 in een browser openen is GEEN geldige verificatie — daar
+- Knopposities verschuiven per scherm; maak per stap een screenshot en bepaal
+  de coördinaten daaruit i.p.v. blind te klikken.
+- localhost:1420 in een browser openen is GEEN geldige verificatie - daar
   ontbreekt de Tauri IPC en faalt elke invoke.
 - **Venster kan verstopt zitten onder andere vensters** (bijv. de terminal)
   en `SetForegroundWindow` wordt dan geweigerd (focus-steal-preventie).
@@ -72,8 +62,7 @@ automatiseren vanuit PowerShell. **Essentieel:**
 - **Toasts verifiëren**: notificaties verschijnen rechtsonder op de PRIMAIRE
   monitor en verdwijnen na ~6 s. Leg elke 4 s een frame vast van dat kwadrant
   (75 s dekt één poller-tick van 60 s) en inspecteer de frames. In dev-mode
-  is de afzender "Windows PowerShell" (geen app-identity) — dat is normaal;
+  is de afzender "Windows PowerShell" (geen app-identity) - dat is normaal;
   echte branding pas na installatie via de bundle.
 - Sluiten (✕) verbergt naar de tray: controleer met proces-draait +
   `IsWindowVisible == false`; herstel met `ShowWindow(h, 9)`.
-- Klembord-verificatie: klik "Kopieer" in de app en lees `Get-Clipboard`.

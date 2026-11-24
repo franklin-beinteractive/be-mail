@@ -1,4 +1,4 @@
-// Backup/transfer: export & import of settings and assignments as .json.
+// Backup/transfer: export & import of the settings as .json.
 // The file dialog is opened by the Rust core (bewaar_json/kies_json), so the
 // webview never passes a file path. That keeps a script injection in the
 // webview from reading or overwriting arbitrary files on disk.

@@ -17,10 +17,8 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
-# Opdrachten-module: kopieerknoppen voor mailsjablonen (nooit zelf versturen).
-tauri-plugin-clipboard-manager = "2"
-# Bestandskiezer voor export/import (back-up van instellingen + assignments).
-# Alleen om een pad te kiezen; lezen/schrijven doet de Rust-kern met std::fs.
+# File picker for exporting/importing the settings backup. Only picks a
+# path; the Rust core reads and writes the file with std::fs.
 tauri-plugin-dialog = "2"
 # Auto-updater: haalt ondertekende bundels + latest.json op uit de GitHub-releases
 # van deze repo en herstart na installatie (zie tauri.conf.json + capabilities).

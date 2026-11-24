@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { api } from "../lib/api";
-import { opdrachtenApi } from "../lib/opdrachten-api";
 import { useApp } from "../lib/ctx";
 import type {
   Account,
@@ -53,7 +52,6 @@ import {
   ForwardIcon,
   MailIcon,
   MailOpenIcon,
-  OpdrachtenIcon,
   PaperclipIcon,
   PlusIcon,
   ReplyAllIcon,
@@ -187,16 +185,11 @@ function buildTree(list: MailFolder[], order: Record<string, string[]>): FolderT
 }
 
 interface MailViewProps {
-  /** Callback nadat vanuit een mail een opdracht-kaart is aangemaakt. */
-  onOpdrachtAangemaakt?: (id: number) => void;
-  /** Meld een wissel van actief account aan de App (voor capability-gating). */
+  /** Reports a switch of the active account to the App (for capability gating). */
   onActiveAccountChange?: (accountId: string) => void;
 }
 
-export default function MailView({
-  onOpdrachtAangemaakt,
-  onActiveAccountChange,
-}: MailViewProps = {}) {
+export default function MailView({ onActiveAccountChange }: MailViewProps = {}) {
   const { t, tip, settings, setSettings, notify, confirm } = useApp();
   // Multi-account: mappen per account; acties werken op het actieve account.
   const [accounts, setAccounts] = useState<StoredAccount[]>([]);
@@ -1887,28 +1880,6 @@ export default function MailView({
               aria-label={t("forward")}
             >
               <ForwardIcon size={18} /> <span className="btn-label">{t("forward")}</span>
-            </button>
-            <button
-              className="btn"
-              aria-label={t("maakOpdracht")}
-              onClick={async () => {
-                // Turns this mail into an assignment card (read only - nothing
-                // is ever sent).
-                try {
-                  const detail = await opdrachtenApi.opdrachtVanMail(
-                    senderName(selected.from?.emailAddress),
-                    senderAddress(selected.from?.emailAddress),
-                    selected.subject ?? "",
-                  );
-                  notify(t("opdrachtAangemaakt"));
-                  onOpdrachtAangemaakt?.(detail.aanvraag.id);
-                } catch (e) {
-                  notify(String(e), "error");
-                }
-              }}
-              title={tip("maakOpdracht")}
-            >
-              <OpdrachtenIcon size={18} /> <span className="btn-label">{t("maakOpdracht")}</span>
             </button>
             {/* Your own quick actions (Settings -> Quick actions). An action
                 without a chosen folder/category is unfinished and gets no

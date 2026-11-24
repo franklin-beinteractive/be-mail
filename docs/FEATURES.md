@@ -96,7 +96,7 @@
 
 ## 4. E-mail - accounts & instellingen
 - [x] Inloggen met Office 365 (OAuth2) 🟢
-- [x] Instellingen + assignments exporteren/importeren naar .json (apart) 🟡
+- [x] Instellingen exporteren/importeren naar .json 🟡
 - [~] Automatische cloud-sync via OneDrive (Graph app-map) - gepland 🔴
 - [ ] Meerdere accounts naast elkaar 🔴
 - [ ] Gedeelde postvakken / mailbox delegation 🔴
@@ -184,7 +184,7 @@
 - [x] **Help-knop** met complete gebruiksaanwijzing (accounts, instellingen, mail, agenda) in NL én EN 🟡
 - [x] Help-blokken in **2 kolommen** op brede schermen; smal = onder elkaar (toegevoegd 2026-07-03) 🟢
 - [x] Instellingen-blokken **zonder witruimte-gaten** strak onder elkaar (toegevoegd 2026-07-03) 🟢
-- [x] Em dash ("—") overal vervangen door "-" (toegevoegd 2026-07-03) 🟢
+- [x] Em dash overal vervangen door "-" (toegevoegd 2026-07-03) 🟢
 - [x] Donkere scrollbars in dark mode (toegevoegd 2026-07-03) 🟢
 - [x] Inline (cid:) afbeeldingen in mails echt tonen (toegevoegd 2026-07-03) 🟡
 - [x] Handtekeningen als **HTML met wysiwyg-editor** (zelfde editor als opstellen, incl. afbeeldingen; bij verzenden als inline cid-bijlage) (toegevoegd 2026-07-03) 🟡

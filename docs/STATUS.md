@@ -3,7 +3,18 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-08-14. Deze ronde: het tijdgrid van #4 nagelopen met
+**Laatst bijgewerkt:** 2026-11-24. **Opdrachten-module verwijderd**: de hele
+feature is eruit - de rail-knop en weergave Opdrachten, de knop "Opdracht
+aanmaken" boven een geopend bericht, het tabblad Opdrachten in Instellingen,
+de assignments-export/-import, de Rust-module `opdrachten` (eigen SQLite-db +
+herinnerings-poller) en de clipboard-plugin (crate, npm-pakket en
+capability), die alleen door de kopieerknoppen op de kaarten werd gebruikt.
+Oude `opdr*`-sleutels in localStorage of in een oudere instellingen-back-up
+worden bij laden/importeren weggegooid (`mergeSettings`). Een bestaand
+`%APPDATA%\BE-Mail\opdrachten.db` (of `opdrachten-dev.db`) blijft op schijf
+staan; de app leest het niet meer en het mag met de hand weg.
+
+**Ronde 2026-08-14:** het tijdgrid van #4 nagelopen met
 nepdata (meerdaagse en over-middernacht-afspraken werden niet getoond), de
 avatars van #6 aangevuld met echte profielfoto's uit Graph, de snelle acties
 van #7 nagelopen met meer dan één actie ingesteld (naamloze knop, geen
@@ -508,7 +519,8 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
   raakt de webview nooit); invoer via Instellingen. Foutafhandeling in
   mensentaal (ongeldige sleutel, limiet, weigering).
 
-- **Instellingen-tabbladen + opdrachten-batch (2026-07-09)**:
+- **Instellingen-tabbladen + opdrachten-batch (2026-07-09)** (de
+  opdrachten-delen zijn op 2026-11-24 weer verwijderd, zie boven):
   - **Instellingen in 4 tabbladen**: Algemeen (accounts, weergave, gedrag,
     verbinding), E-mail (mappen, berichtenlijst, regels, afwezigheid,
     handtekeningen, AI), Agenda (nog leeg, placeholder) en Opdrachten.
@@ -529,7 +541,9 @@ opslaan van een bericht als .eml (#12; geldig RFC822, bijlage inbegrepen).
   - **Detailpaneel (rechter kolom) versleepbaar** (300-720 px, zelfde
     sleepgreep als de mailkolommen; onthouden in Instellingen).
 
-- **Back-up & overzetten naar .json (2026-07-10)**: Instellingen ->
+- **Back-up & overzetten naar .json (2026-07-10)** (sinds 2026-11-24 alleen
+  nog de instellingen; de assignments-export is met de opdrachten-module
+  verwijderd): Instellingen ->
   Algemeen -> "Back-up & overzetten" met vier knoppen (Instellingen en
   Assignments elk apart exporteren/importeren). Bestandskiezer via
   `tauri-plugin-dialog`; lezen/schrijven in de Rust-kern
@@ -611,8 +625,8 @@ vers laadt) als snelheidsverbetering bovenop de offline cache.
   afgesproken vervolgstap voor "niet meer alles opnieuw invullen op een
   andere pc". Aanpak:
   - **Hergebruik de bestaande O365-login** (geen tweede account/wachtwoord).
-    De app is al met Graph geauthenticeerd; sla dezelfde twee JSON-blobs
-    (instellingen + assignments) op in de **app-map van de gebruiker in
+    De app is al met Graph geauthenticeerd; sla dezelfde JSON-blob
+    (instellingen) op in de **app-map van de gebruiker in
     OneDrive** (`/me/drive/special/approot`).
   - **Scope**: `Files.ReadWrite.AppFolder` (least privilege; eigen verborgen
     app-map, niet de hele Drive). Toevoegen aan de optionele scopes in
@@ -626,8 +640,7 @@ vers laadt) als snelheidsverbetering bovenop de offline cache.
     afsluiten. Géén samenvoeglogica nodig.
   - **Terugvaloptie als de scope geblokkeerd wordt**: de export-JSON naar een
     door de gebruiker gekozen map schrijven die hun eigen Google Drive/
-    OneDrive/Dropbox-desktopclient al synct (nul extra rechten). NB: alleen
-    de JSON-snapshot syncen, nooit de levende SQLite-`.db` (corruptierisico).
+    OneDrive/Dropbox-desktopclient al synct (nul extra rechten).
 
 
 - **Entra: beheerdersgoedkeuring vereist** - de scope `People.Read`
