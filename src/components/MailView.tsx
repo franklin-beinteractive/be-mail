@@ -58,8 +58,11 @@ import {
   ReplyIcon,
   SearchIcon,
   SpamIcon,
+  TodoIcon,
   TrashIcon,
 } from "./Icons";
+import TaskFromMail from "./todo/TaskFromMail";
+import { domainOf, type MailLink } from "../lib/todo";
 
 const PAGE = 25;
 
@@ -187,9 +190,17 @@ function buildTree(list: MailFolder[], order: Record<string, string[]>): FolderT
 interface MailViewProps {
   /** Reports a switch of the active account to the App (for capability gating). */
   onActiveAccountChange?: (accountId: string) => void;
+  /** A mail to open right after mounting (from a task in the task list). */
+  openMail?: MailLink | null;
+  /** Called once that mail has been taken over, so it opens only once. */
+  onOpenMailHandled?: () => void;
 }
 
-export default function MailView({ onActiveAccountChange }: MailViewProps = {}) {
+export default function MailView({
+  onActiveAccountChange,
+  openMail,
+  onOpenMailHandled,
+}: MailViewProps = {}) {
   const { t, tip, settings, setSettings, notify, confirm } = useApp();
   // Multi-account: mappen per account; acties werken op het actieve account.
   const [accounts, setAccounts] = useState<StoredAccount[]>([]);
@@ -339,6 +350,10 @@ export default function MailView({ onActiveAccountChange }: MailViewProps = {}) 
   const [checked, setChecked] = useState<Set<string>>(new Set());
   // Contextmenu (rechtermuisknop) op een bericht in de lijst.
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; msg: Message } | null>(null);
+  // "Taak maken" dialog for this message.
+  const [todoFor, setTodoFor] = useState<Message | null>(null);
+  // Mail from a task, opened once a folder of its account has loaded.
+  const pendingMail = useRef<MailLink | null>(openMail ?? null);
 
   // Contextmenu sluiten bij een klik of Escape, waar dan ook.
   useEffect(() => {
@@ -355,13 +370,25 @@ export default function MailView({ onActiveAccountChange }: MailViewProps = {}) 
     };
   }, [ctxMenu]);
 
-  // Accounts + mappen laden bij start; Postvak IN van het actieve account openen.
+  // Load accounts + folders at start and open the inbox of the active account.
   useEffect(() => {
     (async () => {
       try {
         const info = await api.listAccounts();
         setAccounts(info.accounts);
-        const active = info.active ?? info.accounts[0]?.id ?? "";
+        let active = info.active ?? info.accounts[0]?.id ?? "";
+        // A mail from a task lives in its own account: switch to it first.
+        const want = pendingMail.current;
+        if (want) {
+          onOpenMailHandled?.();
+          if (!info.accounts.some((a) => a.id === want.accountId)) {
+            pendingMail.current = null;
+            notify(t("todoMailAccountGone"), "error");
+          } else if (want.accountId !== active) {
+            await api.setActiveAccount(want.accountId);
+            active = want.accountId;
+          }
+        }
         setActiveId(active);
         if (active) onActiveAccountChange?.(active);
         const groups = await api.listAllFolders();
@@ -394,7 +421,7 @@ export default function MailView({ onActiveAccountChange }: MailViewProps = {}) 
     }
   }
 
-  // Berichten laden bij mapwissel of gewijzigde sortering/filter.
+  // Load the messages when the folder, sort order or filter changes.
   useEffect(() => {
     if (!folderId) return;
     setMessages([]);
@@ -402,6 +429,11 @@ export default function MailView({ onActiveAccountChange }: MailViewProps = {}) 
     setSkip(0);
     setChecked(new Set());
     loadPage(0, true);
+    const link = pendingMail.current;
+    if (link) {
+      pendingMail.current = null;
+      void openLinkedMail(link);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folderId, sortAsc, filterMode]);
 
@@ -544,7 +576,29 @@ export default function MailView({ onActiveAccountChange }: MailViewProps = {}) 
     }
   }
 
-  async function openMessage(m: Message) {
+  /** Opens the mail a task links to. Graph ids change when a message moves
+   *  folders; the conversation then finds it again. */
+  async function openLinkedMail(link: MailLink) {
+    let id = link.messageId;
+    let full: Message | undefined;
+    try {
+      full = await api.getMessage(id);
+    } catch {
+      const convo = link.conversationId
+        ? await api.getConversation(link.conversationId).catch(() => [] as Message[])
+        : [];
+      const hit = convo.find((m) => m.subject === link.subject) ?? convo[convo.length - 1];
+      if (!hit) {
+        notify(t("todoMailGone"), "error");
+        return;
+      }
+      id = hit.id;
+    }
+    await openMessage({ id, isRead: true }, full);
+  }
+
+  /** prefetched: the full message when the caller already fetched it. */
+  async function openMessage(m: Message, prefetched?: Message) {
     setAllowImages(false);
     setAttachments([]);
     setInlineImages({});
@@ -552,7 +606,7 @@ export default function MailView({ onActiveAccountChange }: MailViewProps = {}) 
     setLoadingImages(false);
     imageSeq.current++;
     try {
-      const full = await api.getMessage(m.id);
+      const full = prefetched ?? (await api.getMessage(m.id));
       if (full.isDraft) {
         // Concepten open je niet in het leesvenster maar in het opstelvenster.
         setCompose({
@@ -1074,7 +1128,7 @@ export default function MailView({ onActiveAccountChange }: MailViewProps = {}) 
         }
         return;
       }
-      if (compose || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (compose || todoFor || e.ctrlKey || e.metaKey || e.altKey) return;
       if (inField) return;
       const k = e.key;
       if (k === "n") {
@@ -1106,6 +1160,10 @@ export default function MailView({ onActiveAccountChange }: MailViewProps = {}) 
       else if (k === "Delete") void remove(selected);
       else if (k === "u") void toggleRead(selected);
       else if (k === "m") void toggleFlag(selected);
+      else if (k === "t") {
+        e.preventDefault();
+        setTodoFor(selected);
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -1880,6 +1938,14 @@ export default function MailView({ onActiveAccountChange }: MailViewProps = {}) 
               aria-label={t("forward")}
             >
               <ForwardIcon size={18} /> <span className="btn-label">{t("forward")}</span>
+            </button>
+            <button
+              className="btn"
+              onClick={() => setTodoFor(selected)}
+              title={tip("tipTodoFromMail")}
+              aria-label={t("todoFromMail")}
+            >
+              <TodoIcon size={18} /> <span className="btn-label">{t("todoFromMail")}</span>
             </button>
             {/* Your own quick actions (Settings -> Quick actions). An action
                 without a chosen folder/category is unfinished and gets no
@@ -3010,6 +3076,16 @@ export default function MailView({ onActiveAccountChange }: MailViewProps = {}) 
             </footer>
           </div>
         </div>
+      )}
+
+      {todoFor && (
+        <TaskFromMail
+          message={todoFor}
+          initialTitle={stripPrefix(todoFor.subject ?? "").trim()}
+          accountId={activeId}
+          ownDomains={accounts.map((a) => domainOf(a.mail ?? "")).filter(Boolean)}
+          onClose={() => setTodoFor(null)}
+        />
       )}
     </div>
   );

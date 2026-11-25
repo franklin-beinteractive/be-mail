@@ -3,7 +3,22 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-11-24. **Opdrachten-module verwijderd**: de hele
+**Laatst bijgewerkt:** 2026-11-24. **Taken (todo-lijst), fase 1**: nieuwe
+rail-sectie Taken als geheugensteun voor veel parallelle projecten. Lokaal in
+`%APPDATA%\BE-Mail\todo.db` (dev: `todo-dev.db`), Rust-module `todo.rs`,
+geen Graph. Model: project (naam, kleur, gearchiveerd), taak (titel,
+project of Inbox, status Te doen/Bezig/Klaar, actie-label, opvolgdatum,
+notitie, gekoppelde mail) en actie-labels die je in Instellingen → Taken
+zelf beheert (met vlag "wachten op anderen"). Lijsten Vandaag / Inbox /
+Wachten / Alles open / Afgerond plus per project; snelle invoer met
+`#project !actie datum`; knop "Taak maken" (toets `t`) op een open mail met
+projectvoorstel op afzenderdomein; mail-icoon bij een taak opent de mail weer
+(valt terug op het gesprek als het bericht verplaatst is); rode teller op de
+rail-knop voor opvolgingen die vandaag aan de beurt zijn. Nog te doen
+(fase 2): Windows-melding op de opvolgdatum, taken mee in de back-up.
+Microsoft To Do-sync is bewust niet gebouwd (alleen deze pc nodig).
+
+**Eerder op 2026-11-24 - Opdrachten-module verwijderd**: de hele
 feature is eruit - de rail-knop en weergave Opdrachten, de knop "Opdracht
 aanmaken" boven een geopend bericht, het tabblad Opdrachten in Instellingen,
 de assignments-export/-import, de Rust-module `opdrachten` (eigen SQLite-db +

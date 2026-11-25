@@ -1,6 +1,6 @@
-//! BE-Mail - Rust-kern.
-//! De kern fungeert als "trusted backend": alle Graph-calls en tokens leven hier,
-//! nooit in de webview.
+//! BE-Mail - Rust core.
+//! The core acts as the "trusted backend": every Graph call and every token lives
+//! here, never in the webview.
 
 mod auth;
 mod backend;
@@ -15,6 +15,7 @@ mod imap;
 mod models;
 mod net;
 mod notifier;
+mod todo;
 mod token_store;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -23,16 +24,16 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
-        // Auto-updater + herstart na installatie. Endpoints en publieke sleutel
-        // staan in tauri.conf.json; de frontend stuurt de check/download aan.
+        // Auto-updater + restart after installing. Endpoints and the public key
+        // live in tauri.conf.json; the frontend drives the check and download.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
-            // Installeer de rustls-cryptoprovider (ring) expliciet als proces-default.
-            // Meerdere rustls-ingangen (IMAP + reqwest) delen anders geen provider en
-            // dat geeft runtime een "no process default CryptoProvider"-paniek.
+            // Install the rustls crypto provider (ring) explicitly as the process
+            // default. Otherwise the separate rustls users (IMAP + reqwest) share no
+            // provider and panic at runtime with "no process default CryptoProvider".
             let _ = rustls::crypto::ring::default_provider().install_default();
-            // Achtergrond-poller voor nieuwe-mail-notificaties.
+            // Background poller for new-mail notifications.
             notifier::start(app.handle().clone());
             Ok(())
         })
@@ -98,6 +99,14 @@ pub fn run() {
             commands::update_event_times,
             commands::search_people,
             commands::delete_event,
+            todo::todo_load,
+            todo::todo_save_project,
+            todo::todo_delete_project,
+            todo::todo_save_action,
+            todo::todo_delete_action,
+            todo::todo_reorder,
+            todo::todo_save_task,
+            todo::todo_delete_task,
         ])
         .run(tauri::generate_context!())
         .expect("Fout bij het starten van BE-Mail");

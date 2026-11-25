@@ -40,6 +40,13 @@ export const CalendarIcon = (p: Props) => (
     <path d="M3 9h18M8 3v4M16 3v4" />
   </Svg>
 );
+/* Checklist: the task list. */
+export const TodoIcon = (p: Props) => (
+  <Svg {...p}>
+    <path d="m4 6 1.5 1.5L8 5M4 12l1.5 1.5L8 11M4 18l1.5 1.5L8 17" />
+    <path d="M11 6h9M11 12h9M11 18h9" />
+  </Svg>
+);
 export const SettingsIcon = (p: Props) => (
   <Svg {...p}>
     <circle cx="12" cy="12" r="3" />

@@ -5,6 +5,10 @@ description: BE-Mail (Tauri 2 + React) end-to-end verifiëren op Windows - bouwe
 
 # BE-Mail verifiëren (Tauri desktop, Windows)
 
+> **NOOIT e-mail versturen** vanuit de app tijdens het verifiëren: hij draait
+> op de echte mailbox. Geen Verzenden, geen Ctrl+Enter in het opstelvenster,
+> geen antwoord op uitnodigingen. Zie `CLAUDE.md`.
+
 ## Bouwen & starten
 
 ```powershell

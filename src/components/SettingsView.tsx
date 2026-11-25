@@ -1,6 +1,6 @@
 // Settings, split over tabs: General (accounts, display, behaviour,
-// connection), Mail (folders, list, rules, out of office, signatures, AI)
-// and Calendar.
+// connection), Mail (folders, list, rules, out of office, signatures, AI),
+// Calendar and Tasks (action labels).
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { bewaarJson, kiesJson } from "../lib/backup";
@@ -24,11 +24,12 @@ import type {
 import AddImapAccountDialog from "./AddImapAccountDialog";
 import RichTextEditor from "./RichTextEditor";
 import { PlusIcon, TrashIcon } from "./Icons";
+import TodoSettings from "./todo/TodoSettings";
 
 // Zelfde tijdzone als de Rust-kern (graph.rs DEFAULT_TZ).
 const TZ = "W. Europe Standard Time";
 
-type SettingsTab = "algemeen" | "mail" | "agenda";
+type SettingsTab = "algemeen" | "mail" | "agenda" | "taken";
 
 /** Graph-dateTime → waarde voor <input type="datetime-local">. */
 function toLocalInput(dt?: { dateTime: string } | null): string {
@@ -316,6 +317,7 @@ export default function SettingsView({
             ["algemeen", t("settingsTabGeneral")],
             ["mail", t("mail")],
             ["agenda", t("calendar")],
+            ["taken", t("todo")],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -965,6 +967,8 @@ export default function SettingsView({
           <p className="muted">{t("settingsCalendarEmpty")}</p>
         </section>
       )}
+
+      {tab === "taken" && <TodoSettings />}
       </div>
 
       {imapDialog && (

@@ -6,6 +6,22 @@ Authorization Code Flow met PKCE, public/native client (geen client secret).
 
 > Voorkeur: desktop-apps altijd in **Tauri**, nooit Electron.
 
+## NOOIT e-mail versturen vanuit deze app
+
+De app draait tijdens het testen op de **echte mailbox** van de gebruiker.
+Verstuur dus **nooit** een e-mail vanuit BE-Mail: niet via de knop Verzenden,
+niet via Ctrl+Enter in het opstelvenster, niet via `send_message`/`send_draft`
+en niet via een ingepland bezorgmoment. Dat geldt ook voor antwoorden,
+doorsturen, uitnodigingen beantwoorden (Accepteren/Afwijzen stuurt een mail)
+en afspraken met genodigden. Verzenden testen gebeurt alleen door de
+gebruiker zelf.
+
+- Open je bij het testen per ongeluk een opstelvenster, sluit het dan zonder
+  te verzenden en meld het (ook een bewaard concept).
+- Stuur toetsaanslagen pas na een klik in het BE-Mail-venster: de gebruiker
+  werkt vaak tegelijk op de machine, en een losse Enter kan in het verkeerde
+  venster of veld belanden.
+
 ## Architectuur (kort)
 
 - `src-tauri/src/auth.rs` - OAuth2/PKCE-login: opent systeembrowser, vangt de

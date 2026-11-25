@@ -1,4 +1,4 @@
-// Help: complete gebruiksaanwijzing (NL/EN), volgt de taalinstelling.
+// Help: the complete user guide (NL/EN), following the language setting.
 import { useApp } from "../lib/ctx";
 
 export default function HelpView() {
@@ -92,8 +92,20 @@ function HelpNl() {
       </section>
 
       <section className="settings-block">
-        <h2>Instellingen</h2>
+        <h2>Taken</h2>
         <ul>
+          <li><strong>Lijsten</strong>: <em>Vandaag</em> toont wat je vandaag (of eerder) wilde opvolgen, <em>Inbox</em> de taken zonder project, <em>Wachten</em> alles waarbij de bal bij een ander ligt. Het rode getal op de knop Taken telt wat vandaag aan de beurt is.</li>
+          <li><strong>Snel toevoegen</strong>: typ een regel en druk op Enter, bv. <em>DNS checken #klant !live vr</em>. <strong>#</strong> kiest of maakt een project, <strong>!</strong> kiest een actie en het laatste woord is de opvolgdatum (vandaag, morgen, ma-zo, 28-11). Ctrl+Enter voegt toe en opent de taak.</li>
+          <li><strong>Status</strong>: klik op het rondje om te wisselen tussen Te doen, Bezig en Klaar.</li>
+          <li><strong>Acties</strong>: het label achter een taak (Mail sturen, Wachten op klant, ...). Klik erop om het te wijzigen; de lijst zelf beheer je in <em>Instellingen → Taken</em>.</li>
+          <li><strong>Vanuit een mail</strong>: de knop <em>Taak maken</em> (of <strong>t</strong>) maakt een taak met een koppeling naar die mail. Het project wordt voorgesteld op basis van het domein van de afzender. Het mail-icoon bij de taak opent de mail weer.</li>
+          <li><strong>Projecten</strong>: het potlood naast een project wijzigt naam en kleur, archiveert of verwijdert het (de taken gaan dan naar de Inbox).</li>
+          <li>De taken staan alleen op deze pc, in <em>todo.db</em> in de datamap van BE-Mail.</li>
+        </ul>
+      </section>
+
+      <section className="settings-block">
+        <h2>Instellingen</h2>        <ul>
           <li><strong>Weergave</strong>: licht/donker thema, lettertype (standaard Calibri), tekstgrootte, hoog contrast en taal (NL/EN).</li>
           <li><strong>Gedrag</strong>: verzendvertraging in seconden (0 = direct) en desktop-notificaties aan/uit.</li>
           <li><strong>Kolommen</strong>: versleep de randen tussen mappen, lijst en leesvenster om de breedte aan te passen.</li>
@@ -108,6 +120,7 @@ function HelpNl() {
           <li><strong>r</strong> / <strong>a</strong> / <strong>f</strong>: beantwoorden / allen beantwoorden / doorsturen</li>
           <li><strong>e</strong>: archiveren · <strong>Delete</strong>: verwijderen</li>
           <li><strong>u</strong>: gelezen/ongelezen · <strong>m</strong>: vlag aan/uit</li>
+          <li><strong>t</strong>: taak maken van het open bericht</li>
           <li><strong>Ctrl+A</strong>: alle mails in de lijst aanvinken (cursor in de maillijst)</li>
           <li><strong>/</strong>: naar het zoekvak</li>
         </ul>
@@ -203,8 +216,20 @@ function HelpEn() {
       </section>
 
       <section className="settings-block">
-        <h2>Settings</h2>
+        <h2>Tasks</h2>
         <ul>
+          <li><strong>Lists</strong>: <em>Today</em> shows what you wanted to follow up today (or earlier), <em>Inbox</em> the tasks without a project, <em>Waiting</em> everything where the ball is with someone else. The red number on the Tasks button counts what is due today.</li>
+          <li><strong>Quick add</strong>: type one line and press Enter, e.g. <em>Check DNS #client !live fri</em>. <strong>#</strong> picks or creates a project, <strong>!</strong> picks an action and the last word is the follow-up date (today, tomorrow, mon-sun, 28-11). Ctrl+Enter adds and opens the task.</li>
+          <li><strong>Status</strong>: click the circle to switch between To do, In progress and Done.</li>
+          <li><strong>Actions</strong>: the label after a task (Send mail, Waiting for client, ...). Click it to change it; manage the list itself in <em>Settings → Tasks</em>.</li>
+          <li><strong>From a mail</strong>: the <em>Make task</em> button (or <strong>t</strong>) creates a task that links to that mail. The project is suggested from the sender's domain. The mail icon on the task opens the mail again.</li>
+          <li><strong>Projects</strong>: the pencil next to a project changes its name and colour, archives or deletes it (its tasks then move to the Inbox).</li>
+          <li>Tasks are stored on this PC only, in <em>todo.db</em> in the BE-Mail data folder.</li>
+        </ul>
+      </section>
+
+      <section className="settings-block">
+        <h2>Settings</h2>        <ul>
           <li><strong>Appearance</strong>: light/dark theme, font (default Calibri), text size, high contrast and language (NL/EN).</li>
           <li><strong>Behaviour</strong>: send delay in seconds (0 = immediately) and desktop notifications on/off.</li>
           <li><strong>Columns</strong>: drag the dividers between folders, list and reading pane to resize.</li>
@@ -219,6 +244,7 @@ function HelpEn() {
           <li><strong>r</strong> / <strong>a</strong> / <strong>f</strong>: reply / reply all / forward</li>
           <li><strong>e</strong>: archive · <strong>Delete</strong>: delete</li>
           <li><strong>u</strong>: read/unread · <strong>m</strong>: toggle flag</li>
+          <li><strong>t</strong>: make a task from the open message</li>
           <li><strong>Ctrl+A</strong>: tick all messages in the list (cursor in the message list)</li>
           <li><strong>/</strong>: focus the search box</li>
         </ul>

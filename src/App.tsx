@@ -21,15 +21,18 @@ import MailView from "./components/MailView";
 import CalendarView from "./components/CalendarView";
 import SettingsView from "./components/SettingsView";
 import HelpView from "./components/HelpView";
+import TodoView from "./components/todo/TodoView";
 import {
   CalendarIcon,
   HelpIcon,
   MailIcon,
   SettingsIcon,
+  TodoIcon,
 } from "./components/Icons";
+import { dueCount, useToday, useTodo, type MailLink } from "./lib/todo";
 
 type Phase = "loading" | "setup" | "login" | "app";
-type Section = "mail" | "calendar" | "settings" | "help";
+type Section = "mail" | "calendar" | "todo" | "settings" | "help";
 
 export default function App() {
   const [settings, setSettingsState] = useState<UiSettings>(() => loadSettings());
@@ -42,6 +45,12 @@ export default function App() {
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
   const [section, setSection] = useState<Section>("mail");
   const [toast, setToast] = useState<{ msg: string; kind: "info" | "error" } | null>(null);
+  // A mail opened from a task; MailView opens it once it has mounted.
+  const [mailToOpen, setMailToOpen] = useState<MailLink | null>(null);
+  // Rail badge: open tasks whose follow-up day has come.
+  const todo = useTodo();
+  const today = useToday();
+  const todoDue = useMemo(() => dueCount(todo, today), [todo, today]);
 
   const t = translator(settings.lang);
   // Voor title-attributen: geen tooltip als de gebruiker ze uitzet.
@@ -218,6 +227,17 @@ export default function App() {
                   <span>{t("calendar")}</span>
                 </button>
               )}
+              <button
+                className={"rail-btn" + (section === "todo" ? " active" : "")}
+                onClick={() => setSection("todo")}
+                title={tip("todo")}
+              >
+                <span className="rail-icon">
+                  <TodoIcon size={24} />
+                  {todoDue > 0 && <span className="rail-badge">{todoDue}</span>}
+                </span>
+                <span>{t("todo")}</span>
+              </button>
               <span className="rail-spacer" />
               <button
                 className={"rail-btn" + (section === "settings" ? " active" : "")}
@@ -239,9 +259,21 @@ export default function App() {
 
             <main className="content">
               {section === "mail" && (
-                <MailView onActiveAccountChange={setActiveAccountId} />
+                <MailView
+                  onActiveAccountChange={setActiveAccountId}
+                  openMail={mailToOpen}
+                  onOpenMailHandled={() => setMailToOpen(null)}
+                />
               )}
               {section === "calendar" && anyHasCalendar && <CalendarView />}
+              {section === "todo" && (
+                <TodoView
+                  onOpenMail={(m) => {
+                    setMailToOpen(m);
+                    setSection("mail");
+                  }}
+                />
+              )}
               {section === "help" && <HelpView />}
               {section === "settings" && (
                 <SettingsView
