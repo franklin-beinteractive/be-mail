@@ -94,13 +94,14 @@ function HelpNl() {
       <section className="settings-block">
         <h2>Taken</h2>
         <ul>
-          <li><strong>Lijsten</strong>: <em>Vandaag</em> toont wat je vandaag (of eerder) wilde opvolgen, <em>Inbox</em> de taken zonder project, <em>Wachten</em> alles waarbij de bal bij een ander ligt. Het rode getal op de knop Taken telt wat vandaag aan de beurt is.</li>
-          <li><strong>Snel toevoegen</strong>: typ een regel en druk op Enter, bv. <em>DNS checken #klant !live vr</em>. <strong>#</strong> kiest of maakt een project, <strong>!</strong> kiest een actie en het laatste woord is de opvolgdatum (vandaag, morgen, ma-zo, 28-11). Ctrl+Enter voegt toe en opent de taak.</li>
-          <li><strong>Status</strong>: klik op het rondje om te wisselen tussen Te doen, Bezig en Klaar.</li>
-          <li><strong>Acties</strong>: het label achter een taak (Mail sturen, Wachten op klant, ...). Klik erop om het te wijzigen; de lijst zelf beheer je in <em>Instellingen → Taken</em>.</li>
-          <li><strong>Vanuit een mail</strong>: de knop <em>Taak maken</em> (of <strong>t</strong>) maakt een taak met een koppeling naar die mail. Het project wordt voorgesteld op basis van het domein van de afzender. Het mail-icoon bij de taak opent de mail weer.</li>
-          <li><strong>Projecten</strong>: het potlood naast een project wijzigt naam en kleur, archiveert of verwijdert het (de taken gaan dan naar de Inbox).</li>
-          <li>De taken staan alleen op deze pc, in <em>todo.db</em> in de datamap van BE-Mail.</li>
+          <li><strong>Bord</strong>: elk project is een bord met kolommen (Te doen, Bezig, Wacht op klant, Klaar, ...). <em>Alle projecten</em> toont alle kaarten samen, <em>Zonder project</em> de kaarten die nog nergens bij horen.</li>
+          <li><strong>Kaarten</strong>: <em>Kaart toevoegen</em> onderaan een kolom (of <strong>n</strong>) maakt een kaart; na Enter opent de kaart meteen, zodat je een omschrijving, bijlagen of een datum kunt toevoegen. Sleep een kaart naar een andere kolom of naar een andere plek in dezelfde kolom. Sleep je hem op een project links, dan verhuist hij naar dat project.</li>
+          <li><strong>Kaart openen</strong>: klik op een kaart voor titel, omschrijving, kleur, kolom, project en opvolgdatum. Het rode getal op de knop Taken telt de kaarten waarvan de opvolgdatum is bereikt.</li>
+          <li><strong>Bijlagen</strong>: plak een screenshot met Ctrl+V in een open kaart, kies bestanden met <em>Bijlage toevoegen</em> of sleep ze op de kaart (max. 25 MB per bestand). De eerste afbeelding verschijnt op de kaart zelf. Klik op een afbeelding om hem groot te zien.</li>
+          <li><strong>Kolommen</strong>: <em>Kolom toevoegen</em> rechts op het bord; het potlood in de kolomkop wijzigt naam en kleur, of verwijdert hem (staan er nog kaarten in, in welk project dan ook, dan kies je eerst naar welke kolom ze gaan). Sleep een kolomkop om de volgorde te veranderen; in <em>Instellingen Sleep een kolomkop om de volgorde te veranderen.gt; Taken</em> kan dat ook, door een rij aan zijn greepje te slepen. Kaarten in een kolom met <em>Telt als afgerond</em> krijgen een afrond-datum.</li>
+          <li><strong>Vanuit een mail</strong>: de knop <em>Taak maken</em> (of <strong>t</strong>) maakt een kaart met een koppeling naar die mail. Het project wordt voorgesteld op basis van het domein van de afzender. Het mail-icoon op de kaart opent de mail weer.</li>
+          <li><strong>Projecten</strong>: het potlood naast een project wijzigt naam en kleur, archiveert of verwijdert het (de kaarten gaan dan naar Zonder project).</li>
+          <li>De kaarten en bijlagen staan alleen op deze pc, in <em>todo.db</em> in de datamap van BE-Mail.</li>
         </ul>
       </section>
 
@@ -218,13 +219,14 @@ function HelpEn() {
       <section className="settings-block">
         <h2>Tasks</h2>
         <ul>
-          <li><strong>Lists</strong>: <em>Today</em> shows what you wanted to follow up today (or earlier), <em>Inbox</em> the tasks without a project, <em>Waiting</em> everything where the ball is with someone else. The red number on the Tasks button counts what is due today.</li>
-          <li><strong>Quick add</strong>: type one line and press Enter, e.g. <em>Check DNS #client !live fri</em>. <strong>#</strong> picks or creates a project, <strong>!</strong> picks an action and the last word is the follow-up date (today, tomorrow, mon-sun, 28-11). Ctrl+Enter adds and opens the task.</li>
-          <li><strong>Status</strong>: click the circle to switch between To do, In progress and Done.</li>
-          <li><strong>Actions</strong>: the label after a task (Send mail, Waiting for client, ...). Click it to change it; manage the list itself in <em>Settings → Tasks</em>.</li>
-          <li><strong>From a mail</strong>: the <em>Make task</em> button (or <strong>t</strong>) creates a task that links to that mail. The project is suggested from the sender's domain. The mail icon on the task opens the mail again.</li>
-          <li><strong>Projects</strong>: the pencil next to a project changes its name and colour, archives or deletes it (its tasks then move to the Inbox).</li>
-          <li>Tasks are stored on this PC only, in <em>todo.db</em> in the BE-Mail data folder.</li>
+          <li><strong>Board</strong>: every project is a board with columns (To do, In progress, Waiting for client, Done, ...). <em>All projects</em> shows every card together, <em>No project</em> the cards that do not belong anywhere yet.</li>
+          <li><strong>Cards</strong>: <em>Add card</em> at the bottom of a column (or <strong>n</strong>) makes a card; after Enter the card opens right away, so you can add a description, attachments or a date. Drag a card to another column or to another place in the same column. Drop it on a project on the left to move it to that project.</li>
+          <li><strong>Open a card</strong>: click a card for its title, description, colour, column, project and follow-up date. The red number on the Tasks button counts the cards whose follow-up date has come.</li>
+          <li><strong>Attachments</strong>: paste a screenshot with Ctrl+V in an open card, pick files with <em>Add attachment</em> or drop them on the card (25 MB per file at most). The first image shows on the card itself. Click an image to see it large.</li>
+          <li><strong>Columns</strong>: <em>Add column</em> on the right of the board; the pencil in a column header changes its name and colour, or deletes it (if it still holds cards, in any project, you first choose the column they move to). Drag a column header to change the order; in <em>Settings &gt; Tasks</em> you can also drag a row by its grip. Cards in a column with <em>Counts as done</em> get a completion date.</li>
+          <li><strong>From a mail</strong>: the <em>Make task</em> button (or <strong>t</strong>) makes a card that links to that mail. The project is suggested from the sender's domain. The mail icon on the card opens the mail again.</li>
+          <li><strong>Projects</strong>: the pencil next to a project changes its name and colour, archives or deletes it (its cards then move to No project).</li>
+          <li>Cards and attachments are stored on this PC only, in <em>todo.db</em> in the BE-Mail data folder.</li>
         </ul>
       </section>
 

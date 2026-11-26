@@ -1,120 +1,183 @@
-// Task list: the lists on the left (Today, Inbox, Waiting, All open,
-// Completed and the projects), the tasks in the middle with one quick-add
-// line on top, and the open task on the right.
-import { useEffect, useMemo, useRef, useState } from "react";
+// Task board: the projects on the left (cards can be dropped on them), the
+// columns of the chosen project in the middle as a Trello-style board, and
+// the open card in a dialog. Columns are shared by every project.
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../../lib/ctx";
-import type { TextKey } from "../../lib/i18n";
 import {
   addDays,
   archivedProjectIds,
   COLORS,
+  doneColumnIds,
   formatDay,
+  isImage,
   isoDate,
-  nextStatus,
-  parseQuickAdd,
-  STATUSES,
   todoApi,
+  useAttachmentUrl,
   useToday,
   useTodo,
+  type Attachment,
+  type Column,
   type MailLink,
   type Project,
   type Task,
-  type TaskPatch,
-  type TaskStatus,
-  type TodoAction,
-  type TodoData,
 } from "../../lib/todo";
-import { MailIcon, PlusIcon, EditIcon, TrashIcon } from "../Icons";
+import { EditIcon, MailIcon, PaperclipIcon, PlusIcon, SearchIcon } from "../Icons";
+import CardDialog from "./CardDialog";
+import ColumnDialog from "./ColumnDialog";
 import ProjectDialog from "./ProjectDialog";
 
-type ListKey = "today" | "inbox" | "waiting" | "open" | "done" | `p${number}`;
-const LIST_STORE = "BE-Mail.todoList";
+type BoardKey = "all" | "inbox" | `p${number}`;
+const BOARD_STORE = "BE-Mail.todoBoard";
 
-/** The list shown last, if the stored value still looks like one. */
-function storedList(): ListKey {
-  const v = localStorage.getItem(LIST_STORE) ?? "";
-  return /^(today|inbox|waiting|open|done|p\d+)$/.test(v) ? (v as ListKey) : "today";
+/** The board shown last, if the stored value still looks like one. */
+function storedBoard(): BoardKey {
+  const v = localStorage.getItem(BOARD_STORE) ?? "";
+  return /^(all|inbox|p\d+)$/.test(v) ? (v as BoardKey) : "all";
 }
 
-interface Group {
-  key: string;
-  label: string;
-  color?: string;
-  tasks: Task[];
+/** What is being dragged right now. Kept outside React state: dragover
+ *  fires many times a second and cannot read dataTransfer contents. */
+type Drag = { kind: "card"; id: number } | { kind: "column"; id: number };
+
+/** Where a dragged card would land. */
+interface DropSpot {
+  columnId: number;
+  index: number;
 }
 
-/** Follow-up date first (none last), then oldest first. */
-function byFollowUp(a: Task, b: Task): number {
-  if (a.followUp !== b.followUp) {
-    if (!a.followUp) return 1;
-    if (!b.followUp) return -1;
-    return a.followUp.localeCompare(b.followUp);
-  }
-  return a.createdAt.localeCompare(b.createdAt);
+/** Motion for cards making room and columns growing or shrinking while a
+ *  card is dragged: a strong ease-out, so the board answers the pointer at once. */
+const FLIP_MS = 200;
+const FLIP_EASE = "cubic-bezier(0.23, 1, 0.32, 1)";
+const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/** Where the cards and columns were drawn just before a drag update. */
+interface FlipSnapshot {
+  at: number;
+  rects: Map<string, DOMRect>;
+}
+const flipKey = (el: HTMLElement) => (el.dataset.card ? `card${el.dataset.card}` : `col${el.dataset.col}`);
+
+/** Layout position of a card, ignoring a slide that is still running, so the
+ *  drop index does not flip back and forth while cards move. */
+function layoutRect(el: HTMLElement): DOMRect {
+  const r = el.getBoundingClientRect();
+  const m = new DOMMatrixReadOnly(getComputedStyle(el).transform);
+  return new DOMRect(r.x - m.m41, r.y - m.m42, r.width, r.height);
+}
+
+/** Sort value for a card placed between two neighbours. */
+function sortBetween(prev?: Task, next?: Task): number {
+  if (prev && next) return (prev.sort + next.sort) / 2;
+  if (prev) return prev.sort + 1;
+  if (next) return next.sort - 1;
+  return 1;
 }
 
 export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => void }) {
-  const { t, tip, settings, notify, confirm } = useApp();
+  const { t, tip, notify } = useApp();
   const data = useTodo();
-  const [list, setListState] = useState<ListKey>(storedList);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [quick, setQuick] = useState("");
-  const [showDone, setShowDone] = useState(false);
+  const today = useToday();
+  const [board, setBoardState] = useState<BoardKey>(storedBoard);
+  const [openCardId, setOpenCardId] = useState<number | null>(null);
+  // A card that was just added opens with the cursor in its description.
+  const [openIsNew, setOpenIsNew] = useState(false);
+  const [filter, setFilter] = useState("");
   const [showArchive, setShowArchive] = useState(false);
   const [projectDialog, setProjectDialog] = useState<Project | "new" | null>(null);
-  const quickRef = useRef<HTMLInputElement>(null);
-  const titleRef = useRef<HTMLInputElement>(null);
+  const [columnDialog, setColumnDialog] = useState<Column | null>(null);
+  const [addingIn, setAddingIn] = useState<number | null>(null);
+  const [addingColumn, setAddingColumn] = useState(false);
 
-  const today = useToday();
+  const drag = useRef<Drag | null>(null);
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const [dropSpot, setDropSpot] = useState<DropSpot | null>(null);
+  const [columnDrop, setColumnDrop] = useState<{ id: number; after: boolean } | null>(null);
+  const [projectDrop, setProjectDrop] = useState<string | null>(null);
+  // A moved card shows in its new place right away, before the reload.
+  const [pending, setPending] = useState<Map<number, Partial<Task>>>(new Map());
+  useEffect(() => setPending(new Map()), [data]);
 
-  function setList(k: ListKey) {
-    setListState(k);
-    localStorage.setItem(LIST_STORE, k);
-    setSelectedId(null);
+  // Drag updates animate FLIP-style: snapshot() records where everything is
+  // drawn, the next commit measures the new layout and slides cards (and
+  // resizes columns) from the old spot to the new one.
+  const boardRef = useRef<HTMLDivElement>(null);
+  const flipFrom = useRef<FlipSnapshot | null>(null);
+  const dragHeight = useRef(0);
+
+  function snapshot() {
+    const root = boardRef.current;
+    if (!root || reduceMotion()) return;
+    const rects = new Map<string, DOMRect>();
+    root.querySelectorAll<HTMLElement>("[data-card], [data-col]").forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.height) rects.set(flipKey(el), r);
+    });
+    // A hidden dragged card lands where its placeholder is.
+    const ph = root.querySelector(".board-placeholder");
+    if (ph && drag.current?.kind === "card" && !rects.has(`card${drag.current.id}`)) {
+      rects.set(`card${drag.current.id}`, ph.getBoundingClientRect());
+    }
+    flipFrom.current = { at: performance.now(), rects };
+  }
+
+  useLayoutEffect(() => {
+    const from = flipFrom.current;
+    flipFrom.current = null;
+    const root = boardRef.current;
+    // An old snapshot belongs to an update that never rendered.
+    if (!from || !root || performance.now() - from.at > 150) return;
+    const els = [...root.querySelectorAll<HTMLElement>("[data-card], [data-col]")];
+    // Stop running slides first, so the measurements below are the real layout
+    // and a new slide starts from where the element is drawn right now.
+    for (const el of els) for (const a of el.getAnimations()) if (a.id === "flip") a.cancel();
+    const now = els.map((el) => el.getBoundingClientRect());
+    els.forEach((el, i) => {
+      const old = from.rects.get(flipKey(el));
+      const cur = now[i];
+      if (!old || !cur.height) return;
+      const opts = { duration: FLIP_MS, easing: FLIP_EASE, id: "flip" };
+      if (el.dataset.col) {
+        if (Math.abs(old.height - cur.height) < 1) return;
+        el.classList.add("resizing");
+        const a = el.animate({ height: [`${old.height}px`, `${cur.height}px`] }, opts);
+        a.onfinish = a.oncancel = () => el.classList.remove("resizing");
+      } else {
+        const dx = old.left - cur.left;
+        const dy = old.top - cur.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+        el.animate({ transform: [`translate(${dx}px, ${dy}px)`, "none"] }, opts);
+      }
+    });
+  });
+
+  function setBoard(k: BoardKey) {
+    setBoardState(k);
+    localStorage.setItem(BOARD_STORE, k);
+    setAddingIn(null);
   }
 
   const projectsById = useMemo(
     () => new Map((data?.projects ?? []).map((p) => [p.id, p])),
     [data]
   );
-  const actionsById = useMemo(
-    () => new Map((data?.actions ?? []).map((a) => [a.id, a])),
-    [data]
-  );
-  const isWaiting = (task: Task) =>
-    task.actionId != null && !!actionsById.get(task.actionId)?.waiting;
-
-  // A remembered project that has since been deleted falls back to Today.
-  const currentProject =
-    list.startsWith("p") ? projectsById.get(Number(list.slice(1))) : undefined;
+  const currentProject = board.startsWith("p") ? projectsById.get(Number(board.slice(1))) : undefined;
+  // A remembered project that has since been deleted falls back to "all".
   useEffect(() => {
-    if (data && list.startsWith("p") && !currentProject) setList("today");
+    if (data && board.startsWith("p") && !currentProject) setBoard("all");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, list, currentProject]);
+  }, [data, board, currentProject]);
 
-  const openTasks = useMemo(
-    () => (data?.tasks ?? []).filter((x) => x.status !== "done"),
-    [data]
-  );
-  // Today, Waiting and All open leave archived projects out.
-  const activeOpen = useMemo(() => {
-    const archived = archivedProjectIds(data);
-    return openTasks.filter((x) => x.projectId == null || !archived.has(x.projectId));
-  }, [data, openTasks]);
-
-  const counts = useMemo(() => {
-    const c = { today: 0, inbox: 0, waiting: 0, open: activeOpen.length } as Record<string, number>;
-    for (const task of activeOpen) {
-      if (task.followUp && task.followUp <= today) c.today++;
-      if (isWaiting(task)) c.waiting++;
+  const doneCols = useMemo(() => doneColumnIds(data), [data]);
+  const attachmentsByTask = useMemo(() => {
+    const m = new Map<number, Attachment[]>();
+    for (const a of data?.attachments ?? []) {
+      const list = m.get(a.taskId) ?? [];
+      list.push(a);
+      m.set(a.taskId, list);
     }
-    for (const task of openTasks) {
-      if (task.projectId == null) c.inbox++;
-      else c[`p${task.projectId}`] = (c[`p${task.projectId}`] ?? 0) + 1;
-    }
-    return c;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openTasks, activeOpen, actionsById, today]);
+    return m;
+  }, [data]);
 
   const sortedProjects = useMemo(
     () =>
@@ -124,247 +187,236 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
     [data]
   );
 
-  const statusLabel = (s: TaskStatus) => t(`todoStatus_${s}` as TextKey);
-
-  // Groups shown in the middle: per status inside one project or the Inbox,
-  // per project in the lists that span projects.
-  const groups: Group[] = useMemo(() => {
-    if (!data) return [];
-    const all = data.tasks;
-    if (list === "done") {
-      const done = all
-        .filter((x) => x.status === "done")
-        .sort((a, b) => (b.doneAt ?? "").localeCompare(a.doneAt ?? ""));
-      return [{ key: "done", label: "", tasks: done }];
+  // Unfinished cards per board, for the counters on the left.
+  const counts = useMemo(() => {
+    const archived = archivedProjectIds(data);
+    const c: Record<string, number> = { all: 0, inbox: 0 };
+    for (const task of data?.tasks ?? []) {
+      if (doneCols.has(task.columnId)) continue;
+      if (task.projectId == null) c.inbox++;
+      else c[`p${task.projectId}`] = (c[`p${task.projectId}`] ?? 0) + 1;
+      if (task.projectId == null || !archived.has(task.projectId)) c.all++;
     }
-    if (list === "inbox" || list.startsWith("p")) {
-      const pid = list === "inbox" ? null : Number(list.slice(1));
-      const mine = all.filter((x) => x.projectId === pid);
-      const out: Group[] = (["doing", "todo"] as TaskStatus[]).map((s) => ({
-        key: s,
-        label: statusLabel(s),
-        tasks: mine.filter((x) => x.status === s).sort(byFollowUp),
-      }));
-      if (showDone) {
-        out.push({
-          key: "done",
-          label: statusLabel("done"),
-          tasks: mine
-            .filter((x) => x.status === "done")
-            .sort((a, b) => (b.doneAt ?? "").localeCompare(a.doneAt ?? "")),
-        });
-      }
-      return out.filter((g) => g.tasks.length > 0);
+    return c;
+  }, [data, doneCols]);
+
+  // The cards on this board, with pending moves applied, per column.
+  const cardsByColumn = useMemo(() => {
+    const m = new Map<number, Task[]>();
+    if (!data) return m;
+    const archived = archivedProjectIds(data);
+    const q = filter.trim().toLowerCase();
+    for (const raw of data.tasks) {
+      const task = pending.has(raw.id) ? { ...raw, ...pending.get(raw.id) } : raw;
+      const onBoard =
+        board === "all"
+          ? task.projectId == null || !archived.has(task.projectId)
+          : board === "inbox"
+            ? task.projectId == null
+            : task.projectId === Number(board.slice(1));
+      if (!onBoard) continue;
+      if (q && !`${task.title}\n${task.note}`.toLowerCase().includes(q)) continue;
+      const list = m.get(task.columnId) ?? [];
+      list.push(task);
+      m.set(task.columnId, list);
     }
-    const pick =
-      list === "today"
-        ? activeOpen.filter((x) => x.followUp != null && x.followUp <= today)
-        : list === "waiting"
-          ? activeOpen.filter(isWaiting)
-          : activeOpen;
-    const out: Group[] = [];
-    const inbox = pick.filter((x) => x.projectId == null);
-    if (inbox.length) out.push({ key: "inbox", label: t("todoInbox"), tasks: inbox.sort(byFollowUp) });
-    for (const p of sortedProjects) {
-      const mine = pick.filter((x) => x.projectId === p.id);
-      if (mine.length) {
-        out.push({ key: `p${p.id}`, label: p.name, color: p.color, tasks: mine.sort(byFollowUp) });
-      }
-    }
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, list, showDone, activeOpen, sortedProjects, today, settings.lang]);
+    for (const list of m.values()) list.sort((a, b) => a.sort - b.sort || a.id - b.id);
+    return m;
+  }, [data, board, filter, pending]);
 
-  const flat = useMemo(() => groups.flatMap((g) => g.tasks), [groups]);
-  const selected = data?.tasks.find((x) => x.id === selectedId) ?? null;
-  const doneInList =
-    list === "inbox" || list.startsWith("p")
-      ? (data?.tasks ?? []).filter(
-          (x) =>
-            x.status === "done" &&
-            x.projectId === (list === "inbox" ? null : Number(list.slice(1)))
-        ).length
-      : 0;
+  const openCard = data?.tasks.find((x) => x.id === openCardId) ?? null;
 
-  const parsed = data ? parseQuickAdd(quick, data.projects, data.actions) : null;
-
-  async function save(task: Task, patch: TaskPatch) {
-    try {
-      await todoApi.patchTask(task.id, patch);
-    } catch (e) {
-      notify(String(e), "error");
-    }
-  }
-
-  async function addQuick(open: boolean) {
-    if (!data || !parsed || !parsed.title) return;
-    try {
-      let projectId = parsed.projectId;
-      if (parsed.newProject) {
-        const color = COLORS[data.projects.length % COLORS.length];
-        projectId = (await todoApi.saveProject({ name: parsed.newProject, color })).id;
-      } else if (projectId == null && currentProject) {
-        projectId = currentProject.id;
-      }
-      // New work in an archived project makes it active again; otherwise the
-      // task would only be visible inside the archive.
-      const target = projectId != null ? projectsById.get(projectId) : undefined;
-      if (target?.archived) await todoApi.saveProject({ ...target, archived: false });
-      // Make the new task show up in the list it was typed in.
-      let followUp = parsed.followUp;
-      if (!followUp && list === "today") followUp = today;
-      let actionId = parsed.actionId;
-      if (actionId == null && list === "waiting") {
-        actionId = data.actions.find((a) => a.waiting)?.id ?? null;
-      }
-      const task = await todoApi.saveTask({
-        title: parsed.title,
-        projectId,
-        status: "todo",
-        actionId,
-        followUp,
-        note: "",
-        mail: null,
-      });
-      setQuick("");
-      if (open) {
-        setSelectedId(task.id);
-        window.setTimeout(() => titleRef.current?.focus(), 0);
-      }
-    } catch (e) {
-      notify(String(e), "error");
-    }
-  }
-
-  async function removeTask(task: Task) {
-    if (!(await confirm(t("todoDeleteTaskConfirm")))) return;
-    const idx = flat.findIndex((x) => x.id === task.id);
-    try {
-      await todoApi.deleteTask(task.id);
-      const next = flat[idx + 1] ?? flat[idx - 1];
-      setSelectedId(next && next.id !== task.id ? next.id : null);
-    } catch (e) {
-      notify(String(e), "error");
-    }
-  }
-
-  // Keyboard: n = new task, arrows/j/k = pick, space = next status,
-  // Enter = edit title, Delete = remove, Esc = close the task.
+  // n = new card in the first column, / = search.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (projectDialog || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (openCardId != null || projectDialog || columnDialog) return;
       if (document.querySelector(".overlay")) return;
       const el = document.activeElement as HTMLElement | null;
-      const inField =
-        !!el &&
-        (el.tagName === "INPUT" ||
-          el.tagName === "TEXTAREA" ||
-          el.tagName === "SELECT" ||
-          el.isContentEditable);
-      if (inField) {
-        if (e.key === "Escape") el?.blur();
-        return;
-      }
-      const k = e.key;
-      // Space and Enter on a focused button belong to that button; handling
-      // them here as well would change the status twice.
-      const onButton = !!el && (el.tagName === "BUTTON" || el.getAttribute("role") === "button");
-      if (onButton && (k === " " || k === "Enter")) return;
-      if (k === "n") {
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      if (e.key === "n" && data?.columns[0]) {
         e.preventDefault();
-        quickRef.current?.focus();
-      } else if (k === "ArrowDown" || k === "j" || k === "ArrowUp" || k === "k") {
+        setAddingIn(data.columns[0].id);
+      } else if (e.key === "/") {
         e.preventDefault();
-        const idx = flat.findIndex((x) => x.id === selectedId);
-        const down = k === "ArrowDown" || k === "j";
-        const next = down
-          ? flat[Math.min(idx + 1, flat.length - 1)]
-          : flat[Math.max(idx - 1, 0)];
-        if (next) setSelectedId(next.id);
-      } else if (!selected) {
-        return;
-      } else if (k === " ") {
-        e.preventDefault();
-        void save(selected, (cur) => ({ status: nextStatus(cur.status) }));
-      } else if (k === "Enter") {
-        e.preventDefault();
-        titleRef.current?.focus();
-      } else if (k === "Delete") {
-        void removeTask(selected);
-      } else if (k === "Escape") {
-        setSelectedId(null);
+        document.querySelector<HTMLInputElement>(".board-search input")?.focus();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  // Keep the picked task in view while stepping through with the keyboard.
-  useEffect(() => {
-    if (selectedId == null) return;
-    document
-      .querySelector(`[data-task="${selectedId}"]`)
-      ?.scrollIntoView({ block: "nearest" });
-  }, [selectedId]);
-
   if (!data) return <div className="todo centered">{t("loading")}</div>;
 
-  const listTitle =
-    list === "today" ? t("todoToday")
-    : list === "inbox" ? t("todoInbox")
-    : list === "waiting" ? t("todoWaiting")
-    : list === "open" ? t("todoAllOpen")
-    : list === "done" ? t("todoDoneList")
-    : currentProject?.name ?? "";
+  // ---- Actions ----
 
-  const listButton = (key: ListKey, label: string, color?: string, project?: Project) => (
-    <div key={key} className={"folder todo-list-item" + (list === key ? " active" : "")}>
+  async function addCard(columnId: number, title: string) {
+    const list = cardsByColumn.get(columnId) ?? [];
+    try {
+      // New work in an archived project makes it active again; otherwise
+      // the card would only be visible inside the archive.
+      if (currentProject?.archived) await todoApi.saveProject({ ...currentProject, archived: false });
+      const saved = await todoApi.saveTask({
+        title,
+        projectId: currentProject?.id ?? null,
+        columnId,
+        sort: sortBetween(list[list.length - 1], undefined),
+      });
+      // Straight on to the details: description, attachments, date.
+      setAddingIn(null);
+      setOpenIsNew(true);
+      setOpenCardId(saved.id);
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  async function addColumn(name: string) {
+    try {
+      await todoApi.saveColumn({ name, color: COLORS[data!.columns.length % COLORS.length], done: false });
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  function moveCard(id: number, spot: DropSpot) {
+    const list = (cardsByColumn.get(spot.columnId) ?? []).filter((x) => x.id !== id);
+    const sort = sortBetween(list[spot.index - 1], list[spot.index]);
+    const card = data!.tasks.find((x) => x.id === id);
+    if (!card) return;
+    if (card.columnId === spot.columnId && card.sort === sort) return;
+    setPending((m) => new Map(m).set(id, { columnId: spot.columnId, sort }));
+    todoApi.patchTask(id, { columnId: spot.columnId, sort }).catch((e) => {
+      setPending(new Map());
+      notify(String(e), "error");
+    });
+  }
+
+  function moveCardToProject(id: number, projectId: number | null) {
+    const card = data!.tasks.find((x) => x.id === id);
+    if (!card || card.projectId === projectId) return;
+    const target = projectId != null ? projectsById.get(projectId) : undefined;
+    void (async () => {
+      try {
+        if (target?.archived) await todoApi.saveProject({ ...target, archived: false });
+        await todoApi.patchTask(id, { projectId });
+        notify(`${t("todoMovedTo")} ${target?.name ?? t("todoInbox")}`, "info");
+      } catch (e) {
+        notify(String(e), "error");
+      }
+    })();
+  }
+
+  async function moveColumn(id: number, targetId: number, after: boolean) {
+    if (id === targetId) return;
+    const ids = data!.columns.map((c) => c.id).filter((x) => x !== id);
+    const at = ids.indexOf(targetId) + (after ? 1 : 0);
+    ids.splice(at, 0, id);
+    try {
+      await todoApi.reorder("column", ids);
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  function endDrag() {
+    snapshot();
+    drag.current = null;
+    setDraggingId(null);
+    setDropSpot(null);
+    setColumnDrop(null);
+    setProjectDrop(null);
+  }
+
+  /** Insertion index from the pointer position over a column's card list. */
+  function indexAt(listEl: HTMLElement, y: number): number {
+    const cards = [...listEl.querySelectorAll<HTMLElement>("[data-card]")].filter(
+      (el) => Number(el.dataset.card) !== drag.current?.id
+    );
+    const i = cards.findIndex((el) => {
+      const r = layoutRect(el);
+      return y < r.top + r.height / 2;
+    });
+    return i === -1 ? cards.length : i;
+  }
+
+  // ---- Left: boards ----
+
+  const boardItem = (key: BoardKey, label: string, color?: string, project?: Project) => {
+    const projectId = key === "inbox" ? null : key.startsWith("p") ? Number(key.slice(1)) : undefined;
+    const droppable = projectId !== undefined;
+    return (
       <div
-        className="folder-main"
-        role="button"
-        tabIndex={0}
-        onClick={() => setList(key)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setList(key);
-          }
+        key={key}
+        className={
+          "folder todo-list-item" +
+          (board === key ? " active" : "") +
+          (projectDrop === key ? " drop-target" : "")
+        }
+        onDragOver={(e) => {
+          if (!droppable || drag.current?.kind !== "card") return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          if (projectDrop !== key) setProjectDrop(key);
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) setProjectDrop(null);
+        }}
+        onDrop={(e) => {
+          if (!droppable || drag.current?.kind !== "card") return;
+          e.preventDefault();
+          moveCardToProject(drag.current.id, projectId);
+          endDrag();
         }}
       >
-        <span className="todo-list-name">
-          {color !== undefined && (
-            <span className="todo-dot" style={{ background: color || "var(--text-muted)" }} />
-          )}
-          <span className="folder-name">{label}</span>
-        </span>
-        {(counts[key] ?? 0) > 0 && <span className="badge">{counts[key]}</span>}
+        <div
+          className="folder-main"
+          role="button"
+          tabIndex={0}
+          onClick={() => setBoard(key)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setBoard(key);
+            }
+          }}
+        >
+          <span className="todo-list-name">
+            {color !== undefined && (
+              <span className="todo-dot" style={{ background: color || "var(--text-muted)" }} />
+            )}
+            <span className="folder-name">{label}</span>
+          </span>
+          {(counts[key] ?? 0) > 0 && <span className="badge">{counts[key]}</span>}
+        </div>
+        {project && (
+          <span className="folder-actions">
+            <button
+              className="icon-btn"
+              onClick={() => setProjectDialog(project)}
+              title={tip("todoEditProject")}
+              aria-label={t("todoEditProject")}
+            >
+              <EditIcon size={14} />
+            </button>
+          </span>
+        )}
       </div>
-      {project && (
-        <span className="folder-actions">
-          <button
-            className="icon-btn"
-            onClick={() => setProjectDialog(project)}
-            title={tip("todoEditProject")}
-            aria-label={t("todoEditProject")}
-          >
-            <EditIcon size={14} />
-          </button>
-        </span>
-      )}
-    </div>
-  );
+    );
+  };
 
   const openProjects = sortedProjects.filter((p) => !p.archived);
   const archived = sortedProjects.filter((p) => p.archived);
+  const boardTitle =
+    board === "all" ? t("todoAllProjects") : board === "inbox" ? t("todoInbox") : currentProject?.name ?? "";
+
+  // ---- Middle: the board ----
 
   return (
     <div className="todo">
       <aside className="folders todo-lists">
-        {listButton("today", t("todoToday"))}
-        {listButton("inbox", t("todoInbox"))}
-        {listButton("waiting", t("todoWaiting"))}
-        {listButton("open", t("todoAllOpen"))}
-        {listButton("done", t("todoDoneList"))}
+        {boardItem("all", t("todoAllProjects"))}
+        {boardItem("inbox", t("todoInbox"))}
 
         <div className="folders-head todo-projects-head">
           <span className="muted small">{t("todoProjects")}</span>
@@ -378,110 +430,233 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
           </button>
         </div>
         {openProjects.length === 0 && <p className="muted small todo-hint">{t("todoNoProjects")}</p>}
-        {openProjects.map((p) => listButton(`p${p.id}`, p.name, p.color, p))}
+        {openProjects.map((p) => boardItem(`p${p.id}`, p.name, p.color, p))}
 
         {archived.length > 0 && (
           <>
             <button className="btn ghost todo-archive-toggle" onClick={() => setShowArchive((v) => !v)}>
               {showArchive ? "▾" : "▸"} {t("todoArchive")} ({archived.length})
             </button>
-            {showArchive && archived.map((p) => listButton(`p${p.id}`, p.name, p.color, p))}
+            {showArchive && archived.map((p) => boardItem(`p${p.id}`, p.name, p.color, p))}
           </>
         )}
+        <p className="muted small todo-hint todo-drag-hint">{t("todoDragToProject")}</p>
       </aside>
 
-      <section className="todo-main">
-        <div className="todo-add">
-          <input
-            ref={quickRef}
-            value={quick}
-            onChange={(e) => setQuick(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                void addQuick(e.ctrlKey);
-              } else if (e.key === "Escape") {
-                setQuick("");
-                e.currentTarget.blur();
-              }
-            }}
-            placeholder={t("todoQuickAdd")}
-            aria-label={t("todoQuickAdd")}
-          />
-          <button className="btn primary" onClick={() => void addQuick(false)} disabled={!parsed?.title}>
-            <PlusIcon size={16} /> {t("add")}
-          </button>
-        </div>
-        <div className="todo-add-preview small muted">
-          {quick.trim() && parsed ? (
-            <QuickPreview parsed={parsed} data={data} lang={settings.lang} t={t} />
-          ) : (
-            t("todoQuickAddHint")
+      <section className="board-wrap">
+        <header className="board-head">
+          {currentProject && (
+            <span className="todo-dot board-dot" style={{ background: currentProject.color || "var(--text-muted)" }} />
           )}
-        </div>
-
-        <header className="todo-list-head">
-          <h2>{listTitle}</h2>
-          {doneInList > 0 && (
-            <button className="btn ghost small" onClick={() => setShowDone((v) => !v)}>
-              {showDone ? t("todoHideDone") : `${t("todoShowDone")} (${doneInList})`}
+          <h2>{boardTitle}</h2>
+          {currentProject && (
+            <button
+              className="icon-btn"
+              onClick={() => setProjectDialog(currentProject)}
+              title={tip("todoEditProject")}
+              aria-label={t("todoEditProject")}
+            >
+              <EditIcon size={16} />
             </button>
           )}
+          {currentProject?.archived && <span className="todo-tag">({t("todoArchived")})</span>}
+          <span className="spacer" />
+          <label className="board-search">
+            <SearchIcon size={16} />
+            <input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setFilter("");
+                  e.currentTarget.blur();
+                }
+              }}
+              placeholder={t("todoFilter")}
+              aria-label={t("todoFilter")}
+            />
+          </label>
         </header>
 
-        <div className="todo-scroll">
-          {flat.length === 0 && <div className="empty">{t("todoEmpty")}</div>}
-          {groups.map((g) => (
-            <div key={g.key} className="todo-group">
-              {g.label && (
-                <div className="todo-group-head">
-                  {g.color !== undefined && (
-                    <span className="todo-dot" style={{ background: g.color || "var(--text-muted)" }} />
-                  )}
-                  {g.label}
-                  <span className="muted"> {g.tasks.length}</span>
-                </div>
-              )}
-              {g.tasks.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  active={task.id === selectedId}
-                  projectOf={
-                    list === "done" && task.projectId != null
-                      ? projectsById.get(task.projectId)
-                      : undefined
+        <div className="board" ref={boardRef}>
+          {data.columns.map((col) => {
+            const cards = cardsByColumn.get(col.id) ?? [];
+            const spot = dropSpot?.columnId === col.id ? dropSpot.index : -1;
+            // While a drop spot shows, the dragged card is hidden (not removed:
+            // Chromium fires no dragend on an element that left the DOM).
+            const hideDragged = draggingId != null && dropSpot != null;
+            let slot = 0;
+            return (
+              <div
+                key={col.id}
+                data-col={col.id}
+                className={
+                  "board-col" +
+                  (columnDrop?.id === col.id ? (columnDrop.after ? " drop-after" : " drop-before") : "")
+                }
+                style={{ "--c": col.color || "var(--text-muted)" } as React.CSSProperties}
+                onDragOver={(e) => {
+                  const d = drag.current;
+                  if (!d) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  if (d.kind === "column") {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    const after = e.clientX > r.left + r.width / 2;
+                    if (columnDrop?.id !== col.id || columnDrop.after !== after) {
+                      setColumnDrop(d.id === col.id ? null : { id: col.id, after });
+                    }
+                    return;
                   }
-                  actions={data.actions}
-                  action={task.actionId != null ? actionsById.get(task.actionId) : undefined}
-                  today={today}
-                  onSelect={() => setSelectedId(task.id)}
-                  onSave={(patch) => save(task, patch)}
-                  onOpenMail={onOpenMail}
-                />
-              ))}
-            </div>
-          ))}
-          <p className="muted small todo-shortcuts">{t("todoShortcuts")}</p>
+                  const listEl = e.currentTarget.querySelector<HTMLElement>(".board-cards");
+                  if (!listEl) return;
+                  const index = indexAt(listEl, e.clientY);
+                  if (dropSpot?.columnId !== col.id || dropSpot.index !== index) {
+                    snapshot();
+                    setDropSpot({ columnId: col.id, index });
+                  }
+                }}
+                onDragLeave={(e) => {
+                  if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                  if (dropSpot?.columnId === col.id) {
+                    snapshot();
+                    setDropSpot(null);
+                  }
+                  if (columnDrop?.id === col.id) setColumnDrop(null);
+                }}
+                onDrop={(e) => {
+                  const d = drag.current;
+                  if (!d) return;
+                  e.preventDefault();
+                  if (d.kind === "card" && dropSpot) moveCard(d.id, dropSpot);
+                  if (d.kind === "column" && columnDrop) void moveColumn(d.id, columnDrop.id, columnDrop.after);
+                  endDrag();
+                }}
+              >
+                <div
+                  className="board-col-head"
+                  draggable
+                  onDragStart={(e) => {
+                    drag.current = { kind: "column", id: col.id };
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", col.name);
+                  }}
+                  onDragEnd={endDrag}
+                  title={tip("todoDragColumn")}
+                >
+                  <span className="board-col-name">{col.name}</span>
+                  <span className="board-col-count">{cards.length}</span>
+                  <button
+                    className="icon-btn"
+                    onClick={() => setColumnDialog(col)}
+                    title={tip("todoEditColumn")}
+                    aria-label={`${t("todoEditColumn")}: ${col.name}`}
+                  >
+                    <EditIcon size={14} />
+                  </button>
+                </div>
+
+                <div className="board-cards">
+                  {cards.map((card) => {
+                    const isDragged = card.id === draggingId;
+                    const here = !isDragged && slot === spot;
+                    if (!isDragged) slot++;
+                    return (
+                    <div key={card.id} className={"board-slot" + (isDragged && hideDragged ? " hidden" : "")}>
+                      {here && <div className="board-placeholder" style={{ height: dragHeight.current || undefined }} />}
+                      <Card
+                        card={card}
+                        done={doneCols.has(card.columnId)}
+                        project={
+                          board === "all" && card.projectId != null
+                            ? projectsById.get(card.projectId)
+                            : undefined
+                        }
+                        attachments={attachmentsByTask.get(card.id) ?? []}
+                        today={today}
+                        dragging={card.id === draggingId}
+                        onOpen={() => {
+                          setOpenIsNew(false);
+                          setOpenCardId(card.id);
+                        }}
+                        onOpenMail={onOpenMail}
+                        onDragStart={(e) => {
+                          drag.current = { kind: "card", id: card.id };
+                          e.dataTransfer.effectAllowed = "move";
+                          e.dataTransfer.setData("text/plain", card.title);
+                          // The placeholder takes the card's height, so nothing shifts
+                          // when the card makes way for it.
+                          dragHeight.current = e.currentTarget.getBoundingClientRect().height;
+                          // Hide the card only after the browser took its picture.
+                          window.setTimeout(() => {
+                            snapshot();
+                            setDraggingId(card.id);
+                          }, 0);
+                        }}
+                        onDragEnd={endDrag}
+                      />
+                    </div>
+                    );
+                  })}
+                  {spot >= 0 && spot >= cards.filter((c) => c.id !== draggingId).length && (
+                    <div className="board-placeholder" style={{ height: dragHeight.current || undefined }} />
+                  )}
+                </div>
+
+                {addingIn === col.id ? (
+                  <InlineAdd
+                    placeholder={t("todoCardTitle")}
+                    multiline
+                    onAdd={(title) => void addCard(col.id, title)}
+                    onClose={() => setAddingIn(null)}
+                  />
+                ) : (
+                  <button className="board-add" onClick={() => setAddingIn(col.id)}>
+                    <PlusIcon size={16} /> {t("todoAddCard")}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+
+          <div className="board-col board-col-new">
+            {addingColumn ? (
+              <InlineAdd
+                placeholder={t("todoColumnName")}
+                onAdd={(name) => void addColumn(name)}
+                onClose={() => setAddingColumn(false)}
+              />
+            ) : (
+              <button className="board-add" onClick={() => setAddingColumn(true)}>
+                <PlusIcon size={16} /> {t("todoAddColumn")}
+              </button>
+            )}
+          </div>
         </div>
       </section>
 
-      <aside className="todo-detail">
-        {selected ? (
-          <TaskDetail
-            key={selected.id}
-            task={selected}
-            data={data}
-            today={today}
-            titleRef={titleRef}
-            onSave={(patch) => save(selected, patch)}
-            onDelete={() => void removeTask(selected)}
-            onOpenMail={onOpenMail}
-          />
-        ) : (
-          <p className="muted todo-detail-empty">{t("todoSelectHint")}</p>
-        )}
-      </aside>
+      {openCard && (
+        <CardDialog
+          key={openCard.id}
+          card={openCard}
+          isNew={openIsNew}
+          data={data}
+          today={today}
+          onClose={() => setOpenCardId(null)}
+          onOpenMail={(m) => {
+            setOpenCardId(null);
+            onOpenMail(m);
+          }}
+        />
+      )}
+
+      {columnDialog && (
+        <ColumnDialog
+          column={columnDialog}
+          last={data.columns.length <= 1}
+          onClose={() => setColumnDialog(null)}
+        />
+      )}
 
       {projectDialog && (
         <ProjectDialog
@@ -489,11 +664,11 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
           onClose={() => setProjectDialog(null)}
           onSaved={(p) => {
             setProjectDialog(null);
-            if (projectDialog === "new") setList(`p${p.id}`);
+            if (projectDialog === "new") setBoard(`p${p.id}`);
           }}
           onDeleted={() => {
             setProjectDialog(null);
-            setList("inbox");
+            setBoard("inbox");
           }}
         />
       )}
@@ -501,77 +676,65 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
   );
 }
 
-/** What the quick-add line will create, shown while typing. */
-function QuickPreview({
-  parsed,
-  data,
-  lang,
-  t,
+/** Text field that adds an item on Enter and stays open for the next one. */
+function InlineAdd({
+  placeholder,
+  multiline,
+  onAdd,
+  onClose,
 }: {
-  parsed: ReturnType<typeof parseQuickAdd>;
-  data: TodoData;
-  lang: string;
-  t: (k: TextKey) => string;
+  placeholder: string;
+  multiline?: boolean;
+  onAdd: (text: string) => void;
+  onClose: () => void;
 }) {
-  const project = data.projects.find((p) => p.id === parsed.projectId);
-  const action = data.actions.find((a) => a.id === parsed.actionId);
+  const { t } = useApp();
+  const [text, setText] = useState("");
+  const ref = useRef<HTMLTextAreaElement & HTMLInputElement>(null);
+  function submit() {
+    const v = text.trim();
+    if (!v) return;
+    onAdd(v);
+    setText("");
+    ref.current?.focus();
+  }
+  const props = {
+    ref,
+    autoFocus: true,
+    value: text,
+    placeholder,
+    "aria-label": placeholder,
+    onChange: (e: React.ChangeEvent<HTMLTextAreaElement & HTMLInputElement>) => setText(e.target.value),
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        submit();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    },
+    // Clicking elsewhere closes an empty field, but keeps typed text.
+    onBlur: () => !text.trim() && onClose(),
+  };
   return (
-    <span className="todo-preview">
-      <strong>{parsed.title || "…"}</strong>
-      {project && (
-        <span className="todo-tag">
-          <span className="todo-dot" style={{ background: project.color || "var(--text-muted)" }} />
-          {project.name}
-        </span>
-      )}
-      {parsed.newProject && (
-        <span className="todo-tag">
-          {parsed.newProject} <em>({t("todoWillCreate")})</em>
-        </span>
-      )}
-      {action && <ActionChip action={action} />}
-      {parsed.followUp && <span className="todo-date">{formatDay(parsed.followUp, lang)}</span>}
-    </span>
+    <div className="board-inline-add">
+      {multiline ? <textarea rows={3} {...props} /> : <input {...props} />}
+      <div className="board-inline-actions">
+        <button className="btn primary small" onMouseDown={(e) => e.preventDefault()} onClick={submit}>
+          {t("add")}
+        </button>
+        <button className="btn ghost small" onMouseDown={(e) => e.preventDefault()} onClick={onClose}>
+          {t("cancel")}
+        </button>
+      </div>
+    </div>
   );
 }
 
-function ActionChip({ action }: { action: TodoAction }) {
-  return (
-    <span
-      className="todo-action"
-      style={{ "--c": action.color || "var(--text-muted)" } as React.CSSProperties}
-    >
-      {action.label}
-    </span>
-  );
-}
-
-function StatusButton({
-  status,
-  onClick,
-}: {
-  status: TaskStatus;
-  onClick: () => void;
-}) {
-  const { t, tip } = useApp();
-  return (
-    <button
-      className={"todo-status s-" + status}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick();
-      }}
-      title={tip("todoChangeStatus")}
-      aria-label={`${t(`todoStatus_${status}` as TextKey)}. ${t("todoChangeStatus")}`}
-    >
-      {status === "done" ? "✓" : ""}
-    </button>
-  );
-}
-
-function DateLabel({ date, today }: { date: string; today: string }) {
+export function DateLabel({ date, today, done }: { date: string; today: string; done?: boolean }) {
   const { t, settings } = useApp();
-  const cls = date < today ? " overdue" : date === today ? " today" : "";
+  const cls = done ? "" : date < today ? " overdue" : date === today ? " today" : "";
   const label =
     date === today
       ? t("todoToday")
@@ -579,272 +742,90 @@ function DateLabel({ date, today }: { date: string; today: string }) {
         ? t("todoTomorrow")
         : formatDay(date, settings.lang);
   return (
-    <span className={"todo-date" + cls} title={date < today ? t("todoOverdue") : undefined}>
+    <span className={"todo-date" + cls} title={!done && date < today ? t("todoOverdue") : undefined}>
       {label}
     </span>
   );
 }
 
-function TaskRow({
-  task,
-  active,
-  projectOf,
-  actions,
-  action,
+function Card({
+  card,
+  done,
+  project,
+  attachments,
   today,
-  onSelect,
-  onSave,
+  dragging,
+  onOpen,
   onOpenMail,
+  onDragStart,
+  onDragEnd,
 }: {
-  task: Task;
-  active: boolean;
-  projectOf?: Project;
-  actions: TodoAction[];
-  action?: TodoAction;
+  card: Task;
+  done: boolean;
+  project?: Project;
+  attachments: Attachment[];
   today: string;
-  onSelect: () => void;
-  onSave: (patch: TaskPatch) => void;
+  dragging: boolean;
+  onOpen: () => void;
   onOpenMail: (m: MailLink) => void;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
 }) {
   const { t, tip } = useApp();
+  const cover = attachments.find(isImage);
+  const coverUrl = useAttachmentUrl(cover);
   return (
     <div
-      className={"todo-row" + (active ? " active" : "") + (task.status === "done" ? " done" : "")}
-      data-task={task.id}
-      onClick={onSelect}
+      className={"board-card" + (dragging ? " dragging" : "") + (done ? " done" : "")}
+      data-card={card.id}
+      role="button"
+      tabIndex={0}
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
     >
-      <StatusButton status={task.status} onClick={() => onSave((cur) => ({ status: nextStatus(cur.status) }))} />
-      <span className="todo-title">{task.title}</span>
-      {projectOf && (
-        <span className="todo-tag">
-          <span className="todo-dot" style={{ background: projectOf.color || "var(--text-muted)" }} />
-          {projectOf.name}
-        </span>
-      )}
-      {/* The action chip is a plain select, so changing it is one click and
-          works from the keyboard too. */}
-      <select
-        className={"todo-action todo-action-select" + (action ? "" : " empty")}
-        style={{ "--c": action?.color || "var(--text-muted)" } as React.CSSProperties}
-        value={task.actionId ?? ""}
-        onClick={(e) => e.stopPropagation()}
-        onChange={(e) => onSave({ actionId: e.target.value ? Number(e.target.value) : null })}
-        aria-label={t("todoAction")}
-      >
-        <option value="">{action ? t("todoNoAction") : `+ ${t("todoAction")}`}</option>
-        {actions.map((a) => (
-          <option key={a.id} value={a.id}>
-            {a.label}
-          </option>
-        ))}
-      </select>
-      {task.followUp && <DateLabel date={task.followUp} today={today} />}
-      {task.mail && (
-        <button
-          className="icon-btn todo-mail"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (task.mail) onOpenMail(task.mail);
-          }}
-          title={tip("todoOpenMail")}
-          aria-label={t("todoOpenMail")}
-        >
-          <MailIcon size={16} />
-        </button>
-      )}
-    </div>
-  );
-}
-
-function TaskDetail({
-  task,
-  data,
-  today,
-  titleRef,
-  onSave,
-  onDelete,
-  onOpenMail,
-}: {
-  task: Task;
-  data: TodoData;
-  today: string;
-  titleRef: React.RefObject<HTMLInputElement | null>;
-  onSave: (patch: TaskPatch) => Promise<void>;
-  onDelete: () => void;
-  onOpenMail: (m: MailLink) => void;
-}) {
-  const { t, settings } = useApp();
-  const [title, setTitle] = useState(task.title);
-  const [note, setNote] = useState(task.note);
-  // Follow outside changes (e.g. a status click in the list) without losing
-  // what is being typed: only reset when the stored value changes.
-  useEffect(() => setTitle(task.title), [task.title]);
-  useEffect(() => setNote(task.note), [task.note]);
-  const [due, setDue] = useState(task.followUp ?? "");
-  useEffect(() => setDue(task.followUp ?? ""), [task.followUp]);
-
-  const projects = data.projects
-    .filter((p) => !p.archived || p.id === task.projectId)
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-  const fmt = (iso: string) =>
-    new Date(iso).toLocaleDateString(settings.lang === "en" ? "en-GB" : "nl-NL", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-
-  function commitTitle() {
-    const v = title.trim();
-    if (!v) setTitle(task.title);
-    else if (v !== task.title) void onSave({ title: v });
-  }
-
-  return (
-    <div className="todo-detail-body">
-      <input
-        ref={titleRef}
-        className="todo-detail-title"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onBlur={commitTitle}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") e.currentTarget.blur();
-          if (e.key === "Escape") {
-            setTitle(task.title);
-            window.setTimeout(() => e.currentTarget?.blur(), 0);
-          }
-        }}
-        aria-label={t("todoTitle")}
-      />
-
-      <div className="todo-seg" role="group" aria-label="Status">
-        {STATUSES.map((s) => (
-          <button
-            key={s}
-            className={"btn" + (task.status === s ? " primary" : "")}
-            onClick={() => void onSave({ status: s })}
-          >
-            {t(`todoStatus_${s}` as TextKey)}
-          </button>
-        ))}
-      </div>
-
-      <label className="todo-field">
-        <span>{t("todoProject")}</span>
-        <select
-          value={task.projectId ?? ""}
-          onChange={(e) =>
-            void onSave({ projectId: e.target.value ? Number(e.target.value) : null })
-          }
-        >
-          <option value="">{t("todoNoProject")}</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="todo-field">
-        <span>{t("todoAction")}</span>
-        <select
-          value={task.actionId ?? ""}
-          onChange={(e) =>
-            void onSave({ actionId: e.target.value ? Number(e.target.value) : null })
-          }
-        >
-          <option value="">{t("todoNoAction")}</option>
-          {data.actions.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <div className="todo-field">
-        <span>{t("todoFollowUp")}</span>
-        <input
-          type="date"
-          value={due}
-          onChange={(e) => {
-            // Typing a year passes through dates like 0002-11-25: save only a
-            // plausible date right away, anything else when leaving the field.
-            const v = e.target.value;
-            setDue(v);
-            if (v === "" || Number(v.slice(0, 4)) >= 2000) void onSave({ followUp: v || null });
-          }}
-          onBlur={() => due !== (task.followUp ?? "") && void onSave({ followUp: due || null })}
-        />
-        <div className="todo-quick-dates">
-          <button className="btn small" onClick={() => void onSave({ followUp: today })}>
-            {t("todoToday")}
-          </button>
-          <button
-            className="btn small"
-            onClick={() => void onSave({ followUp: isoDate(addDays(new Date(), 1)) })}
-          >
-            {t("todoTomorrow")}
-          </button>
-          <button
-            className="btn small"
-            onClick={() => void onSave({ followUp: isoDate(addDays(new Date(), 7)) })}
-          >
-            {t("todoNextWeek")}
-          </button>
-          {task.followUp && (
-            <button className="btn ghost small" onClick={() => void onSave({ followUp: null })}>
-              {t("todoClear")}
-            </button>
-          )}
-        </div>
-      </div>
-
-      <label className="todo-field">
-        <span>{t("todoNote")}</span>
-        <textarea
-          rows={6}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          onBlur={() => note !== task.note && void onSave({ note })}
-        />
-      </label>
-
-      {task.mail && (
-        <div className="todo-field">
-          <span>{t("todoLinkedMail")}</span>
-          <div className="todo-mail-card">
-            <div className="todo-mail-subject">{task.mail.subject || "-"}</div>
-            <div className="muted small">
-              {task.mail.from}
-              {task.mail.address && task.mail.address !== task.mail.from
-                ? ` <${task.mail.address}>`
-                : ""}
-            </div>
-            <button
-              className="btn small"
-              onClick={() => task.mail && onOpenMail(task.mail)}
-            >
-              <MailIcon size={16} /> {t("todoOpenMail")}
-            </button>
+      {card.color && <div className="board-card-band" style={{ background: card.color }} />}
+      {cover && coverUrl && <img className="board-card-cover" src={coverUrl} alt="" draggable={false} />}
+      <div className="board-card-body">
+        <div className="board-card-title">{card.title}</div>
+        {card.note.trim() && <div className="board-card-note">{card.note}</div>}
+        {(project || card.followUp || attachments.length > 0 || card.mail) && (
+          <div className="board-card-foot">
+            {project && (
+              <span className="todo-tag">
+                <span className="todo-dot" style={{ background: project.color || "var(--text-muted)" }} />
+                {project.name}
+              </span>
+            )}
+            {card.followUp && <DateLabel date={card.followUp} today={today} done={done} />}
+            {attachments.length > 0 && (
+              <span className="todo-tag" title={t("todoAttachments")}>
+                <PaperclipIcon size={14} /> {attachments.length}
+              </span>
+            )}
+            {card.mail && (
+              <button
+                className="icon-btn todo-mail"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (card.mail) onOpenMail(card.mail);
+                }}
+                title={tip("todoOpenMail")}
+                aria-label={t("todoOpenMail")}
+              >
+                <MailIcon size={15} />
+              </button>
+            )}
           </div>
-        </div>
-      )}
-
-      <p className="muted small todo-meta">
-        {t("todoCreatedOn")}: {fmt(task.createdAt)}
-        {task.doneAt && (
-          <>
-            <br />
-            {t("todoDoneOn")}: {fmt(task.doneAt)}
-          </>
         )}
-      </p>
-
-      <button className="btn danger" onClick={onDelete}>
-        <TrashIcon size={16} /> {t("delete")}
-      </button>
+      </div>
     </div>
   );
 }

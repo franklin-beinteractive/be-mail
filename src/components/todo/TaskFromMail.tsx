@@ -1,6 +1,6 @@
-// "Taak maken" on an open mail: the subject becomes the title, the project
-// is suggested from the sender's domain and the task keeps a link to the
-// mail. Enter saves, Esc closes.
+// "Taak maken" on an open mail: the subject becomes the card title, the
+// project is suggested from the sender's domain and the card keeps a link to
+// the mail. Enter saves, Esc closes.
 import { useMemo, useState } from "react";
 import { useApp } from "../../lib/ctx";
 import {
@@ -46,7 +46,7 @@ export default function TaskFromMail({
 
   const [title, setTitle] = useState(initialTitle);
   const [project, setProject] = useState<string | null>(null);
-  const [actionId, setActionId] = useState<number | null>(null);
+  const [columnId, setColumnId] = useState<number | null>(null);
   const [followUp, setFollowUp] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -71,8 +71,7 @@ export default function TaskFromMail({
       await todoApi.saveTask({
         title,
         projectId,
-        status: "todo",
-        actionId,
+        columnId: columnId ?? data.columns[0]?.id ?? null,
         followUp: followUp || null,
         note: "",
         mail: {
@@ -145,15 +144,14 @@ export default function TaskFromMail({
             </p>
           )}
           <label className="row">
-            <span>{t("todoAction")}</span>
+            <span>{t("todoColumn")}</span>
             <select
-              value={actionId ?? ""}
-              onChange={(e) => setActionId(e.target.value ? Number(e.target.value) : null)}
+              value={columnId ?? data?.columns[0]?.id ?? ""}
+              onChange={(e) => setColumnId(Number(e.target.value))}
             >
-              <option value="">{t("todoNoAction")}</option>
-              {(data?.actions ?? []).map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.label}
+              {(data?.columns ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
                 </option>
               ))}
             </select>

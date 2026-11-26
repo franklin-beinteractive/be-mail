@@ -102,11 +102,16 @@ pub fn run() {
             todo::todo_load,
             todo::todo_save_project,
             todo::todo_delete_project,
-            todo::todo_save_action,
-            todo::todo_delete_action,
+            todo::todo_save_column,
+            todo::todo_delete_column,
             todo::todo_reorder,
             todo::todo_save_task,
             todo::todo_delete_task,
+            todo::todo_add_attachment,
+            todo::todo_attachment_data,
+            todo::todo_open_attachment,
+            todo::todo_save_attachment,
+            todo::todo_delete_attachment,
         ])
         .run(tauri::generate_context!())
         .expect("Fout bij het starten van BE-Mail");

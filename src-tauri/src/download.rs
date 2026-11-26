@@ -40,8 +40,9 @@ const RESERVED: [&str; 22] = [
     "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
 ];
 
-/// Haalt tekens uit een bestandsnaam die op Windows niet mogen (en padscheiders).
-fn sanitize_filename(name: &str) -> String {
+/// Replaces characters Windows does not allow in a file name (and path
+/// separators), and falls back to "bijlage" for an empty name.
+pub(crate) fn sanitize_filename(name: &str) -> String {
     let cleaned: String = name
         .chars()
         .map(|c| match c {

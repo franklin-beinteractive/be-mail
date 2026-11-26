@@ -1,12 +1,9 @@
-// Task list ("Taken"): types, the Tauri commands, one shared in-memory copy
-// of the data for every view, the quick-add parser and the project
-// suggestion for a task made from a mail.
+// Task board ("Taken"): types, the Tauri commands, one shared in-memory copy
+// of the data for every view, card attachments and the project suggestion
+// for a card made from a mail.
 
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
-
-export type TaskStatus = "todo" | "doing" | "done";
-export const STATUSES: TaskStatus[] = ["todo", "doing", "done"];
 
 export interface Project {
   id: number;
@@ -16,12 +13,13 @@ export interface Project {
   sort: number;
 }
 
-export interface TodoAction {
+/** A board column ("Te doen", "Bezig", ...), shared by every project. */
+export interface Column {
   id: number;
-  label: string;
-  /** The ball is with someone else: the task shows up under "Wachten". */
-  waiting: boolean;
+  name: string;
   color: string;
+  /** Cards here count as finished: no follow-up badge, done date set. */
+  done: boolean;
   sort: number;
 }
 
@@ -38,10 +36,14 @@ export interface Task {
   id: number;
   title: string;
   projectId: number | null;
-  status: TaskStatus;
-  actionId: number | null;
-  /** YYYY-MM-DD: the day to look at the task again. */
+  columnId: number;
+  /** Card colour: "" or #rrggbb. */
+  color: string;
+  /** Position within the column. */
+  sort: number;
+  /** YYYY-MM-DD: the day to look at the card again. */
   followUp: string | null;
+  /** The card description. */
   note: string;
   mail: MailLink | null;
   createdAt: string;
@@ -49,15 +51,38 @@ export interface Task {
   doneAt: string | null;
 }
 
-export type TaskInput = Omit<Task, "id" | "createdAt" | "updatedAt" | "doneAt"> & {
+export interface TaskInput {
   id?: number;
-};
+  title: string;
+  projectId: number | null;
+  /** null = the first column. */
+  columnId?: number | null;
+  color?: string;
+  /** null = keep the position (or the end of a new column). */
+  sort?: number | null;
+  followUp?: string | null;
+  note?: string;
+  mail?: MailLink | null;
+}
+
+export interface Attachment {
+  id: number;
+  taskId: number;
+  name: string;
+  mime: string;
+  size: number;
+  createdAt: string;
+}
 
 export interface TodoData {
   projects: Project[];
-  actions: TodoAction[];
+  columns: Column[];
   tasks: Task[];
+  attachments: Attachment[];
 }
+
+/** Largest attachment the Rust core accepts. */
+export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
 // ---- Shared store: one copy, reloaded after every change ----
 
@@ -99,14 +124,13 @@ async function mutate<T>(cmd: string, args: Record<string, unknown>): Promise<T>
   return result;
 }
 
-/** A change to a task: fixed values, or computed from the stored task (for
- *  "next status", so two quick clicks really step twice). */
+/** A change to a card: fixed values, or computed from the stored card. */
 export type TaskPatch = Partial<TaskInput> | ((current: Task) => Partial<TaskInput>);
 
-// Saves per task run one after the other, each on top of the freshly
-// reloaded task. Otherwise a blur that saves the note and a click on a
-// status right after it both send the whole task, and the second one -
-// still holding the old note - overwrites the first.
+// Saves per card run one after the other, each on top of the freshly
+// reloaded card. Otherwise a blur that saves the description and a drag
+// right after it both send the whole card, and the second one - still
+// holding the old description - overwrites the first.
 const taskQueues = new Map<number, Promise<unknown>>();
 
 function patchTask(id: number, patch: TaskPatch): Promise<Task> {
@@ -116,7 +140,7 @@ function patchTask(id: number, patch: TaskPatch): Promise<Task> {
     .then(async () => {
       await ensureLoaded();
       const current = cache?.tasks.find((x) => x.id === id);
-      if (!current) throw new Error("Deze taak bestaat niet meer.");
+      if (!current) throw new Error("Deze kaart bestaat niet meer.");
       const changes = typeof patch === "function" ? patch(current) : patch;
       return mutate<Task>("todo_save_task", { task: withChanges(current, changes) });
     });
@@ -129,6 +153,64 @@ function patchTask(id: number, patch: TaskPatch): Promise<Task> {
   return next;
 }
 
+/** Card as input for saving, with some fields replaced. */
+export function withChanges(t: Task, patch: Partial<TaskInput>): TaskInput {
+  const { createdAt: _c, updatedAt: _u, doneAt: _d, ...rest } = t;
+  return { ...rest, ...patch };
+}
+
+// ---- Attachments ----
+
+// Object URLs per attachment, so a cover image is fetched once per session.
+const blobUrls = new Map<number, Promise<string>>();
+
+async function addAttachment(taskId: number, file: Blob, name: string): Promise<Attachment> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const meta = await invoke<Attachment>("todo_add_attachment", bytes, {
+    headers: {
+      "x-task-id": String(taskId),
+      "x-name": encodeURIComponent(name),
+      "x-mime": file.type || "",
+    },
+  });
+  await reload();
+  return meta;
+}
+
+/** Object URL with the attachment's bytes, for <img> and the lightbox. */
+export function attachmentUrl(a: Attachment): Promise<string> {
+  let p = blobUrls.get(a.id);
+  if (!p) {
+    p = invoke<ArrayBuffer>("todo_attachment_data", { id: a.id }).then((buf) =>
+      URL.createObjectURL(new Blob([buf], { type: a.mime || "application/octet-stream" }))
+    );
+    p.catch(() => blobUrls.delete(a.id));
+    blobUrls.set(a.id, p);
+  }
+  return p;
+}
+
+/** Object URL of an attachment once loaded; null before that or without one. */
+export function useAttachmentUrl(a: Attachment | undefined): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  const id = a?.id;
+  useEffect(() => {
+    setUrl(null);
+    if (!a) return;
+    let live = true;
+    attachmentUrl(a).then((u) => live && setUrl(u), () => {});
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+  return url;
+}
+
+export function isImage(a: Attachment): boolean {
+  return /^image\/(png|jpe?g|gif|webp|bmp)$/i.test(a.mime);
+}
+
 export const todoApi = {
   saveTask: (task: TaskInput) => mutate<Task>("todo_save_task", { task }),
   patchTask,
@@ -136,34 +218,41 @@ export const todoApi = {
   saveProject: (project: Partial<Project> & { name: string }) =>
     mutate<Project>("todo_save_project", { project }),
   deleteProject: (id: number) => mutate<void>("todo_delete_project", { id }),
-  saveAction: (action: Partial<TodoAction> & { label: string }) =>
-    mutate<TodoAction>("todo_save_action", { action }),
-  deleteAction: (id: number) => mutate<void>("todo_delete_action", { id }),
-  reorder: (kind: "project" | "action", ids: number[]) =>
+  saveColumn: (column: Partial<Column> & { name: string }) =>
+    mutate<Column>("todo_save_column", { column }),
+  /** A column with cards needs `moveTo`: the column its cards go to. */
+  deleteColumn: (id: number, moveTo?: number | null) =>
+    mutate<void>("todo_delete_column", { id, moveTo: moveTo ?? null }),
+  reorder: (kind: "project" | "column", ids: number[]) =>
     mutate<void>("todo_reorder", { kind, ids }),
+  addAttachment,
+  deleteAttachment: async (id: number) => {
+    await mutate<void>("todo_delete_attachment", { id });
+    const url = blobUrls.get(id);
+    blobUrls.delete(id);
+    url?.then(URL.revokeObjectURL, () => {});
+  },
+  openAttachment: (id: number) => invoke<void>("todo_open_attachment", { id }),
+  saveAttachment: (id: number) => invoke<string>("todo_save_attachment", { id }),
 };
 
-/** Task as input for saving, with some fields replaced. */
-export function withChanges(t: Task, patch: Partial<TaskInput>): TaskInput {
-  const { createdAt: _c, updatedAt: _u, doneAt: _d, ...rest } = t;
-  return { ...rest, ...patch };
+/** Ids of the columns whose cards count as finished. */
+export function doneColumnIds(data: TodoData | null): Set<number> {
+  return new Set((data?.columns ?? []).filter((c) => c.done).map((c) => c.id));
 }
 
-export function nextStatus(s: TaskStatus): TaskStatus {
-  return s === "todo" ? "doing" : s === "doing" ? "done" : "todo";
-}
-
-/** Ids of archived projects: their tasks leave the cross-project lists. */
+/** Ids of archived projects: their cards leave the cross-project board. */
 export function archivedProjectIds(data: TodoData | null): Set<number> {
   return new Set((data?.projects ?? []).filter((p) => p.archived).map((p) => p.id));
 }
 
-/** Open tasks outside archived projects whose follow-up day has come. */
+/** Unfinished cards outside archived projects whose follow-up day has come. */
 export function dueCount(data: TodoData | null, today: string): number {
   const archived = archivedProjectIds(data);
+  const done = doneColumnIds(data);
   return (data?.tasks ?? []).filter(
     (x) =>
-      x.status !== "done" &&
+      !done.has(x.columnId) &&
       x.followUp != null &&
       x.followUp <= today &&
       (x.projectId == null || !archived.has(x.projectId))
@@ -213,130 +302,19 @@ export function formatDay(iso: string, lang: string): string {
   });
 }
 
-const WEEKDAYS: Record<string, number> = {
-  zo: 0, zondag: 0, sun: 0, sunday: 0,
-  ma: 1, maandag: 1, mon: 1, monday: 1,
-  di: 2, dinsdag: 2, tue: 2, tuesday: 2,
-  wo: 3, woensdag: 3, wed: 3, wednesday: 3,
-  do: 4, donderdag: 4, thu: 4, thursday: 4,
-  vr: 5, vrijdag: 5, fri: 5, friday: 5,
-  za: 6, zaterdag: 6, sat: 6, saturday: 6,
-};
-
-/** A typed date word ("morgen", "vr", "28-11") as YYYY-MM-DD, or null. */
-export function parseDateWord(word: string, today = new Date()): string | null {
-  const w = word.toLowerCase();
-  if (w === "vandaag" || w === "today") return isoDate(today);
-  if (w === "morgen" || w === "tomorrow") return isoDate(addDays(today, 1));
-  if (w === "overmorgen") return isoDate(addDays(today, 2));
-  if (w in WEEKDAYS) {
-    // The coming one; on that weekday itself, the one a week later.
-    const diff = (WEEKDAYS[w] - today.getDay() + 7) % 7 || 7;
-    return isoDate(addDays(today, diff));
-  }
-  const m = /^(\d{1,2})[-/](\d{1,2})(?:[-/](\d{2}|\d{4}))?$/.exec(w);
-  if (m) {
-    const day = Number(m[1]);
-    const month = Number(m[2]);
-    let year = m[3] ? Number(m[3]) : today.getFullYear();
-    if (year < 100) year += 2000;
-    const d = new Date(year, month - 1, day);
-    if (d.getMonth() !== month - 1 || d.getDate() !== day) return null;
-    // Without a year, a date that has passed means next year.
-    if (!m[3] && isoDate(d) < isoDate(today)) d.setFullYear(year + 1);
-    return isoDate(d);
-  }
-  return null;
+/** "1,2 MB" style size. */
+export function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} kB`;
+  return `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} MB`;
 }
-
-// ---- Quick add: "DNS checken #klant-x !live vr" ----
 
 /** Lowercase without spaces, dashes and underscores, for loose matching. */
 export function norm(s: string): string {
   return s.toLowerCase().replace(/[\s_-]+/g, "");
 }
 
-export interface ParsedQuickAdd {
-  title: string;
-  projectId: number | null;
-  /** `#name` that matches no project: created on save. */
-  newProject: string | null;
-  actionId: number | null;
-  followUp: string | null;
-}
-
-function findProject(token: string, projects: Project[]): Project | undefined {
-  const n = norm(token);
-  if (!n) return undefined;
-  const open = projects.filter((p) => !p.archived);
-  return (
-    open.find((p) => norm(p.name) === n) ??
-    open.find((p) => norm(p.name).startsWith(n)) ??
-    projects.find((p) => norm(p.name) === n)
-  );
-}
-
-function findAction(token: string, actions: TodoAction[]): TodoAction | undefined {
-  const n = norm(token);
-  if (!n) return undefined;
-  return (
-    actions.find((a) => norm(a.label) === n) ??
-    actions.find((a) => norm(a.label).startsWith(n)) ??
-    actions.find((a) => norm(a.label).includes(n))
-  );
-}
-
-/** Splits one typed line into title, project (#), action (!) and a closing
- *  date word. Only the title is required; unknown `!words` stay in it. */
-export function parseQuickAdd(
-  input: string,
-  projects: Project[],
-  actions: TodoAction[],
-  today = new Date()
-): ParsedQuickAdd {
-  const out: ParsedQuickAdd = {
-    title: "",
-    projectId: null,
-    newProject: null,
-    actionId: null,
-    followUp: null,
-  };
-  const words: string[] = [];
-  for (const tok of input.trim().split(/\s+/).filter(Boolean)) {
-    if (tok.length > 1 && tok.startsWith("#")) {
-      const p = findProject(tok.slice(1), projects);
-      if (p) {
-        out.projectId = p.id;
-        out.newProject = null;
-      } else {
-        out.projectId = null;
-        out.newProject = tok.slice(1).replace(/_/g, " ");
-      }
-      continue;
-    }
-    if (tok.length > 1 && tok.startsWith("!")) {
-      const a = findAction(tok.slice(1), actions);
-      if (a) {
-        out.actionId = a.id;
-        continue;
-      }
-    }
-    words.push(tok);
-  }
-  // A date only counts as the last word, so "di" or "do" inside a sentence
-  // stays text; it never eats the whole title.
-  if (words.length > 1) {
-    const d = parseDateWord(words[words.length - 1], today);
-    if (d) {
-      out.followUp = d;
-      words.pop();
-    }
-  }
-  out.title = words.join(" ");
-  return out;
-}
-
-// ---- Project suggestion for a task made from a mail ----
+// ---- Project suggestion for a card made from a mail ----
 
 const FREE_MAIL = new Set([
   "gmail.com", "googlemail.com", "hotmail.com", "hotmail.nl", "outlook.com",
@@ -356,7 +334,7 @@ export type ProjectSuggestion =
   | null;
 
 /** The project a mail from `address` most likely belongs to: the project
- *  of the latest task from the same domain, else a project named after the
+ *  of the latest card from the same domain, else a project named after the
  *  domain. Free-mail domains and your own domains give no suggestion. */
 export function suggestProject(
   address: string,
@@ -391,7 +369,7 @@ export function suggestProject(
   return { newName: base.charAt(0).toUpperCase() + base.slice(1) };
 }
 
-/** Palette offered for projects and actions. */
+/** Palette offered for projects, columns and cards. */
 export const COLORS = [
   "#0f6cbd", "#8764b8", "#ca5010", "#498205", "#c19c00",
   "#d13438", "#038387", "#5c2e91", "#69797e", "#e3008c",

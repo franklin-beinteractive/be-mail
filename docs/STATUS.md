@@ -3,7 +3,35 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-11-24. **Taken (todo-lijst), fase 1**: nieuwe
+**Laatst bijgewerkt:** 2026-11-25. **Taken als Trello-bord**: de
+takenlijst van gisteren is omgebouwd tot een bord per project. Kolommen
+(Te doen, Bezig, Wacht op klant, Klaar, ...) maak je zelf, met naam en kleur,
+en gelden voor alle projecten; een kolom met "Telt als afgerond" geeft kaarten
+een afrond-datum en haalt ze uit de opvolg-teller. Kaarten hebben titel,
+omschrijving, kleur, opvolgdatum, gekoppelde mail en bijlagen. Slepen: kaarten
+tussen en binnen kolommen, kaarten op een project links, kolomkoppen voor de
+volgorde. Tijdens het slepen schuiven kaarten opzij en groeien of krimpen
+kolommen in 200 ms (FLIP met WAAPI in `TodoView.tsx`; uit bij "minder
+beweging" in Windows); de placeholder krijgt de hoogte van de gesleepte
+kaart. Een nieuwe kaart opent na Enter meteen in de kaart-popup, met de
+cursor in de omschrijving. In Instellingen > Taken sleep je de kolommen aan
+hun greepje in een andere volgorde (geen pijlknoppen meer; met het toetsenbord:
+pijltoetsen op het greepje). Een kolom met kaarten (over alle projecten
+geteld) verwijder je alleen via een keuze waar die kaarten naartoe gaan
+(`DeleteColumnDialog`); `todo_delete_column` weigert zonder doelkolom, zodat er
+nooit kaarten zonder kolom achterblijven. Bijlagen: screenshot plakken met Ctrl+V in een open kaart, bestanden
+kiezen of op de kaart slepen; max. 25 MB per bestand, als BLOB in `todo.db`
+(tabel `attachment`). De eerste afbeelding komt als omslag op de kaart; een
+afbeelding opent in een lightbox, andere bestanden met de standaard-app
+(uitvoerbare bestanden alleen "Opslaan in Downloads"). Statussen, actie-labels,
+de lijsten Vandaag/Wachten/Alles open/Afgerond en de snelle invoer met
+`#project !actie` zijn vervallen; migratie 2 zet bestaande taken in de kolom
+die bij hun status hoort (actie-labels gaan verloren). "Taak maken" vanuit een
+mail kiest nu een kolom. Nagelopen in een browser met nepdata (slepen, plakken,
+licht/donker); in de draaiende Tauri-app nog niet - met name het uploaden via
+de ruwe IPC-body (`todo_add_attachment`) en openen met de standaard-app.
+
+**Eerder op 2026-11-24 - Taken (todo-lijst), fase 1**: nieuwe
 rail-sectie Taken als geheugensteun voor veel parallelle projecten. Lokaal in
 `%APPDATA%\BE-Mail\todo.db` (dev: `todo-dev.db`), Rust-module `todo.rs`,
 geen Graph. Model: project (naam, kleur, gearchiveerd), taak (titel,
