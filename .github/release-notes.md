@@ -1,4 +1,35 @@
-**New in 0.3.0**
+**New in 0.3.1**
+
+Tasks replace assignments: a board per project, right next to your mail.
+
+Tasks:
+
+- **A board per project.** Cards sit in columns you set up yourself, such
+  as To do, In progress, Waiting for client and Done, each with its own
+  name and colour. Drag cards between columns, within a column or onto
+  another project; drag a column header to change the order.
+- **Everything on the card.** A card holds a description, colour,
+  follow-up date, a link to the mail it came from and attachments. Paste
+  a screenshot with Ctrl+V or drop files on an open card; the first image
+  shows on the card itself.
+- **Tasks from mail.** Make task (or t) on an open message creates a card
+  that links back to that mail, with the project suggested from the
+  sender's domain.
+- **Follow-ups at a glance.** The red number on the Tasks button counts
+  the cards whose follow-up date has come.
+- **Assignments are gone.** The Assignments module and its button above
+  a message have been removed. Your old assignments data stays on disk
+  untouched.
+
+Mail:
+
+- **Tidier folder list.** Folder rows in the sidebar are more compact,
+  and the expand arrow no longer touches the edge of the highlight.
+
+Updated: Tauri 2.12.7 and DOMPurify 3.5.0 (cleans the HTML of incoming
+mail).
+
+**From 0.3.0**
 
 Mail now keeps a conversation together, wherever its parts are filed.
 

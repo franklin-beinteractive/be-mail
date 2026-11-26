@@ -1,7 +1,7 @@
 {
   "name": "be-mail",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "description": "Simpele, snelle en veilige e-mail- en agenda-client voor Office 365 (Microsoft Graph).",
   "scripts": {

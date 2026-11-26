@@ -3,7 +3,11 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-11-25. **Taken als Trello-bord**: de
+**Laatst bijgewerkt:** 2026-11-26. **Release 0.3.1**: takenbord, verwijderde
+opdrachten-module en compactere mappenlijst gaan mee in 0.3.1, plus Tauri
+2.12.7 en DOMPurify 3.5.0.
+
+**Eerder op 2026-11-25 - Taken als Trello-bord**: de
 takenlijst van gisteren is omgebouwd tot een bord per project. Kolommen
 (Te doen, Bezig, Wacht op klant, Klaar, ...) maak je zelf, met naam en kleur,
 en gelden voor alle projecten; een kolom met "Telt als afgerond" geeft kaarten
