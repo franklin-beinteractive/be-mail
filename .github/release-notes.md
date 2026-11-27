@@ -1,4 +1,29 @@
-**New in 0.3.1**
+**New in 0.3.2**
+
+Tasks remind you when they are due, and finished cards move to an archive.
+
+Tasks:
+
+- **Due cards stand out.** A card whose follow-up date has come gets a
+  red edge on the board, and a notice in the top right corner says how
+  many tasks need action today.
+- **Tasks for today.** Click the notice, or the red Today button above
+  the board, for a list of overdue and today's cards. Give each one a new
+  follow-up date with the same field as in the card (pick a date, Today,
+  Tomorrow or Next week) or finish it in one click.
+- **An archive for finished cards.** Cards that have been in a column
+  that counts as done for 2 days leave the board and go to Archive at the
+  bottom left. Archive in an open card puts a card there right away.
+- **Put back or delete for good.** In the archive you can put a card back
+  on the board, delete it, or empty the whole archive at once. Deleted
+  cards and their attachments are really gone from the task database.
+- **Add column at the top.** Add column is now a button next to the
+  filter and opens the column dialog with name, colour and Counts as
+  done.
+
+Updated: a few minor Rust and npm dependencies.
+
+**From 0.3.1**
 
 Tasks replace assignments: a board per project, right next to your mail.
 
