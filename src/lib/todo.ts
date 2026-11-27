@@ -49,6 +49,8 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
   doneAt: string | null;
+  /** Set when the card was archived by hand ("Archiveren"). */
+  archivedAt: string | null;
 }
 
 export interface TaskInput {
@@ -155,7 +157,7 @@ function patchTask(id: number, patch: TaskPatch): Promise<Task> {
 
 /** Card as input for saving, with some fields replaced. */
 export function withChanges(t: Task, patch: Partial<TaskInput>): TaskInput {
-  const { createdAt: _c, updatedAt: _u, doneAt: _d, ...rest } = t;
+  const { createdAt: _c, updatedAt: _u, doneAt: _d, archivedAt: _a, ...rest } = t;
   return { ...rest, ...patch };
 }
 
@@ -211,10 +213,31 @@ export function isImage(a: Attachment): boolean {
   return /^image\/(png|jpe?g|gif|webp|bmp)$/i.test(a.mime);
 }
 
+/** Releases the cached object URL of an attachment that no longer exists. */
+function forgetBlob(attachmentId: number) {
+  const url = blobUrls.get(attachmentId);
+  blobUrls.delete(attachmentId);
+  url?.then(URL.revokeObjectURL, () => {});
+}
+
+/** Deletes cards and releases the object URLs of their attachments, which
+ *  would otherwise keep the image bytes in memory for the whole session. */
+async function deleteTasks(ids: number[]): Promise<void> {
+  const gone = new Set(ids);
+  const attachments = (cache?.attachments ?? []).filter((a) => gone.has(a.taskId)).map((a) => a.id);
+  if (ids.length === 1) await mutate<void>("todo_delete_task", { id: ids[0] });
+  else await mutate<void>("todo_delete_tasks", { ids });
+  attachments.forEach(forgetBlob);
+}
+
 export const todoApi = {
   saveTask: (task: TaskInput) => mutate<Task>("todo_save_task", { task }),
   patchTask,
-  deleteTask: (id: number) => mutate<void>("todo_delete_task", { id }),
+  deleteTask: (id: number) => deleteTasks([id]),
+  /** Deletes several cards at once, all or none (emptying the archive). */
+  deleteTasks,
+  archiveTask: (id: number, archived: boolean) => mutate<Task>("todo_archive_task", { id, archived }),
+  restoreTask,
   saveProject: (project: Partial<Project> & { name: string }) =>
     mutate<Project>("todo_save_project", { project }),
   deleteProject: (id: number) => mutate<void>("todo_delete_project", { id }),
@@ -228,9 +251,7 @@ export const todoApi = {
   addAttachment,
   deleteAttachment: async (id: number) => {
     await mutate<void>("todo_delete_attachment", { id });
-    const url = blobUrls.get(id);
-    blobUrls.delete(id);
-    url?.then(URL.revokeObjectURL, () => {});
+    forgetBlob(id);
   },
   openAttachment: (id: number) => invoke<void>("todo_open_attachment", { id }),
   saveAttachment: (id: number) => invoke<string>("todo_save_attachment", { id }),
@@ -246,17 +267,56 @@ export function archivedProjectIds(data: TodoData | null): Set<number> {
   return new Set((data?.projects ?? []).filter((p) => p.archived).map((p) => p.id));
 }
 
-/** Unfinished cards outside archived projects whose follow-up day has come. */
-export function dueCount(data: TodoData | null, today: string): number {
+/** Days a card stays in a done column before it moves to the archive. */
+export const ARCHIVE_AFTER_DAYS = 2;
+
+/** Cards finished on or before this day (YYYY-MM-DD) are in the archive. */
+export function archiveCutoff(today: string): string {
+  const [y, m, d] = today.split("-").map(Number);
+  return isoDate(addDays(new Date(y, m - 1, d), -ARCHIVE_AFTER_DAYS));
+}
+
+/** Finished long enough ago: in a done column since `ARCHIVE_AFTER_DAYS`
+ *  days or more. Moving the card to another column clears its done date. */
+function doneLongAgo(task: Task, done: Set<number>, cutoff: string): boolean {
+  return done.has(task.columnId) && task.doneAt != null && task.doneAt.slice(0, 10) <= cutoff;
+}
+
+/** In the archive: archived by hand, or finished long enough ago. */
+export function isArchived(task: Task, done: Set<number>, cutoff: string): boolean {
+  return task.archivedAt != null || doneLongAgo(task, done, cutoff);
+}
+
+/** Back on the board: clears the hand-made archive mark, and a card that
+ *  would still be archived for being finished long ago moves to the first
+ *  column that does not count as done. Returns that column, if it moved. */
+async function restoreTask(task: Task, data: TodoData, today: string): Promise<Column | null> {
+  if (task.archivedAt != null) await todoApi.archiveTask(task.id, false);
+  if (!doneLongAgo(task, doneColumnIds(data), archiveCutoff(today))) return null;
+  const back = data.columns.find((c) => !c.done);
+  if (!back) return null;
+  await todoApi.patchTask(task.id, { columnId: back.id, sort: null });
+  return back;
+}
+
+/** Whether a card asks for action: unfinished and its follow-up day has come. */
+export function isDue(task: Task, today: string, done: Set<number>): boolean {
+  return !done.has(task.columnId) && task.followUp != null && task.followUp <= today;
+}
+
+/** Unfinished, unarchived cards outside archived projects whose follow-up day has come,
+ *  the oldest date first. */
+export function dueTasks(data: TodoData | null, today: string): Task[] {
   const archived = archivedProjectIds(data);
   const done = doneColumnIds(data);
-  return (data?.tasks ?? []).filter(
-    (x) =>
-      !done.has(x.columnId) &&
-      x.followUp != null &&
-      x.followUp <= today &&
-      (x.projectId == null || !archived.has(x.projectId))
-  ).length;
+  return (data?.tasks ?? [])
+    .filter(
+      (x) =>
+        isDue(x, today, done) &&
+        x.archivedAt == null &&
+        (x.projectId == null || !archived.has(x.projectId))
+    )
+    .sort((a, b) => a.followUp!.localeCompare(b.followUp!) || a.sort - b.sort || a.id - b.id);
 }
 
 /** Today as YYYY-MM-DD that moves on past midnight while the app stays open

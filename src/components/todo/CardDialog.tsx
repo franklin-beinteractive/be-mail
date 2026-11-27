@@ -4,9 +4,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "../../lib/ctx";
 import {
-  addDays,
+  archiveCutoff,
   COLORS,
+  doneColumnIds,
   formatSize,
+  isArchived,
   isImage,
   isoDate,
   MAX_ATTACHMENT_BYTES,
@@ -18,7 +20,8 @@ import {
   type TaskPatch,
   type TodoData,
 } from "../../lib/todo";
-import { CloseIcon, DownloadIcon, MailIcon, PaperclipIcon, TrashIcon } from "../Icons";
+import { ArchiveIcon, CloseIcon, DownloadIcon, MailIcon, PaperclipIcon, TrashIcon } from "../Icons";
+import FollowUpField from "./FollowUpField";
 
 /** "screenshot-2026-11-25-142233.png" for a pasted image without a real name. */
 function screenshotName(file: File): string {
@@ -48,12 +51,10 @@ export default function CardDialog({
   const { t, tip, notify, confirm, settings } = useApp();
   const [title, setTitle] = useState(card.title);
   const [note, setNote] = useState(card.note);
-  const [due, setDue] = useState(card.followUp ?? "");
   // Follow outside changes without losing what is being typed: only reset
   // when the stored value changes.
   useEffect(() => setTitle(card.title), [card.title]);
   useEffect(() => setNote(card.note), [card.note]);
-  useEffect(() => setDue(card.followUp ?? ""), [card.followUp]);
   const [uploading, setUploading] = useState(0);
   const [dropping, setDropping] = useState(false);
   const [lightbox, setLightbox] = useState<Attachment | null>(null);
@@ -123,6 +124,25 @@ export default function CardDialog({
     try {
       await todoApi.deleteTask(card.id);
       onClose();
+    } catch (e) {
+      notify(String(e), "error");
+    }
+  }
+
+  const archived = isArchived(card, doneColumnIds(data), archiveCutoff(today));
+
+  /** Into the archive and close; from the archive back onto the board. */
+  async function toggleArchive() {
+    commitText();
+    try {
+      if (archived) {
+        const moved = await todoApi.restoreTask(card, data, today);
+        notify(moved ? `${t("todoMovedTo")} ${moved.name}` : t("todoRestored"), "info");
+      } else {
+        await todoApi.archiveTask(card.id, true);
+        notify(t("todoArchivedCard"), "info");
+        onClose();
+      }
     } catch (e) {
       notify(String(e), "error");
     }
@@ -285,38 +305,7 @@ export default function CardDialog({
             />
           </label>
 
-          <div className="todo-field">
-            <span>{t("todoFollowUp")}</span>
-            <div className="todo-quick-dates">
-              <input
-                type="date"
-                value={due}
-                onChange={(e) => {
-                  // Typing a year passes through dates like 0002-11-25: save
-                  // only a plausible date right away, the rest on leaving.
-                  const v = e.target.value;
-                  setDue(v);
-                  if (v === "" || Number(v.slice(0, 4)) >= 2000) void save({ followUp: v || null });
-                }}
-                onBlur={() => due !== (card.followUp ?? "") && void save({ followUp: due || null })}
-                aria-label={t("todoFollowUp")}
-              />
-              <button className="btn small" onClick={() => void save({ followUp: today })}>
-                {t("todoToday")}
-              </button>
-              <button className="btn small" onClick={() => void save({ followUp: isoDate(addDays(new Date(), 1)) })}>
-                {t("todoTomorrow")}
-              </button>
-              <button className="btn small" onClick={() => void save({ followUp: isoDate(addDays(new Date(), 7)) })}>
-                {t("todoNextWeek")}
-              </button>
-              {card.followUp && (
-                <button className="btn ghost small" onClick={() => void save({ followUp: null })}>
-                  {t("todoClear")}
-                </button>
-              )}
-            </div>
-          </div>
+          <FollowUpField value={card.followUp} today={today} onChange={(followUp) => void save({ followUp })} />
 
           <div className="todo-field">
             <span>
@@ -387,6 +376,9 @@ export default function CardDialog({
         <footer className="dialog-foot">
           <button className="btn danger" onClick={() => void removeCard()}>
             <TrashIcon size={16} /> {t("todoDeleteCard")}
+          </button>
+          <button className="btn" onClick={() => void toggleArchive()} title={archived ? undefined : tip("todoArchiveCardHint")}>
+            <ArchiveIcon size={16} /> {archived ? t("todoRestore") : t("todoArchiveCard")}
           </button>
           <span className="spacer" />
           <button className="btn primary" onClick={close}>

@@ -59,10 +59,10 @@ export default function DeleteColumnDialog({
         </header>
         <div className="dialog-body">
           {count === 0 ? (
-            <p>{t("todoDeleteColumnConfirm").replace("{name}", column.name)}</p>
+            <p>{t("todoDeleteColumnConfirm").replace("{name}", () => column.name)}</p>
           ) : (
             <>
-              <p>{t("todoDeleteColumnHasCards").replace("{name}", column.name).replace("{cards}", cards)}</p>
+              <p>{t("todoDeleteColumnHasCards").replace("{name}", () => column.name).replace("{cards}", () => cards)}</p>
               <label className="row">
                 <span>{t("todoMoveCardsTo")}</span>
                 <select

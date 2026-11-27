@@ -7,8 +7,11 @@ import {
   addDays,
   archivedProjectIds,
   COLORS,
+  archiveCutoff,
   doneColumnIds,
   formatDay,
+  isArchived,
+  isDue,
   isImage,
   isoDate,
   todoApi,
@@ -21,18 +24,19 @@ import {
   type Project,
   type Task,
 } from "../../lib/todo";
-import { EditIcon, MailIcon, PaperclipIcon, PlusIcon, SearchIcon } from "../Icons";
+import { ArchiveIcon, ClockIcon, EditIcon, MailIcon, PaperclipIcon, PlusIcon, SearchIcon } from "../Icons";
 import CardDialog from "./CardDialog";
+import ArchiveList from "./ArchiveList";
 import ColumnDialog from "./ColumnDialog";
 import ProjectDialog from "./ProjectDialog";
 
-type BoardKey = "all" | "inbox" | `p${number}`;
+type BoardKey = "all" | "inbox" | "archive" | `p${number}`;
 const BOARD_STORE = "BE-Mail.todoBoard";
 
 /** The board shown last, if the stored value still looks like one. */
 function storedBoard(): BoardKey {
   const v = localStorage.getItem(BOARD_STORE) ?? "";
-  return /^(all|inbox|p\d+)$/.test(v) ? (v as BoardKey) : "all";
+  return /^(all|inbox|archive|p\d+)$/.test(v) ? (v as BoardKey) : "all";
 }
 
 /** What is being dragged right now. Kept outside React state: dragover
@@ -74,7 +78,21 @@ function sortBetween(prev?: Task, next?: Task): number {
   return 1;
 }
 
-export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => void }) {
+export default function TodoView({
+  onOpenMail,
+  dueCount,
+  onShowDue,
+  openTaskId,
+  onOpenTaskHandled,
+}: {
+  onOpenMail: (m: MailLink) => void;
+  /** Cards on every board whose follow-up day has come. */
+  dueCount: number;
+  onShowDue: () => void;
+  /** A card to open, picked in the "tasks for today" dialog. */
+  openTaskId: number | null;
+  onOpenTaskHandled: () => void;
+}) {
   const { t, tip, notify } = useApp();
   const data = useTodo();
   const today = useToday();
@@ -85,9 +103,15 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
   const [filter, setFilter] = useState("");
   const [showArchive, setShowArchive] = useState(false);
   const [projectDialog, setProjectDialog] = useState<Project | "new" | null>(null);
-  const [columnDialog, setColumnDialog] = useState<Column | null>(null);
+  const [columnDialog, setColumnDialog] = useState<Column | "new" | null>(null);
   const [addingIn, setAddingIn] = useState<number | null>(null);
-  const [addingColumn, setAddingColumn] = useState(false);
+
+  useEffect(() => {
+    if (openTaskId == null) return;
+    setOpenIsNew(false);
+    setOpenCardId(openTaskId);
+    onOpenTaskHandled();
+  }, [openTaskId, onOpenTaskHandled]);
 
   const drag = useRef<Drag | null>(null);
   const [draggingId, setDraggingId] = useState<number | null>(null);
@@ -169,6 +193,7 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
   }, [data, board, currentProject]);
 
   const doneCols = useMemo(() => doneColumnIds(data), [data]);
+  const cutoff = useMemo(() => archiveCutoff(today), [today]);
   const attachmentsByTask = useMemo(() => {
     const m = new Map<number, Attachment[]>();
     for (const a of data?.attachments ?? []) {
@@ -192,7 +217,7 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
     const archived = archivedProjectIds(data);
     const c: Record<string, number> = { all: 0, inbox: 0 };
     for (const task of data?.tasks ?? []) {
-      if (doneCols.has(task.columnId)) continue;
+      if (doneCols.has(task.columnId) || task.archivedAt != null) continue;
       if (task.projectId == null) c.inbox++;
       else c[`p${task.projectId}`] = (c[`p${task.projectId}`] ?? 0) + 1;
       if (task.projectId == null || !archived.has(task.projectId)) c.all++;
@@ -207,6 +232,7 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
     const archived = archivedProjectIds(data);
     const q = filter.trim().toLowerCase();
     for (const raw of data.tasks) {
+      if (isArchived(raw, doneCols, cutoff)) continue;
       const task = pending.has(raw.id) ? { ...raw, ...pending.get(raw.id) } : raw;
       const onBoard =
         board === "all"
@@ -222,7 +248,19 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
     }
     for (const list of m.values()) list.sort((a, b) => a.sort - b.sort || a.id - b.id);
     return m;
-  }, [data, board, filter, pending]);
+  }, [data, board, filter, pending, doneCols, cutoff]);
+
+  // The archive: finished cards from every project, the latest first.
+  const archiveCards = useMemo(
+    () =>
+      (data?.tasks ?? [])
+        .filter((x) => isArchived(x, doneCols, cutoff))
+        .sort(
+          (a, b) =>
+            (b.archivedAt ?? b.doneAt ?? "").localeCompare(a.archivedAt ?? a.doneAt ?? "") || b.id - a.id
+        ),
+    [data, doneCols, cutoff]
+  );
 
   const openCard = data?.tasks.find((x) => x.id === openCardId) ?? null;
 
@@ -234,7 +272,7 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
       if (document.querySelector(".overlay")) return;
       const el = document.activeElement as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
-      if (e.key === "n" && data?.columns[0]) {
+      if (e.key === "n" && data?.columns[0] && board !== "archive") {
         e.preventDefault();
         setAddingIn(data.columns[0].id);
       } else if (e.key === "/") {
@@ -266,14 +304,6 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
       setAddingIn(null);
       setOpenIsNew(true);
       setOpenCardId(saved.id);
-    } catch (e) {
-      notify(String(e), "error");
-    }
-  }
-
-  async function addColumn(name: string) {
-    try {
-      await todoApi.saveColumn({ name, color: COLORS[data!.columns.length % COLORS.length], done: false });
     } catch (e) {
       notify(String(e), "error");
     }
@@ -408,7 +438,13 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
   const openProjects = sortedProjects.filter((p) => !p.archived);
   const archived = sortedProjects.filter((p) => p.archived);
   const boardTitle =
-    board === "all" ? t("todoAllProjects") : board === "inbox" ? t("todoInbox") : currentProject?.name ?? "";
+    board === "all"
+      ? t("todoAllProjects")
+      : board === "inbox"
+        ? t("todoInbox")
+        : board === "archive"
+          ? t("todoCardArchive")
+          : currentProject?.name ?? "";
 
   // ---- Middle: the board ----
 
@@ -435,12 +471,21 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
         {archived.length > 0 && (
           <>
             <button className="btn ghost todo-archive-toggle" onClick={() => setShowArchive((v) => !v)}>
-              {showArchive ? "▾" : "▸"} {t("todoArchive")} ({archived.length})
+              {showArchive ? "▾" : "▸"} {t("todoArchivedProjects")} ({archived.length})
             </button>
             {showArchive && archived.map((p) => boardItem(`p${p.id}`, p.name, p.color, p))}
           </>
         )}
         <p className="muted small todo-hint todo-drag-hint">{t("todoDragToProject")}</p>
+        <div className={"folder todo-list-item todo-archive-item" + (board === "archive" ? " active" : "")}>
+          <button className="folder-main" onClick={() => setBoard("archive")} title={tip("todoCardArchiveHint")}>
+            <span className="todo-list-name">
+              <ArchiveIcon size={16} />
+              <span className="folder-name">{t("todoCardArchive")}</span>
+            </span>
+            {archiveCards.length > 0 && <span className="badge">{archiveCards.length}</span>}
+          </button>
+        </div>
       </aside>
 
       <section className="board-wrap">
@@ -461,6 +506,12 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
           )}
           {currentProject?.archived && <span className="todo-tag">({t("todoArchived")})</span>}
           <span className="spacer" />
+          {dueCount > 0 && (
+            <button className="btn board-due-btn" onClick={onShowDue} title={tip("todoDueButton")}>
+              <ClockIcon size={16} /> {t("todoToday")}
+              <span className="board-due-count">{dueCount}</span>
+            </button>
+          )}
           <label className="board-search">
             <SearchIcon size={16} />
             <input
@@ -476,8 +527,25 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
               aria-label={t("todoFilter")}
             />
           </label>
+          {board !== "archive" && (
+            <button className="btn" onClick={() => setColumnDialog("new")}>
+              <PlusIcon size={16} /> {t("todoAddColumn")}
+            </button>
+          )}
         </header>
 
+        {board === "archive" ? (
+          <ArchiveList
+            cards={archiveCards}
+            filter={filter}
+            data={data}
+            today={today}
+            onOpen={(id) => {
+              setOpenIsNew(false);
+              setOpenCardId(id);
+            }}
+          />
+        ) : (
         <div className="board" ref={boardRef}>
           {data.columns.map((col) => {
             const cards = cardsByColumn.get(col.id) ?? [];
@@ -567,6 +635,7 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
                       <Card
                         card={card}
                         done={doneCols.has(card.columnId)}
+                        due={isDue(card, today, doneCols)}
                         project={
                           board === "all" && card.projectId != null
                             ? projectsById.get(card.projectId)
@@ -618,21 +687,8 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
               </div>
             );
           })}
-
-          <div className="board-col board-col-new">
-            {addingColumn ? (
-              <InlineAdd
-                placeholder={t("todoColumnName")}
-                onAdd={(name) => void addColumn(name)}
-                onClose={() => setAddingColumn(false)}
-              />
-            ) : (
-              <button className="board-add" onClick={() => setAddingColumn(true)}>
-                <PlusIcon size={16} /> {t("todoAddColumn")}
-              </button>
-            )}
-          </div>
         </div>
+        )}
       </section>
 
       {openCard && (
@@ -652,7 +708,8 @@ export default function TodoView({ onOpenMail }: { onOpenMail: (m: MailLink) => 
 
       {columnDialog && (
         <ColumnDialog
-          column={columnDialog}
+          column={columnDialog === "new" ? null : columnDialog}
+          defaultColor={COLORS[data.columns.length % COLORS.length]}
           last={data.columns.length <= 1}
           onClose={() => setColumnDialog(null)}
         />
@@ -751,6 +808,7 @@ export function DateLabel({ date, today, done }: { date: string; today: string; 
 function Card({
   card,
   done,
+  due,
   project,
   attachments,
   today,
@@ -762,6 +820,8 @@ function Card({
 }: {
   card: Task;
   done: boolean;
+  /** Its follow-up day has come: marked in red. */
+  due: boolean;
   project?: Project;
   attachments: Attachment[];
   today: string;
@@ -776,7 +836,7 @@ function Card({
   const coverUrl = useAttachmentUrl(cover);
   return (
     <div
-      className={"board-card" + (dragging ? " dragging" : "") + (done ? " done" : "")}
+      className={"board-card" + (dragging ? " dragging" : "") + (done ? " done" : "") + (due ? " due" : "")}
       data-card={card.id}
       role="button"
       tabIndex={0}

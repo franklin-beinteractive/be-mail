@@ -96,7 +96,6 @@
 }
 .board-col.drop-before::before { left: -9px; }
 .board-col.drop-after::after { right: -9px; }
-.board-col-new { background: transparent; border: 1px dashed var(--border); padding: 6px; }
 .board-col-head {
   display: flex;
   align-items: center;
@@ -194,9 +193,7 @@
   text-align: left;
 }
 .board-add:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
-.board-col-new .board-add { margin: 0; width: 100%; }
 .board-inline-add { padding: 4px 8px 8px; display: flex; flex-direction: column; gap: 6px; }
-.board-col-new .board-inline-add { padding: 0; }
 .board-inline-add textarea { resize: none; }
 .board-inline-actions { display: flex; gap: 6px; }
 
@@ -383,3 +380,140 @@
   .board-search input { width: 150px; }
   .card-dialog-grid { grid-template-columns: 1fr; }
 }
+
+/* Cards whose follow-up day has come: a red edge on the board, a button in
+   the board header, a notice in the top right corner of the window and the
+   "tasks for today" dialog. */
+.board-card.due,
+.board-card.due:hover {
+  border-color: var(--danger);
+  box-shadow: inset 4px 0 0 var(--danger), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.board-card.due .todo-date { color: var(--danger); font-weight: 600; }
+
+.board-due-btn { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); }
+.board-due-count {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.due-notice {
+  position: fixed;
+  /* Below the header bars, so their buttons stay reachable. */
+  top: 64px;
+  right: 14px;
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: min(360px, calc(100vw - 28px));
+  padding: 6px 6px 6px 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--danger);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  animation: due-notice-in 220ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@keyframes due-notice-in {
+  from { opacity: 0; transform: translateY(-8px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .due-notice { animation: none; }
+}
+.due-notice-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.due-notice-main:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.due-notice-icon { color: var(--danger); display: inline-flex; }
+.due-notice-text { display: flex; flex-direction: column; gap: 2px; }
+
+.due-dialog { width: 640px; }
+.due-group + .due-group { margin-top: 16px; }
+.due-group h3 { margin: 0 0 8px; font-size: 0.95rem; }
+.due-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.due-row {
+  padding: 4px 8px 10px 0;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--danger);
+  border-radius: 8px;
+  transition: opacity 150ms ease-out, border-color 150ms ease-out;
+}
+/* Given a new date or finished while the dialog is open: stays until it closes. */
+.due-row.handled { border-left-color: var(--border); }
+.due-row.handled .due-row-main { opacity: 0.6; }
+.due-row-top { display: flex; align-items: center; gap: 8px; }
+.due-row-date { padding-left: 10px; }
+.due-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 10px;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.due-row-main:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.due-row-title { font-weight: 600; overflow-wrap: anywhere; }
+.due-row:not(.handled) .todo-date { color: var(--danger); font-weight: 600; }
+.due-row-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* The card archive: an item at the bottom left and a list in place of the board. */
+.todo-archive-item { margin-top: 8px; }
+.todo-archive-item .folder-main { color: inherit; font: inherit; text-align: left; }
+.archive { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 18px; }
+.archive-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 12px; max-width: 900px; }
+.archive-intro { margin: 0; flex: 1; max-width: 70ch; }
+.archive-empty { margin: 24px 0; }
+.archive-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-width: 900px; }
+.archive-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 0;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.archive-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 12px;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.archive-row-main:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.archive-row-title { font-weight: 600; overflow-wrap: anywhere; }
+.archive-row-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.archive-delete:hover { color: var(--danger); }

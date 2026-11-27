@@ -3,9 +3,65 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-11-26. **Release 0.3.1**: takenbord, verwijderde
+**Laatst bijgewerkt:** 2026-11-27 - **Security- en optimalisatiecheck** op
+alles na 0.3.1, gevonden punten meteen opgelost: na het verwijderen van
+kaarten of bijlagen draait `PRAGMA wal_checkpoint(TRUNCATE)` (`purge_wal`),
+zodat oude kopieën ook uit `todo.db-wal` verdwijnen; teksten met
+gebruikersdata (`{title}`, `{name}`, `{col}`) gaan via een replacer-functie,
+anders verminkt een `$&` in een titel de melding; blob-URL's van bijlagen van
+verwijderde kaarten worden vrijgegeven; stabiele callback voor
+`onOpenTaskHandled`.
+
+**Eerder op 2026-11-27 - Archiveren en archief legen** (na
+0.3.1): knop **Archiveren** in de open kaart zet een kaart meteen in het
+archief (in een gearchiveerde kaart heet die knop **Terugzetten**).
+Daarvoor kreeg `todo.db` **migratie 3**: `ALTER TABLE task ADD COLUMN
+archived_at TEXT` (alleen een nieuwe lege kolom, bestaande kaarten blijven
+ongemoeid). Nieuwe Rust-commando's `todo_archive_task(id, archived)` en
+`todo_delete_tasks(ids)` (in één transactie); `save_task` raakt
+`archived_at` niet. `isArchived()` = handmatig gearchiveerd óf 2 dagen
+afgerond; `restoreTask()` wist de markering en verplaatst een kaart alleen
+als hij anders door zijn oude afrond-datum in het archief zou blijven.
+Gearchiveerde kaarten tellen niet mee in de tellers en de vandaag-melding.
+In het archief: **Archief legen** (met bevestiging met het aantal) verwijdert
+alle gearchiveerde kaarten, ook die door het filter verborgen zijn.
+
+**Eerder op 2026-11-27 - Kaartenarchief** (na 0.3.1): een kaart
+die 2 kalenderdagen in een kolom met "Telt als afgerond" staat (gemeten aan
+zijn `done_at`), verdwijnt van het bord en staat in **Archief** linksonder in
+Taken (met icoon en teller). Daar: kaart openen, **Terugzetten** (naar de
+eerste niet-afgerond-kolom, wat `done_at` wist) of definitief verwijderen
+(prullenbak + bevestiging; bijlagen gaan mee via ON DELETE CASCADE, en
+`todo.db` draait nu met `PRAGMA secure_delete = ON`, zodat de bytes ook uit
+het bestand verdwijnen). Het archief is berekend, geen nieuwe kolom of
+migratie: `isArchived()`/`archiveCutoff()` in `src/lib/todo.ts`, lijst in
+`src/components/todo/ArchiveList.tsx`. Het oude uitklapknopje voor
+gearchiveerde *projecten* heet nu "Gearchiveerde projecten", om verwarring met
+het kaartenarchief te voorkomen.
+
+**Eerder op 2026-11-27 - Opvolgdatum vraagt aandacht** (na
+0.3.1): een kaart waarvan de opvolgdatum is bereikt (en die niet in een
+"Telt als afgerond"-kolom staat) krijgt een rode rand en rode datum op het
+bord. Rechtsboven in het venster verschijnt een melding "N taken vragen
+vandaag actie"; een klik opent de popup "Taken voor vandaag" (gegroepeerd in
+Te laat / Vandaag) met per kaart Openen, Afronden (naar de eerste
+afgerond-kolom) en hetzelfde Opvolgen-veld als in de open kaart (datumveld +
+Vandaag / Morgen / Volgende week / Wissen; gedeeld component
+`FollowUpField.tsx`). Een kaart die je in de popup afhandelt, wordt grijs en
+blijft staan tot de popup sluit, zodat hij niet verdwijnt halverwege het
+typen van een datum. Sluit je de melding, dan komt hij
+pas terug als er een nieuwe kaart vervalt of de volgende dag. In de bordkop
+opent de rode knop "Vandaag N" dezelfde popup. Kaarten springen niet
+automatisch naar boven in hun kolom: dat zou de handmatige volgorde
+(slepen) overschrijven. Code: `src/components/todo/DueTasks.tsx`,
+`dueTasks()`/`isDue()` in `src/lib/todo.ts`.
+
+**2026-11-26 - Release 0.3.1**: takenbord, verwijderde
 opdrachten-module en compactere mappenlijst gaan mee in 0.3.1, plus Tauri
-2.12.7 en DOMPurify 3.5.0.
+2.12.7 en DOMPurify 3.5.0. Daarna (na 0.3.1): "Kolom toevoegen" is een knop
+in de bordkop naast het filter geworden en opent de kolomdialoog (naam, kleur,
+"Telt als afgerond"); de gestippelde lege kolom rechts op het bord is weg,
+dus geen horizontale scrollbalk meer alleen daardoor.
 
 **Eerder op 2026-11-25 - Taken als Trello-bord**: de
 takenlijst van gisteren is omgebouwd tot een bord per project. Kolommen

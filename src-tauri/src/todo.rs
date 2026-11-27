@@ -132,6 +132,11 @@ const MIGRATIONS: &[&str] = &[
     );
     CREATE INDEX idx_attachment_task ON attachment(task_id);
 "#,
+    // Cards put in the archive by hand. Cards in a done column also go there
+    // by themselves after a few days; the frontend works that out from done_at.
+    r#"
+    ALTER TABLE task ADD COLUMN archived_at TEXT;
+"#,
 ];
 
 /// Largest attachment accepted, in bytes.
@@ -226,6 +231,8 @@ pub struct Task {
     pub created_at: String,
     pub updated_at: String,
     pub done_at: Option<String>,
+    /// Set when the card was archived by hand.
+    pub archived_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -291,6 +298,9 @@ fn db() -> anyhow::Result<MutexGuard<'static, Connection>> {
 
 fn init_conn(conn: &Connection) -> rusqlite::Result<()> {
     conn.pragma_update(None, "journal_mode", "WAL")?;
+    // Deleting a card from the archive means it is gone: overwrite the freed
+    // pages (card text, attachment bytes) instead of leaving them in the file.
+    conn.pragma_update(None, "secure_delete", "ON")?;
     // Rebuilding a table is only safe with foreign keys off, and the pragma
     // is ignored inside a transaction, so switch it off around the whole
     // migration run. `migrate` checks the constraints itself before each
@@ -380,6 +390,7 @@ fn map_task(r: &Row) -> rusqlite::Result<Task> {
         created_at: r.get("created_at")?,
         updated_at: r.get("updated_at")?,
         done_at: r.get("done_at")?,
+        archived_at: r.get("archived_at")?,
     })
 }
 
@@ -708,6 +719,50 @@ fn save_task(conn: &Connection, t: &TaskInput) -> Result<Task, String> {
         .map_err(err)
 }
 
+/// Puts a card in the archive by hand, or takes it out again. Archiving a
+/// card that is already archived keeps the original moment.
+fn archive_task(conn: &Connection, id: i64, archived: bool) -> Result<Task, String> {
+    let changed = if archived {
+        conn.execute(
+            "UPDATE task SET archived_at = COALESCE(archived_at, ?1), updated_at = ?1 WHERE id = ?2",
+            params![now(), id],
+        )
+    } else {
+        conn.execute(
+            "UPDATE task SET archived_at = NULL, updated_at = ?1 WHERE id = ?2",
+            params![now(), id],
+        )
+    }
+    .map_err(err)?;
+    if changed == 0 {
+        return Err("Deze taak bestaat niet meer.".into());
+    }
+    conn.query_row("SELECT * FROM task WHERE id = ?1", [id], map_task)
+        .map_err(err)
+}
+
+/// After deleting cards or attachments: secure_delete zeroes the freed pages
+/// in the database, but in WAL mode older copies of those pages can still sit
+/// in `todo.db-wal` until it is overwritten. A TRUNCATE checkpoint writes
+/// the log back and empties the file, so deleted data is really gone. A busy
+/// checkpoint only delays that, so it never fails the delete itself.
+fn purge_wal(conn: &Connection) {
+    let _ = conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()));
+}
+
+/// Deletes several cards at once (emptying the archive), all or none.
+/// Their attachments go with them (ON DELETE CASCADE).
+fn delete_tasks(conn: &mut Connection, ids: &[i64]) -> Result<(), String> {
+    let tx = conn.transaction().map_err(err)?;
+    {
+        let mut stmt = tx.prepare("DELETE FROM task WHERE id = ?1").map_err(err)?;
+        for id in ids {
+            stmt.execute([id]).map_err(err)?;
+        }
+    }
+    tx.commit().map_err(err)
+}
+
 fn reorder(conn: &mut Connection, kind: &str, ids: &[i64]) -> Result<(), String> {
     // Whitelist: the table name ends up in the SQL text.
     let table = match kind {
@@ -871,7 +926,23 @@ pub fn todo_save_task(task: TaskInput) -> Result<Task, String> {
 /// Deletes a task; its attachments go with it (ON DELETE CASCADE).
 #[tauri::command]
 pub fn todo_delete_task(id: i64) -> Result<(), String> {
-    delete(&*open()?, "task", id)
+    let conn = open()?;
+    delete(&conn, "task", id)?;
+    purge_wal(&conn);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn todo_delete_tasks(ids: Vec<i64>) -> Result<(), String> {
+    let mut conn = open()?;
+    delete_tasks(&mut conn, &ids)?;
+    purge_wal(&conn);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn todo_archive_task(id: i64, archived: bool) -> Result<Task, String> {
+    archive_task(&*open()?, id, archived)
 }
 
 /// Stores an attachment. The body is the raw file (no JSON round trip for
@@ -938,7 +1009,10 @@ pub fn todo_save_attachment(id: i64) -> Result<String, String> {
 
 #[tauri::command]
 pub fn todo_delete_attachment(id: i64) -> Result<(), String> {
-    delete(&*open()?, "attachment", id)
+    let conn = open()?;
+    delete(&conn, "attachment", id)?;
+    purge_wal(&conn);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1258,6 +1332,38 @@ mod tests {
         let t = save_task(&conn, &input).unwrap();
         assert_eq!(t.mail, input.mail);
         assert!(save_task(&conn, &task("zonder mail")).unwrap().mail.is_none());
+    }
+
+    #[test]
+    fn archive_by_hand_and_back() {
+        let conn = mem();
+        let t = save_task(&conn, &task("Kaart")).unwrap();
+        assert_eq!(t.archived_at, None);
+        let a = archive_task(&conn, t.id, true).unwrap();
+        let first = a.archived_at.clone().expect("archived");
+        // Archiving again keeps the first moment.
+        let again = archive_task(&conn, t.id, true).unwrap();
+        assert_eq!(again.archived_at.as_deref(), Some(first.as_str()));
+        // A normal save (patchTask) leaves the archive mark alone.
+        let saved = save_task(&conn, &update(&again)).unwrap();
+        assert_eq!(saved.archived_at.as_deref(), Some(first.as_str()));
+        let back = archive_task(&conn, t.id, false).unwrap();
+        assert_eq!(back.archived_at, None);
+        assert!(archive_task(&conn, 9999, true).is_err());
+    }
+
+    #[test]
+    fn deleting_several_tasks_takes_their_attachments() {
+        let mut conn = mem();
+        let a = save_task(&conn, &task("A")).unwrap();
+        let b = save_task(&conn, &task("B")).unwrap();
+        let c = save_task(&conn, &task("C")).unwrap();
+        add_attachment(&conn, a.id, "a.txt", "text/plain", b"hallo").unwrap();
+        delete_tasks(&mut conn, &[a.id, b.id]).unwrap();
+        purge_wal(&conn);
+        let data = load(&conn).unwrap();
+        assert_eq!(data.tasks.iter().map(|t| t.id).collect::<Vec<_>>(), vec![c.id]);
+        assert!(data.attachments.is_empty());
     }
 
     #[test]

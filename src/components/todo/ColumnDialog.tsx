@@ -1,4 +1,4 @@
-// Edit a board column: name, colour and whether its cards count as done.
+// Create or edit a board column: name, colour and whether its cards count as done.
 // Deleting goes through DeleteColumnDialog, which asks where its cards go.
 import { useState } from "react";
 import { useApp } from "../../lib/ctx";
@@ -8,31 +8,35 @@ import DeleteColumnDialog from "./DeleteColumnDialog";
 
 export default function ColumnDialog({
   column,
+  defaultColor,
   last,
   onClose,
 }: {
-  column: Column;
+  /** null: a new column. */
+  column: Column | null;
+  /** Colour a new column starts with. */
+  defaultColor?: string;
   /** The only column left: it cannot be deleted. */
   last: boolean;
   onClose: () => void;
 }) {
   const { t, notify } = useApp();
   const [deleting, setDeleting] = useState(false);
-  const [name, setName] = useState(column.name);
-  const [color, setColor] = useState(column.color || COLORS[0]);
-  const [done, setDone] = useState(column.done);
+  const [name, setName] = useState(column?.name ?? "");
+  const [color, setColor] = useState(column?.color || defaultColor || COLORS[0]);
+  const [done, setDone] = useState(column?.done ?? false);
 
   async function save() {
     if (!name.trim()) return;
     try {
-      await todoApi.saveColumn({ id: column.id, name, color, done });
+      await todoApi.saveColumn({ id: column?.id, name, color, done });
       onClose();
     } catch (e) {
       notify(String(e), "error");
     }
   }
 
-  if (deleting) {
+  if (deleting && column) {
     return <DeleteColumnDialog column={column} onCancel={() => setDeleting(false)} onDeleted={onClose} />;
   }
 
@@ -45,7 +49,7 @@ export default function ColumnDialog({
     >
       <div className="dialog todo-dialog">
         <header className="dialog-head">
-          <h2>{t("todoEditColumn")}</h2>
+          <h2>{column ? t("todoEditColumn") : t("todoAddColumn")}</h2>
           <button className="icon-btn" onClick={onClose} aria-label={t("cancel")}>
             <CloseIcon size={18} />
           </button>
@@ -82,14 +86,16 @@ export default function ColumnDialog({
           <p className="muted small todo-dialog-note">{t("todoColumnDoneHint")}</p>
         </div>
         <footer className="dialog-foot">
-          <button
-            className="btn danger"
-            onClick={() => setDeleting(true)}
-            disabled={last}
-            title={last ? t("todoLastColumn") : undefined}
-          >
-            {t("delete")}
-          </button>
+          {column && (
+            <button
+              className="btn danger"
+              onClick={() => setDeleting(true)}
+              disabled={last}
+              title={last ? t("todoLastColumn") : undefined}
+            >
+              {t("delete")}
+            </button>
+          )}
           <span className="spacer" />
           <button className="btn" onClick={onClose}>
             {t("cancel")}

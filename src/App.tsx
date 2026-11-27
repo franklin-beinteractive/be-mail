@@ -29,7 +29,8 @@ import {
   SettingsIcon,
   TodoIcon,
 } from "./components/Icons";
-import { dueCount, useToday, useTodo, type MailLink } from "./lib/todo";
+import { dueTasks, useToday, useTodo, type MailLink } from "./lib/todo";
+import { DueDialog, DueNotice, useDueNotice } from "./components/todo/DueTasks";
 
 type Phase = "loading" | "setup" | "login" | "app";
 type Section = "mail" | "calendar" | "todo" | "settings" | "help";
@@ -47,10 +48,22 @@ export default function App() {
   const [toast, setToast] = useState<{ msg: string; kind: "info" | "error" } | null>(null);
   // A mail opened from a task; MailView opens it once it has mounted.
   const [mailToOpen, setMailToOpen] = useState<MailLink | null>(null);
-  // Rail badge: open tasks whose follow-up day has come.
+  // Open tasks whose follow-up day has come: the rail badge, the notice in
+  // the top right corner and the "tasks for today" dialog.
   const todo = useTodo();
   const today = useToday();
-  const todoDue = useMemo(() => dueCount(todo, today), [todo, today]);
+  const due = useMemo(() => dueTasks(todo, today), [todo, today]);
+  const todoDue = due.length;
+  const dueNotice = useDueNotice(due, today);
+  const [dueOpen, setDueOpen] = useState(false);
+  // A card opened from that dialog; TodoView opens it once it has mounted.
+  const [taskToOpen, setTaskToOpen] = useState<number | null>(null);
+  // Stable, so TodoView's effect on it does not run again on every render.
+  const taskOpened = useCallback(() => setTaskToOpen(null), []);
+  function showDue() {
+    dueNotice.markSeen();
+    setDueOpen(true);
+  }
 
   const t = translator(settings.lang);
   // Voor title-attributen: geen tooltip als de gebruiker ze uitzet.
@@ -272,6 +285,10 @@ export default function App() {
                     setMailToOpen(m);
                     setSection("mail");
                   }}
+                  dueCount={todoDue}
+                  onShowDue={showDue}
+                  openTaskId={taskToOpen}
+                  onOpenTaskHandled={taskOpened}
                 />
               )}
               {section === "help" && <HelpView />}
@@ -285,6 +302,24 @@ export default function App() {
               )}
             </main>
           </div>
+        )}
+
+        {phase === "app" && dueNotice.show && !dueOpen && (
+          <DueNotice count={todoDue} onShow={showDue} onDismiss={dueNotice.markSeen} />
+        )}
+
+        {phase === "app" && dueOpen && todo && (
+          <DueDialog
+            tasks={due}
+            data={todo}
+            today={today}
+            onOpenTask={(id) => {
+              setDueOpen(false);
+              setTaskToOpen(id);
+              setSection("todo");
+            }}
+            onClose={() => setDueOpen(false)}
+          />
         )}
 
         {confirmReq && (

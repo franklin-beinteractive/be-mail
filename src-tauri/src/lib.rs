@@ -107,6 +107,8 @@ pub fn run() {
             todo::todo_reorder,
             todo::todo_save_task,
             todo::todo_delete_task,
+            todo::todo_delete_tasks,
+            todo::todo_archive_task,
             todo::todo_add_attachment,
             todo::todo_attachment_data,
             todo::todo_open_attachment,
