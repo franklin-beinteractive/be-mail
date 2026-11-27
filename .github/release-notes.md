@@ -1,4 +1,29 @@
-**New in 0.3.2**
+**New in 0.3.3**
+
+The task board fits more columns and lets you file new cards straight
+into a project.
+
+Tasks:
+
+- **Six columns side by side.** Columns get narrower as you add more, so
+  six always fit without scrolling. From the seventh column on, a
+  scrollbar appears below the board.
+- **Scroll with the mouse wheel held down.** Hold the mouse wheel down
+  and move the mouse left or right to scroll a wide board sideways.
+- **Pick the project first.** Add card now starts with a project picker,
+  with the title below it. On a project board that project is already
+  selected.
+- **Cards take the project colour.** A new card, also one made from a
+  mail, gets the colour of its project. Change it in the card to set
+  your own; moving a card to another project only changes a colour you
+  did not pick yourself.
+- **Dates on the right.** The follow-up date on a card always sits at
+  the right edge, and long project names end neatly instead of being
+  cut off.
+
+Updated: a minor Rust dependency.
+
+**From 0.3.2**
 
 Tasks remind you when they are due, and finished cards move to an archive.
 
