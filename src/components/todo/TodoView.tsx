@@ -8,6 +8,7 @@ import {
   archivedProjectIds,
   COLORS,
   archiveCutoff,
+  colorForProject,
   doneColumnIds,
   formatDay,
   isArchived,
@@ -288,16 +289,19 @@ export default function TodoView({
 
   // ---- Actions ----
 
-  async function addCard(columnId: number, title: string) {
+  async function addCard(columnId: number, title: string, projectId: number | null) {
     const list = cardsByColumn.get(columnId) ?? [];
+    const project = projectId != null ? projectsById.get(projectId) : undefined;
     try {
       // New work in an archived project makes it active again; otherwise
       // the card would only be visible inside the archive.
-      if (currentProject?.archived) await todoApi.saveProject({ ...currentProject, archived: false });
+      if (project?.archived) await todoApi.saveProject({ ...project, archived: false });
       const saved = await todoApi.saveTask({
         title,
-        projectId: currentProject?.id ?? null,
+        projectId: project?.id ?? null,
         columnId,
+        // The project colour, until a colour is picked in the card itself.
+        color: project?.color ?? "",
         sort: sortBetween(list[list.length - 1], undefined),
       });
       // Straight on to the details: description, attachments, date.
@@ -329,7 +333,7 @@ export default function TodoView({
     void (async () => {
       try {
         if (target?.archived) await todoApi.saveProject({ ...target, archived: false });
-        await todoApi.patchTask(id, { projectId });
+        await todoApi.patchTask(id, (cur) => ({ projectId, color: colorForProject(data, cur, projectId) }));
         notify(`${t("todoMovedTo")} ${target?.name ?? t("todoInbox")}`, "info");
       } catch (e) {
         notify(String(e), "error");
@@ -356,6 +360,35 @@ export default function TodoView({
     setDropSpot(null);
     setColumnDrop(null);
     setProjectDrop(null);
+  }
+
+  /** Holding the mouse wheel down on a board wider than the window and moving
+   *  the mouse left or right scrolls the columns, like dragging the scrollbar:
+   *  a move across the visible board scrolls past every column. */
+  function startPan(e: React.MouseEvent<HTMLDivElement>) {
+    if (e.button !== 1) return;
+    const el = e.currentTarget;
+    if (el.scrollWidth <= el.clientWidth) return;
+    // No Windows auto-scroll circle and no middle-click paste.
+    e.preventDefault();
+    const startX = e.clientX;
+    const startLeft = el.scrollLeft;
+    const ratio = el.scrollWidth / el.clientWidth;
+    document.body.classList.add("board-panning");
+    const move = (ev: MouseEvent) => {
+      // Released outside the window: no mouseup arrives here.
+      if (!(ev.buttons & 4)) return end();
+      el.scrollLeft = startLeft + (ev.clientX - startX) * ratio;
+    };
+    const end = () => {
+      document.body.classList.remove("board-panning");
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", end);
+      window.removeEventListener("blur", end);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", end);
+    window.addEventListener("blur", end);
   }
 
   /** Insertion index from the pointer position over a column's card list. */
@@ -437,6 +470,8 @@ export default function TodoView({
 
   const openProjects = sortedProjects.filter((p) => !p.archived);
   const archived = sortedProjects.filter((p) => p.archived);
+  // Projects a new card can go to: the open ones, and the board shown now.
+  const addProjects = sortedProjects.filter((p) => !p.archived || p.id === currentProject?.id);
   const boardTitle =
     board === "all"
       ? t("todoAllProjects")
@@ -546,7 +581,7 @@ export default function TodoView({
             }}
           />
         ) : (
-        <div className="board" ref={boardRef}>
+        <div className="board" ref={boardRef} onMouseDown={startPan}>
           {data.columns.map((col) => {
             const cards = cardsByColumn.get(col.id) ?? [];
             const spot = dropSpot?.columnId === col.id ? dropSpot.index : -1;
@@ -673,10 +708,10 @@ export default function TodoView({
                 </div>
 
                 {addingIn === col.id ? (
-                  <InlineAdd
-                    placeholder={t("todoCardTitle")}
-                    multiline
-                    onAdd={(title) => void addCard(col.id, title)}
+                  <CardAdd
+                    projects={addProjects}
+                    defaultProjectId={currentProject?.id ?? null}
+                    onAdd={(title, projectId) => void addCard(col.id, title, projectId)}
                     onClose={() => setAddingIn(null)}
                   />
                 ) : (
@@ -733,50 +768,79 @@ export default function TodoView({
   );
 }
 
-/** Text field that adds an item on Enter and stays open for the next one. */
-function InlineAdd({
-  placeholder,
-  multiline,
+/** A new card: the project first, the title below it. Adds on Enter and
+ *  stays open for the next card, in the same project. */
+function CardAdd({
+  projects,
+  defaultProjectId,
   onAdd,
   onClose,
 }: {
-  placeholder: string;
-  multiline?: boolean;
-  onAdd: (text: string) => void;
+  projects: Project[];
+  defaultProjectId: number | null;
+  onAdd: (title: string, projectId: number | null) => void;
   onClose: () => void;
 }) {
   const { t } = useApp();
   const [text, setText] = useState("");
-  const ref = useRef<HTMLTextAreaElement & HTMLInputElement>(null);
+  const [projectId, setProjectId] = useState<number | null>(defaultProjectId);
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const project = projects.find((p) => p.id === projectId);
   function submit() {
     const v = text.trim();
     if (!v) return;
-    onAdd(v);
+    onAdd(v, project?.id ?? null);
     setText("");
     ref.current?.focus();
   }
-  const props = {
-    ref,
-    autoFocus: true,
-    value: text,
-    placeholder,
-    "aria-label": placeholder,
-    onChange: (e: React.ChangeEvent<HTMLTextAreaElement & HTMLInputElement>) => setText(e.target.value),
-    onKeyDown: (e: React.KeyboardEvent) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        submit();
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      }
-    },
-    // Clicking elsewhere closes an empty field, but keeps typed text.
-    onBlur: () => !text.trim() && onClose(),
-  };
   return (
-    <div className="board-inline-add">
-      {multiline ? <textarea rows={3} {...props} /> : <input {...props} />}
+    <div
+      className="board-inline-add"
+      // Clicking outside closes an empty field, but keeps typed text. Moving
+      // between the project and the title stays inside.
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node) && !text.trim()) onClose();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+    >
+      <span className="board-inline-project">
+        <span className="todo-dot" style={{ background: project?.color || "var(--text-muted)" }} />
+        <select
+          value={project?.id ?? ""}
+          onChange={(e) => {
+            setProjectId(e.target.value ? Number(e.target.value) : null);
+            ref.current?.focus();
+          }}
+          aria-label={t("todoProject")}
+        >
+          <option value="">{t("todoNoProject")}</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </span>
+      <textarea
+        ref={ref}
+        rows={3}
+        autoFocus
+        value={text}
+        placeholder={t("todoCardTitle")}
+        aria-label={t("todoCardTitle")}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            submit();
+          }
+        }}
+      />
       <div className="board-inline-actions">
         <button className="btn primary small" onMouseDown={(e) => e.preventDefault()} onClick={submit}>
           {t("add")}
@@ -859,29 +923,34 @@ function Card({
         {(project || card.followUp || attachments.length > 0 || card.mail) && (
           <div className="board-card-foot">
             {project && (
-              <span className="todo-tag">
+              <span className="todo-tag board-card-project" title={project.name}>
                 <span className="todo-dot" style={{ background: project.color || "var(--text-muted)" }} />
-                {project.name}
+                <span className="board-card-project-name">{project.name}</span>
               </span>
             )}
-            {card.followUp && <DateLabel date={card.followUp} today={today} done={done} />}
             {attachments.length > 0 && (
               <span className="todo-tag" title={t("todoAttachments")}>
                 <PaperclipIcon size={14} /> {attachments.length}
               </span>
             )}
-            {card.mail && (
-              <button
-                className="icon-btn todo-mail"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (card.mail) onOpenMail(card.mail);
-                }}
-                title={tip("todoOpenMail")}
-                aria-label={t("todoOpenMail")}
-              >
-                <MailIcon size={15} />
-              </button>
+            {/* The mail link and the date sit on the right, the date last. */}
+            {(card.mail || card.followUp) && (
+              <span className="board-card-end">
+                {card.mail && (
+                  <button
+                    className="icon-btn todo-mail"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (card.mail) onOpenMail(card.mail);
+                    }}
+                    title={tip("todoOpenMail")}
+                    aria-label={t("todoOpenMail")}
+                  >
+                    <MailIcon size={15} />
+                  </button>
+                )}
+                {card.followUp && <DateLabel date={card.followUp} today={today} done={done} />}
+              </span>
             )}
           </div>
         )}

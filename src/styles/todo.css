@@ -72,8 +72,12 @@
   overflow-x: auto;
   overflow-y: hidden;
 }
+/* Columns share the board width, so six always fit side by side; only a
+   seventh column brings the horizontal scrollbar. 60px = the five gaps. */
 .board-col {
-  flex: 0 0 280px;
+  flex: 1 1 0;
+  min-width: calc((100% - 60px) / 6);
+  max-width: 340px;
   max-height: 100%;
   display: flex;
   flex-direction: column;
@@ -176,7 +180,14 @@
   overflow-wrap: anywhere;
 }
 .board-card-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
-.board-card-foot .todo-mail { margin-left: auto; }
+/* A long project name in a narrow column ends in an ellipsis. */
+.board-card-project { min-width: 0; max-width: 100%; }
+.board-card-project-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* The date always on the right, also when the footer wraps. */
+.board-card-end { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+/* Holding the mouse wheel to scroll the board sideways (TodoView startPan). */
+body.board-panning,
+body.board-panning * { cursor: ew-resize !important; user-select: none; }
 
 .board-add {
   display: flex;
@@ -195,6 +206,8 @@
 .board-add:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
 .board-inline-add { padding: 4px 8px 8px; display: flex; flex-direction: column; gap: 6px; }
 .board-inline-add textarea { resize: none; }
+.board-inline-project { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.board-inline-project select { flex: 1; min-width: 0; width: auto; }
 .board-inline-actions { display: flex; gap: 6px; }
 
 .todo-tag {
@@ -376,7 +389,6 @@
 /* Narrow window: smaller sidebar and columns. */
 @media (max-width: 1100px) {
   .todo { grid-template-columns: 190px minmax(0, 1fr); }
-  .board-col { flex-basis: 250px; }
   .board-search input { width: 150px; }
   .card-dialog-grid { grid-template-columns: 1fr; }
 }

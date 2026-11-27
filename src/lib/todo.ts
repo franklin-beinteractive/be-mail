@@ -429,6 +429,20 @@ export function suggestProject(
   return { newName: base.charAt(0).toUpperCase() + base.slice(1) };
 }
 
+/** Card colour after the card moves from one project to another: a new card
+ *  or one still in its old project's colour takes the new project's colour;
+ *  a colour picked by hand stays. */
+export function colorForProject(
+  data: TodoData | null,
+  card: Pick<Task, "color" | "projectId"> | null,
+  projectId: number | null
+): string {
+  const colorOf = (id: number | null) =>
+    id == null ? "" : (data?.projects.find((p) => p.id === id)?.color ?? "");
+  if (card && card.color && card.color !== colorOf(card.projectId)) return card.color;
+  return colorOf(projectId);
+}
+
 /** Palette offered for projects, columns and cards. */
 export const COLORS = [
   "#0f6cbd", "#8764b8", "#ca5010", "#498205", "#c19c00",

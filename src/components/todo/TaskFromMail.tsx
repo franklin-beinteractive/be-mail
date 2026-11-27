@@ -63,14 +63,17 @@ export default function TaskFromMail({
     setBusy(true);
     try {
       let projectId: number | null = existing?.id ?? null;
+      // The card starts in its project's colour.
+      let color = existing?.color ?? "";
       if (existing?.archived) await todoApi.saveProject({ ...existing, archived: false });
       if (!existing && projectText.trim()) {
-        const color = COLORS[data.projects.length % COLORS.length];
+        color = COLORS[data.projects.length % COLORS.length];
         projectId = (await todoApi.saveProject({ name: projectText, color })).id;
       }
       await todoApi.saveTask({
         title,
         projectId,
+        color,
         columnId: columnId ?? data.columns[0]?.id ?? null,
         followUp: followUp || null,
         note: "",

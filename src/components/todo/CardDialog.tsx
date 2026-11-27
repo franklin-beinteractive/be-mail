@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useApp } from "../../lib/ctx";
 import {
   archiveCutoff,
+  colorForProject,
   COLORS,
   doneColumnIds,
   formatSize,
@@ -258,7 +259,10 @@ export default function CardDialog({
               <span>{t("todoProject")}</span>
               <select
                 value={card.projectId ?? ""}
-                onChange={(e) => void save({ projectId: e.target.value ? Number(e.target.value) : null })}
+                onChange={(e) => {
+                  const projectId = e.target.value ? Number(e.target.value) : null;
+                  void save((cur) => ({ projectId, color: colorForProject(data, cur, projectId) }));
+                }}
               >
                 <option value="">{t("todoNoProject")}</option>
                 {projects.map((p) => (

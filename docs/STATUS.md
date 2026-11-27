@@ -3,7 +3,21 @@
 > Waar zijn we gebleven? Dit document wordt bij elke afgeronde stap bijgewerkt.
 > De wensenlijst zelf staat in [FEATURES.md](FEATURES.md); dit is de *werkelijke* stand.
 
-**Laatst bijgewerkt:** 2026-11-27 - **Security- en optimalisatiecheck** op
+**Laatst bijgewerkt:** 2026-11-27 - **Takenbord: breedte, scrollen en
+projectkleur.** Kolommen delen de bordbreedte (`flex: 1 1 0`, min. 1/6 van
+het bord, max. 340px): zes passen altijd, pas een zevende geeft een
+horizontale schuifbalk. Scrollwiel ingedrukt + muis links/rechts schuift het
+bord (`startPan` in `TodoView`, verhouding als bij de schuifbalk). De datum
+op een kaartje staat altijd rechts (mail-icoon ervoor); lange projectnamen
+eindigen op "...". Kaart toevoegen heeft bovenaan een projectkeuze (standaard
+het getoonde project) met de titel eronder; een nieuwe kaart krijgt de
+projectkleur, ook via "Taak maken" vanuit een mail. Wisselt een kaart van
+project (in de kaart of door slepen), dan volgt de kleur alleen als die nog
+de oude projectkleur (of leeg) was: een met de hand gekozen kleur blijft
+(`colorForProject()` in `src/lib/todo.ts`). Geen migratie: de kleur is het
+bestaande veld `task.color`.
+
+**Eerder op 2026-11-27 - Security- en optimalisatiecheck** op
 alles na 0.3.1, gevonden punten meteen opgelost: na het verwijderen van
 kaarten of bijlagen draait `PRAGMA wal_checkpoint(TRUNCATE)` (`purge_wal`),
 zodat oude kopieën ook uit `todo.db-wal` verdwijnen; teksten met
